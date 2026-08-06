@@ -4,6 +4,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../mosques/presentation/screens/manage_mosques_screen.dart';
 import '../providers/auth_provider.dart';
 import 'create_teacher_screen.dart';
+import 'manage_teachers_screen.dart';
 
 class SupervisorDashboardScreen extends ConsumerWidget {
   const SupervisorDashboardScreen({super.key});
@@ -66,6 +67,17 @@ class SupervisorDashboardScreen extends ConsumerWidget {
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => const ManageMosquesScreen(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _DashboardCard(
+              icon: Icons.people_alt_rounded,
+              title: 'إدارة المعلمات',
+              subtitle: 'عرض المعلمات، تفعيل أو تعطيل حساباتهن',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const ManageTeachersScreen(),
                 ),
               ),
             ),

@@ -20,4 +20,9 @@ abstract class AuthRepository {
 
   /// تغيير كلمة المرور للمستخدم الحالي
   Future<void> changePassword(String newPassword);
+  /// جلب جميع المعلمات (كـ Stream حيّة)
+  Stream<List<UserModel>> watchAllTeachers();
+
+  /// تعطيل/تفعيل حساب معلمة
+  Future<void> setTeacherActive(String uid, bool isActive);
 }

@@ -98,4 +98,22 @@ class AuthRepositoryImpl implements AuthRepository {
     if (user == null) throw Exception('لا يوجد مستخدم مسجّل دخول');
     await user.updatePassword(newPassword);
   }
+  @override
+  Stream<List<UserModel>> watchAllTeachers() {
+    return _firestore
+        .collection(_usersCollection)
+        .where('role', isEqualTo: 'teacher')
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => UserModel.fromJson(doc.id, doc.data()))
+            .toList());
+  }
+
+  @override
+  Future<void> setTeacherActive(String uid, bool isActive) async {
+    await _firestore
+        .collection(_usersCollection)
+        .doc(uid)
+        .update({'isActive': isActive});
+  }
 }
