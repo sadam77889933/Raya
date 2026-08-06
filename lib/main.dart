@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
-
-void main() {
+import 'firebase_options.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'features/auth/presentation/providers/auth_provider.dart';
+import 'features/auth/presentation/screens/login_screen.dart';
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -27,13 +35,13 @@ void main() {
   );
 }
 
-class QuranCircleReportApp extends StatelessWidget {
+class QuranCircleReportApp extends ConsumerWidget {
   const QuranCircleReportApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'تقارير الحلقات',
+  Widget build(BuildContext context, WidgetRef ref) {
+    return MaterialApp(
+      title: 'دفتر الحلقة',
       builder: (context, child) {
         return Directionality(
           textDirection: TextDirection.rtl,
@@ -42,7 +50,28 @@ class QuranCircleReportApp extends StatelessWidget {
       },
       theme: AppTheme.lightTheme,
       debugShowCheckedModeBanner: false,
-      routerConfig: appRouter,
+      home: const _AuthGate(),
     );
+  }
+}
+/// بوابة تحقق: توجّه المستخدم لتسجيل الدخول أو للتطبيق حسب حالته
+class _AuthGate extends ConsumerWidget {
+  const _AuthGate();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authProvider);
+
+    switch (authState.status) {
+      case AuthStatus.checking:
+        return const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        );
+      case AuthStatus.signedOut:
+      case AuthStatus.error:
+        return const LoginScreen();
+      case AuthStatus.signedIn:
+        return Router.withConfig(config: appRouter);
+    }
   }
 }

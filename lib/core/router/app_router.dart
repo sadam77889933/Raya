@@ -7,9 +7,11 @@ import '../../features/report_form/presentation/screens/students_table_screen.da
 import '../../features/report_form/presentation/screens/report_preview_screen.dart';
 import '../../features/pdf_export/presentation/screens/pdf_export_screen.dart';
 import '../../features/roster/presentation/screens/roster_screen.dart';
+import '../../features/auth/presentation/screens/login_screen.dart';
 class AppRoutes {
   AppRoutes._();
   static const String home = '/';
+  static const String login = '/login';
   static const String roster = '/roster';
   static const String circleInfo = '/circle-info';
   static const String studentsTable = '/students-table';
@@ -20,6 +22,13 @@ class AppRoutes {
 final appRouter = GoRouter(
   initialLocation: AppRoutes.home,
   routes: [
+    GoRoute(
+      path: AppRoutes.login,
+      pageBuilder: (context, state) => _buildPage(
+        state: state,
+        child: const LoginScreen(),
+      ),
+    ),
     GoRoute(
       path: AppRoutes.home,
       pageBuilder: (context, state) => _buildPage(

@@ -1,0 +1,23 @@
+import '../entities/user_model.dart';
+
+abstract class AuthRepository {
+  /// تسجيل الدخول بالبريد وكلمة المرور
+  Future<UserModel> signIn(String email, String password);
+
+  /// تسجيل الخروج
+  Future<void> signOut();
+
+  /// المستخدم الحالي (null لو لا يوجد تسجيل دخول)
+  Future<UserModel?> getCurrentUser();
+
+  /// إنشاء حساب معلمة جديد (تستخدمها المشرفة فقط)
+  Future<void> createTeacherAccount({
+    required String email,
+    required String password,
+    required String name,
+    required String mosqueId,
+  });
+
+  /// تغيير كلمة المرور للمستخدم الحالي
+  Future<void> changePassword(String newPassword);
+}
