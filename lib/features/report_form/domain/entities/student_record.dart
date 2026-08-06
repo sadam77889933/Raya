@@ -89,4 +89,37 @@ class StudentRecord extends Equatable {
         attendanceDays, absenceDays, absenceReason,
         companionCurriculum, notes,
       ];
+      Map<String, dynamic> toJson() => {
+        'index': index,
+        'name': name,
+        'startSurah': startSurah,
+        'endSurah': endSurah,
+        'grade': grade,
+        'reviewStartSurah': reviewStartSurah,
+        'reviewEndSurah': reviewEndSurah,
+        'reviewGrade': reviewGrade,
+        'attendanceDays': attendanceDays,
+        'absenceDays': absenceDays,
+        'absenceReason': absenceReason,
+        'companionCurriculum': companionCurriculum,
+        'notes': notes,
+      };
+
+  factory StudentRecord.fromJson(Map<String, dynamic> json) {
+    return StudentRecord(
+      index: json['index'] as int,
+      name: json['name'] as String,
+      startSurah: json['startSurah'] as String,
+      endSurah: json['endSurah'] as String,
+      grade: json['grade'] as String,
+      reviewStartSurah: json['reviewStartSurah'] as String? ?? '',
+      reviewEndSurah: json['reviewEndSurah'] as String? ?? '',
+      reviewGrade: json['reviewGrade'] as String? ?? '',
+      attendanceDays: json['attendanceDays'] as int? ?? 0,
+      absenceDays: json['absenceDays'] as int? ?? 0,
+      absenceReason: json['absenceReason'] as String? ?? '',
+      companionCurriculum: json['companionCurriculum'] as String? ?? '',
+      notes: json['notes'] as String? ?? '',
+    );
+  }
 }

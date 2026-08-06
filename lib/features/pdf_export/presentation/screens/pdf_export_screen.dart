@@ -11,7 +11,8 @@ import '../../../../core/theme/app_theme.dart';
 import '../../data/pdf_generator.dart';
 import '../../../report_form/presentation/providers/report_form_provider.dart';
 import '../../../report_form/presentation/widgets/step_indicator.dart';
-
+import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../report_form/presentation/providers/firestore_report_provider.dart';
 enum _PdfStatus { idle, generating, ready, error }
 
 class _PdfExportState {
@@ -27,13 +28,17 @@ class _PdfExportState {
 }
 
 class _PdfExportNotifier extends StateNotifier<_PdfExportState> {
-  _PdfExportNotifier() : super(const _PdfExportState());
+  final Ref _ref;
+  _PdfExportNotifier(this._ref) : super(const _PdfExportState());
 
   Future<void> generatePdf(dynamic report) async {
     state = const _PdfExportState(status: _PdfStatus.generating);
     try {
       final path = await PdfGenerator.instance.generate(report);
       state = _PdfExportState(status: _PdfStatus.ready, pdfPath: path);
+
+      // رفع التقرير للسحابة — لا نوقف المستخدمة لو فشل الرفع
+      _uploadToFirestore(report);
     } catch (e) {
       state = _PdfExportState(
         status: _PdfStatus.error,
@@ -41,11 +46,27 @@ class _PdfExportNotifier extends StateNotifier<_PdfExportState> {
       );
     }
   }
+
+  Future<void> _uploadToFirestore(dynamic report) async {
+    try {
+      final user = _ref.read(authProvider).user;
+      if (user == null) return;
+
+      await _ref.read(firestoreReportServiceProvider).uploadReport(
+            report,
+            teacherId: user.uid,
+            mosqueId: user.mosqueId ?? '',
+          );
+    } catch (_) {
+      // الرفع فشل (مثلاً بلا إنترنت) — التقرير المحلي وPDF سليمان
+      // لا نعرض خطأً للمعلمة الآن؛ لاحقاً سنبني نظام مزامنة عند توفر الإنترنت
+    }
+  }
 }
 
 final _pdfExportProvider =
     StateNotifierProvider.autoDispose<_PdfExportNotifier, _PdfExportState>(
-  (ref) => _PdfExportNotifier(),
+  (ref) => _PdfExportNotifier(ref),
 );
 
 class PdfExportScreen extends ConsumerStatefulWidget {

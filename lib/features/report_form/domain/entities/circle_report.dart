@@ -40,4 +40,21 @@ class CircleReport extends Equatable {
 
   @override
   List<Object?> get props => [id, circleInfo, students, createdAt];
+  Map<String, dynamic> toFirestoreJson({
+    required String teacherId,
+    required String mosqueId,
+  }) {
+    return {
+      'teacherId': teacherId,
+      'teacherName': circleInfo.teacherName,
+      'mosqueId': mosqueId,
+      'circleName': circleInfo.circleName,
+      'schoolName': circleInfo.schoolName,
+      'month': circleInfo.month,
+      'year': circleInfo.year,
+      'studentsCount': circleInfo.studentsCount,
+      'students': students.map((s) => s.toJson()).toList(),
+      'createdAt': createdAt.toIso8601String(),
+    };
+  }
 }
