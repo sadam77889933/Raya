@@ -8,6 +8,7 @@ import '../../features/report_form/presentation/screens/report_preview_screen.da
 import '../../features/pdf_export/presentation/screens/pdf_export_screen.dart';
 import '../../features/roster/presentation/screens/roster_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
+import '../../features/mosques/presentation/screens/manage_mosques_screen.dart';
 class AppRoutes {
   AppRoutes._();
   static const String home = '/';
@@ -17,6 +18,7 @@ class AppRoutes {
   static const String studentsTable = '/students-table';
   static const String reportPreview = '/report-preview';
   static const String pdfExport = '/pdf-export';
+  static const String manageMosques = '/manage-mosques';
 }
 
 final appRouter = GoRouter(
@@ -27,6 +29,13 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => _buildPage(
         state: state,
         child: const LoginScreen(),
+      ),
+    ),
+    GoRoute(
+      path: AppRoutes.manageMosques,
+      pageBuilder: (context, state) => _buildPage(
+        state: state,
+        child: const ManageMosquesScreen(),
       ),
     ),
     GoRoute(

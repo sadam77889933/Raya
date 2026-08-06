@@ -117,6 +117,7 @@ class HomeScreen extends StatelessWidget {
           icon: const Icon(Icons.groups_rounded, size: 22),
           label: const Text('سجل الحلقة'),
         ),
+
       ],
     );
   }
