@@ -9,6 +9,7 @@ import 'firebase_options.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'features/auth/presentation/providers/auth_provider.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
+import 'features/auth/presentation/screens/supervisor_dashboard_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -71,6 +72,10 @@ class _AuthGate extends ConsumerWidget {
       case AuthStatus.error:
         return const LoginScreen();
       case AuthStatus.signedIn:
+        final user = authState.user;
+        if (user != null && user.isSupervisor) {
+          return const SupervisorDashboardScreen();
+        }
         return Router.withConfig(config: appRouter);
     }
   }
