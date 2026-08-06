@@ -1,16 +1,53 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
+import '../../../pdf_export/data/pdf_generator.dart';
 import '../../domain/entities/report_summary.dart';
 
-class ReportDetailScreen extends ConsumerWidget {
+class ReportDetailScreen extends ConsumerStatefulWidget {
   final ReportSummary report;
 
   const ReportDetailScreen({super.key, required this.report});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ReportDetailScreen> createState() =>
+      _ReportDetailScreenState();
+}
+
+class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
+  bool _isSharing = false;
+
+  Future<void> _shareReport(String mosqueName) async {
+    setState(() => _isSharing = true);
+    try {
+      final circleReport = widget.report.toCircleReport();
+      final updatedReport = circleReport.copyWith(
+        circleInfo: circleReport.circleInfo.copyWith(mosqueName: mosqueName),
+      );
+
+      final path = await PdfGenerator.instance.generate(updatedReport);
+
+      if (!mounted) return;
+      await Share.shareXFiles(
+        [XFile(path)],
+        subject: 'تقرير حلقة القرآن الكريم',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذّر إنشاء الملف: ${e.toString()}')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSharing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final report = widget.report;
     final mosques = ref.watch(activeMosquesProvider);
     final mosqueName = mosques
             .where((m) => m.id == report.mosqueId)
@@ -22,12 +59,29 @@ class ReportDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('تفاصيل التقرير'),
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _isSharing ? null : () => _shareReport(mosqueName),
+        backgroundColor: const Color(0xFF25D366),
+        icon: _isSharing
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : const Icon(Icons.share_rounded, color: Colors.white),
+        label: Text(
+          _isSharing ? 'جاري التحضير...' : 'مشاركة PDF',
+          style: const TextStyle(fontFamily: 'Tajawal', color: Colors.white),
+        ),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ─── بطاقة المعلومات ─────────────────────────────
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -91,8 +145,9 @@ class ReportDetailScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 10),
 
-            // ─── قائمة الطالبات ─────────────────────────────
             ...report.students.map((s) => _StudentCard(student: s)),
+
+            const SizedBox(height: 80),
           ],
         ),
       ),

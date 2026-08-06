@@ -1,3 +1,6 @@
+import 'circle_info.dart';
+import 'circle_report.dart';
+import 'student_record.dart';
 class ReportSummary {
   final String id;
   final String teacherName;
@@ -39,6 +42,26 @@ class ReportSummary {
               ?.map((e) => e as Map<String, dynamic>)
               .toList() ??
           [],
+    );
+  }
+  /// تحويل الملخص إلى CircleReport كامل لإعادة استخدام PdfGenerator
+  /// الموجود بالفعل بدون تكرار أي كود
+  CircleReport toCircleReport() {
+    return CircleReport(
+      id: id,
+      circleInfo: CircleInfo(
+        teacherName: teacherName,
+        circleName: circleName,
+        mosqueName: '', // يُملأ من الخارج عند الحاجة لاسم المسجد الحقيقي
+        schoolName: schoolName,
+        month: month,
+        year: year,
+        studentsCount: studentsCount,
+      ),
+      students: students
+          .map((s) => StudentRecord.fromJson(s))
+          .toList(),
+      createdAt: createdAt,
     );
   }
 }
