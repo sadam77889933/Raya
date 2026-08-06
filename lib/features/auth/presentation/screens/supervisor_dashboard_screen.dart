@@ -5,7 +5,7 @@ import '../../../mosques/presentation/screens/manage_mosques_screen.dart';
 import '../providers/auth_provider.dart';
 import 'create_teacher_screen.dart';
 import 'manage_teachers_screen.dart';
-
+import '../../../report_form/presentation/screens/all_reports_screen.dart';
 class SupervisorDashboardScreen extends ConsumerWidget {
   const SupervisorDashboardScreen({super.key});
 
@@ -86,9 +86,12 @@ class SupervisorDashboardScreen extends ConsumerWidget {
             _DashboardCard(
               icon: Icons.description_rounded,
               title: 'جميع التقارير',
-              subtitle: 'قريباً — عرض والبحث في تقارير كل المساجد',
-              onTap: null,
-              isComingSoon: true,
+              subtitle: 'عرض والبحث في تقارير كل المساجد',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const AllReportsScreen(),
+                ),
+              ),
             ),
           ],
         ),
