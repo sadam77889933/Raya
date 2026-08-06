@@ -1,0 +1,432 @@
+﻿import 'dart:io';
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+
+import '../../report_form/domain/entities/circle_report.dart';
+import '../../report_form/domain/entities/student_record.dart';
+
+class PdfGenerator {
+  PdfGenerator._();
+  static final PdfGenerator instance = PdfGenerator._();
+
+  static const _line     = PdfColors.black;
+  static const _headerBg = PdfColor(0.851, 0.851, 0.851);
+  static const _rowAlt   = PdfColor(0.949, 0.949, 0.949);
+
+  static const double _pageW   = 595.15;
+  static const double _pageH   = 842.01;
+  static const double _marginH = 7.0;
+
+  static const double _h1      = 57.0;
+  static const double _h2      = 15.0;
+  static const double _rowH    = 14.0;
+  static const int    _perPage = 24;
+
+  static const double _wNotes   = 63;
+  static const double _wCurric  = 36;
+  static const double _wAbsent  = 28;
+  static const double _wAttend  = 29;
+  static const double _wBehav   = 35;
+  static const double _wRevGrade = 36;
+  static const double _wRevTo    = 49;
+  static const double _wRevFrom  = 42;
+  static const double _wHifGrade = 36;
+  static const double _wHifTo    = 43;
+  static const double _wHifFrom  = 42;
+  static const double _wName     = 121;
+  static const double _wNum      = 21;
+
+  static const double _grpReview = _wRevGrade + _wRevTo + _wRevFrom;
+  static const double _grpHifz   = _wHifGrade + _wHifTo + _wHifFrom;
+
+  static const Map<int, pw.TableColumnWidth> _cols = {
+    0:  pw.FixedColumnWidth(_wNotes),
+    1:  pw.FixedColumnWidth(_wCurric),
+    2:  pw.FixedColumnWidth(_wAbsent),
+    3:  pw.FixedColumnWidth(_wAttend),
+    4:  pw.FixedColumnWidth(_wBehav),
+    5:  pw.FixedColumnWidth(_wRevGrade),
+    6:  pw.FixedColumnWidth(_wRevTo),
+    7:  pw.FixedColumnWidth(_wRevFrom),
+    8:  pw.FixedColumnWidth(_wHifGrade),
+    9:  pw.FixedColumnWidth(_wHifTo),
+    10: pw.FixedColumnWidth(_wHifFrom),
+    11: pw.FixedColumnWidth(_wName),
+    12: pw.FixedColumnWidth(_wNum),
+  };
+
+  Future<String> generate(CircleReport report) async {
+    final font     = await _loadFont('assets/fonts/Amiri-Regular.ttf');
+    final fontBold = await _loadFont('assets/fonts/Amiri-Bold.ttf');
+    final stampBytes = await rootBundle.load('assets/images/stamp.png');
+    final stampImage = pw.MemoryImage(stampBytes.buffer.asUint8List());
+
+    final pdf = pw.Document(
+      theme: pw.ThemeData.withFont(base: font, bold: fontBold),
+    );
+
+    final total     = report.circleInfo.studentsCount;
+    final pageCount = (total / _perPage).ceil().clamp(1, 999);
+
+    for (int p = 0; p < pageCount; p++) {
+      final start = p * _perPage;
+      final end   = ((p + 1) * _perPage).clamp(0, total);
+      pdf.addPage(
+        pw.Page(
+          pageFormat: const PdfPageFormat(_pageW, _pageH),
+          margin: pw.EdgeInsets.zero,
+          build: (ctx) => _page(
+            report, font, fontBold, stampImage,
+            start: start, end: end,
+            page: p + 1, pages: pageCount,
+          ),
+        ),
+      );
+    }
+
+    final dir  = await getTemporaryDirectory();
+    final file = File('${dir.path}/${report.suggestedFileName}');
+    await file.writeAsBytes(await pdf.save());
+    return file.path;
+  }
+
+  pw.Widget _page(
+    CircleReport report,
+    pw.Font font,
+    pw.Font bold,
+    pw.MemoryImage stampImage, {
+    required int start,
+    required int end,
+    required int page,
+    required int pages,
+  }) {
+    final i = report.circleInfo;
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: _marginH, vertical: 6),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          _orgHeader(bold),
+          pw.SizedBox(height: 4),
+          _monthBanner(i.month, i.year, font, bold),
+          _infoRow(
+            leftLabel: 'مدرسة/ دار: ', leftValue: i.schoolName,
+            rightLabel: 'المسجد: ',    rightValue: i.mosqueName,
+            font: font, bold: bold,
+          ),
+          _infoRow(
+            leftLabel: 'معلمـ/ــة الحلقة: ', leftValue: i.teacherName,
+            rightLabel: 'اسم الحلقة: ',      rightValue: i.circleName,
+            font: font, bold: bold,
+          ),
+          _countRow(i.studentsCount, font, bold),
+          pw.SizedBox(height: 5),
+          _tableHeader(bold),
+          _dataTable(report.students, font, start: start, end: end),
+          pw.Spacer(),
+          _footer(i.teacherName, font, bold, stampImage, page: page, pages: pages),
+          pw.SizedBox(height: 4),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _orgHeader(pw.Font bold) {
+    return pw.Align(
+      alignment: pw.Alignment.centerRight,
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.end,
+        children: [
+          _rtl('مجمع آيات بينات لتعليم القرآن', bold, 11),
+          _rtl('الكريم وعلومه', bold, 11),
+          _rtl('شبوة- عتق', bold, 12),
+        ],
+      ),
+    );
+  }
+
+ pw.Widget _monthBanner(String month, String year, pw.Font font, pw.Font bold) {
+    return pw.Container(
+      width: double.infinity,
+      decoration: pw.BoxDecoration(border: pw.Border.all(color: _line, width: 0.6)),
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.center,
+        children: [
+          _rtl('$year هـ', bold, 9),
+          pw.SizedBox(width: 10),
+          _rtl(
+            'التقرير الشهري لحلقات مجمع آيات بينات لتعليم القرآن الكريم وعلومه لشهر: $month',
+            font, 9,
+          ),
+        ],
+      ),
+    );
+  }
+  pw.Widget _infoRow({
+    required String leftLabel,
+    required String leftValue,
+    required String rightLabel,
+    required String rightValue,
+    required pw.Font font,
+    required pw.Font bold,
+  }) {
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+        border: pw.Border(
+          left:   pw.BorderSide(color: _line, width: 0.6),
+          right:  pw.BorderSide(color: _line, width: 0.6),
+          bottom: pw.BorderSide(color: _line, width: 0.6),
+        ),
+      ),
+      child: pw.Row(
+        children: [
+          pw.Expanded(child: _labelValue(leftLabel,  leftValue,  font, bold)),
+          pw.Container(width: 0.6, height: 20, color: _line),
+          pw.Expanded(child: _labelValue(rightLabel, rightValue, font, bold)),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _labelValue(String label, String value, pw.Font font, pw.Font bold) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: pw.Align(
+        alignment: pw.Alignment.centerRight,
+        child: pw.RichText(
+          textDirection: pw.TextDirection.rtl,
+          text: pw.TextSpan(children: [
+            pw.TextSpan(text: label,
+                style: pw.TextStyle(font: bold, fontSize: 9)),
+            pw.TextSpan(text: value,
+                style: pw.TextStyle(font: font, fontSize: 9)),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  pw.Widget _countRow(int count, pw.Font font, pw.Font bold) {
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+        border: pw.Border(
+          left:   pw.BorderSide(color: _line, width: 0.6),
+          right:  pw.BorderSide(color: _line, width: 0.6),
+          bottom: pw.BorderSide(color: _line, width: 0.6),
+        ),
+      ),
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: pw.Align(
+        alignment: pw.Alignment.centerRight,
+        child: pw.RichText(
+          textDirection: pw.TextDirection.rtl,
+          text: pw.TextSpan(children: [
+            pw.TextSpan(text: 'عدد الطلاب ',
+                style: pw.TextStyle(font: bold, fontSize: 9)),
+            pw.TextSpan(text: '( $count )',
+                style: pw.TextStyle(font: bold, fontSize: 9)),
+            pw.TextSpan(text: '   وقت الحلقة: عصراً',
+                style: pw.TextStyle(font: font, fontSize: 9)),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  pw.Widget _tableHeader(pw.Font bold) {
+    const totalH = _h1 + _h2;
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        _tall('ملاحظات', bold, _wNotes, totalH),
+        _tallML(['المنهج', 'المصاحب'], bold, _wCurric, totalH),
+        _tall('غ', bold, _wAbsent, totalH),
+        _tall('ح', bold, _wAttend, totalH),
+        _tallML(['السلوك', 'والانضباط'], bold, _wBehav, totalH),
+        _group('المراجعة', bold, _grpReview,
+            [_wRevGrade, _wRevTo, _wRevFrom]),
+        _group('الحفظ', bold, _grpHifz,
+            [_wHifGrade, _wHifTo, _wHifFrom]),
+        _tall('اسم الطالبـ/ـة', bold, _wName, totalH),
+        _tall('م', bold, _wNum, totalH),
+      ],
+    );
+  }
+
+  pw.Widget _group(String title, pw.Font bold, double width, List<double> subs) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Container(
+          width: width,
+          height: _h1,
+          decoration: pw.BoxDecoration(
+            color: _headerBg,
+            border: pw.Border.all(color: _line, width: 0.6),
+          ),
+          child: pw.Center(child: _rtl(title, bold, 9)),
+        ),
+        pw.Row(children: [
+          _sub('التقدير', bold, subs[0]),
+          _sub('إلى',     bold, subs[1]),
+          _sub('من',      bold, subs[2]),
+        ]),
+      ],
+    );
+  }
+
+  pw.Widget _tall(String text, pw.Font bold, double w, double h) {
+    return pw.Container(
+      width: w, height: h,
+      decoration: pw.BoxDecoration(
+        color: _headerBg,
+        border: pw.Border.all(color: _line, width: 0.6),
+      ),
+      child: pw.Center(child: _rtl(text, bold, 9)),
+    );
+  }
+
+  pw.Widget _tallML(List<String> lines, pw.Font bold, double w, double h) {
+    return pw.Container(
+      width: w, height: h,
+      decoration: pw.BoxDecoration(
+        color: _headerBg,
+        border: pw.Border.all(color: _line, width: 0.6),
+      ),
+      child: pw.Center(
+        child: pw.Column(
+          mainAxisAlignment: pw.MainAxisAlignment.center,
+          children: lines.map((l) => _rtl(l, bold, 7)).toList(),
+        ),
+      ),
+    );
+  }
+
+  pw.Widget _sub(String text, pw.Font bold, double w) {
+    return pw.Container(
+      width: w, height: _h2,
+      decoration: pw.BoxDecoration(
+        color: _headerBg,
+        border: pw.Border.all(color: _line, width: 0.6),
+      ),
+      child: pw.Center(child: _rtl(text, bold, 8)),
+    );
+  }
+
+  pw.Widget _dataTable(
+    List<StudentRecord> students,
+    pw.Font font, {
+    required int start,
+    required int end,
+  }) {
+    return pw.Table(
+      columnWidths: _cols,
+      border: pw.TableBorder.all(color: _line, width: 0.6),
+      defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
+      children: List.generate(end - start, (i) {
+        final n = start + i + 1;
+        final s = (start + i) < students.length ? students[start + i] : null;
+        return _dataRow(n, s, font);
+      }),
+    );
+  }
+
+  pw.TableRow _dataRow(int n, StudentRecord? s, pw.Font font) {
+    final bg = n.isEven ? _rowAlt : PdfColors.white;
+    return pw.TableRow(
+      decoration: pw.BoxDecoration(color: bg),
+      children: [
+        _cell(s?.notes ?? '', font),
+        _cell(s?.companionCurriculum ?? '', font),
+        _cell(s == null ? '' : (s.absenceDays > 0 ? '${s.absenceDays}' : '-'), font),
+        _cell(s == null ? '' : (s.attendanceDays > 0 ? '${s.attendanceDays}' : ''), font),
+        _cell(s == null ? '' : '${s.behaviorScore}', font),
+        _cell(s?.reviewGrade ?? '', font),
+        _cell(s?.reviewEndSurah ?? '', font),
+        _cell(s?.reviewStartSurah ?? '', font),
+        _cell(s?.grade ?? '', font),
+        _cell(s?.endSurah ?? '', font),
+        _cell(s?.startSurah ?? '', font),
+        _cell(s?.name ?? '', font, right: true),
+        _cell('$n', font),
+      ],
+    );
+  }
+
+  pw.Widget _cell(String text, pw.Font font, {bool right = false}) {
+    final isNumeric = RegExp(r'^[0-9\-]*$').hasMatch(text);
+    return pw.SizedBox(
+      height: _rowH,
+      child: pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 3),
+        child: pw.Align(
+          alignment: right ? pw.Alignment.centerRight : pw.Alignment.center,
+          child: pw.Text(
+            text,
+            textDirection: isNumeric ? pw.TextDirection.ltr : pw.TextDirection.rtl,
+            style: pw.TextStyle(font: font, fontSize: 8),
+            textAlign: right ? pw.TextAlign.right : pw.TextAlign.center,
+            maxLines: 1,
+            overflow: pw.TextOverflow.clip,
+          ),
+        ),
+      ),
+    );
+  }
+
+pw.Widget _footer(String teacher, pw.Font font, pw.Font bold, pw.MemoryImage stampImage,
+      {required int page, required int pages}) {
+    return pw.Column(children: [
+      pw.SizedBox(height: 6),
+      pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          _rtl('التوقيع:...........................', font, 9),
+          if (pages > 1) _rtl('$page / $pages', font, 8),
+          // الختم بجانب المشرفة
+          pw.Row(
+            children: [
+              pw.Image(stampImage, width: 55, height: 55),
+              pw.SizedBox(width: 6),
+              pw.RichText(
+                textDirection: pw.TextDirection.rtl,
+                text: pw.TextSpan(children: [
+                  pw.TextSpan(text: 'مشرفـ/ـة الحلقات: ',
+                      style: pw.TextStyle(font: bold, fontSize: 9)),
+                  pw.TextSpan(text: 'أم وُد',
+                      style: pw.TextStyle(font: font, fontSize: 9)),
+                ]),
+              ),
+            ],
+          ),
+          pw.RichText(
+            textDirection: pw.TextDirection.rtl,
+            text: pw.TextSpan(children: [
+              pw.TextSpan(text: 'معلمـ/ـة الحلقة: ',
+                  style: pw.TextStyle(font: bold, fontSize: 9)),
+              pw.TextSpan(text: teacher,
+                  style: pw.TextStyle(font: font, fontSize: 9)),
+            ]),
+          ),
+        ],
+      ),
+    ]);
+  }
+  pw.Widget _rtl(String text, pw.Font font, double size) {
+    return pw.Text(
+      text,
+      textDirection: pw.TextDirection.rtl,
+      style: pw.TextStyle(font: font, fontSize: size),
+      textAlign: pw.TextAlign.center,
+    );
+  }
+
+  Future<pw.Font> _loadFont(String path) async {
+    final data = await rootBundle.load(path);
+    return pw.Font.ttf(data);
+  }
+}
