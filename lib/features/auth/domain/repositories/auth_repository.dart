@@ -20,6 +20,8 @@ abstract class AuthRepository {
 
   /// تغيير كلمة المرور للمستخدم الحالي
   Future<void> changePassword(String newPassword);
+  /// إرسال رابط إعادة تعيين كلمة المرور للبريد المُدخل
+  Future<void> sendPasswordResetEmail(String email);
   /// جلب جميع المعلمات (كـ Stream حيّة)
   Stream<List<UserModel>> watchAllTeachers();
 

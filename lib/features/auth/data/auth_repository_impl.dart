@@ -116,4 +116,8 @@ class AuthRepositoryImpl implements AuthRepository {
         .doc(uid)
         .update({'isActive': isActive});
   }
+  @override
+  Future<void> sendPasswordResetEmail(String email) async {
+    await _auth.sendPasswordResetEmail(email: email.trim());
+  }
 }

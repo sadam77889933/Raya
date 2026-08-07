@@ -33,6 +33,81 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           _passwordController.text.trim(),
         );
   }
+  Future<void> _showForgotPasswordDialog() async {
+    final controller = TextEditingController(text: _emailController.text);
+
+    final email = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'إعادة تعيين كلمة المرور',
+          style: TextStyle(fontFamily: 'Tajawal', fontWeight: FontWeight.w700),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'أدخلي بريدك الإلكتروني، وسنُرسل لك رابطاً لإعادة تعيين كلمة المرور',
+              style: TextStyle(fontFamily: 'Tajawal', fontSize: 12),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              textDirection: TextDirection.ltr,
+              keyboardType: TextInputType.emailAddress,
+              style: const TextStyle(fontFamily: 'Tajawal'),
+              decoration: InputDecoration(
+                hintText: 'البريد الإلكتروني',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('إلغاء', style: TextStyle(fontFamily: 'Tajawal')),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty) {
+                Navigator.of(ctx).pop(controller.text.trim());
+              }
+            },
+            child: const Text('إرسال', style: TextStyle(fontFamily: 'Tajawal')),
+          ),
+        ],
+      ),
+    );
+
+    if (email == null || email.isEmpty || !mounted) return;
+
+    try {
+      await ref.read(authRepositoryProvider).sendPasswordResetEmail(email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('تم إرسال رابط إعادة التعيين إلى $email'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('تعذّر الإرسال، تأكدي من صحة البريد الإلكتروني'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
