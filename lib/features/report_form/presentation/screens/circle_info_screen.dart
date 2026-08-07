@@ -2,16 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hijri/hijri_calendar.dart';
 
 import '../../../../core/constants/app_strings.dart';
-import '../../../../core/constants/quran_constants.dart';
-import '../../../../core/router/app_router.dart';
 import '../../../roster/presentation/screens/select_students_screen.dart';
-import '../../../../core/widgets/app_dropdown_field.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/app_text_field.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/entities/circle_info.dart';
 import '../providers/report_form_provider.dart';
 import '../widgets/step_indicator.dart';
+import '../../../mosques/presentation/providers/mosque_provider.dart';
 
 class CircleInfoScreen extends ConsumerStatefulWidget {
   const CircleInfoScreen({super.key});
@@ -23,60 +24,64 @@ class CircleInfoScreen extends ConsumerStatefulWidget {
 class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  late final TextEditingController _teacherNameController;
   late final TextEditingController _circleNameController;
-  late final TextEditingController _mosqueNameController;
   late final TextEditingController _schoolNameController;
-  late final TextEditingController _yearController;
-  late final TextEditingController _studentsCountController;
 
   String? _selectedMonth;
+  String? _selectedYear;
+
+  static const List<String> _hijriMonths = [
+    'محرم', 'صفر', 'ربيع الأول', 'ربيع الآخر',
+    'جمادى الأولى', 'جمادى الآخرة', 'رجب', 'شعبان',
+    'رمضان', 'شوال', 'ذو القعدة', 'ذو الحجة',
+  ];
 
   @override
   void initState() {
     super.initState();
+
     final savedInfo = ref.read(reportFormProvider).circleInfo;
-    _teacherNameController =
-        TextEditingController(text: savedInfo?.teacherName ?? '');
+
     _circleNameController =
         TextEditingController(text: savedInfo?.circleName ?? '');
-    _mosqueNameController =
-        TextEditingController(text: savedInfo?.mosqueName ?? '');
-        _schoolNameController =
+    _schoolNameController =
         TextEditingController(text: savedInfo?.schoolName ?? '');
-    _yearController =
-        TextEditingController(text: savedInfo?.year ?? '');
-    _studentsCountController = TextEditingController(
-      text: savedInfo?.studentsCount.toString() ?? '',
-    );
-    _selectedMonth = savedInfo?.month;
+
+    if (savedInfo != null) {
+      _selectedMonth = savedInfo.month;
+      _selectedYear = savedInfo.year;
+    } else {
+      // تعبئة تلقائية بالشهر والسنة الهجريين الحاليين
+      final today = HijriCalendar.now();
+      _selectedMonth = _hijriMonths[today.hMonth - 1];
+      _selectedYear = today.hYear.toString();
+    }
   }
 
   @override
   void dispose() {
-    _teacherNameController.dispose();
     _circleNameController.dispose();
-    _mosqueNameController.dispose();
     _schoolNameController.dispose();
-    _yearController.dispose();
-    _studentsCountController.dispose();
     super.dispose();
   }
 
   void _onNext() {
     if (!_formKey.currentState!.validate()) return;
 
+    final user = ref.read(authProvider).user;
+    if (user == null) return;
+
     final info = CircleInfo(
-      teacherName: _teacherNameController.text.trim(),
+      teacherName: user.name,
       circleName: _circleNameController.text.trim(),
-      mosqueName: _mosqueNameController.text.trim(),
+      mosqueName: '', // يُملأ لاحقاً من اسم المسجد الحقيقي عند بناء PDF
       schoolName: _schoolNameController.text.trim(),
       month: _selectedMonth!,
-      year: _yearController.text.trim(),
+      year: _selectedYear!,
       studentsCount: 0,
     );
 
-    ref.read(reportFormProvider.notifier).saveCircleInfo(info);
+   ref.read(reportFormProvider.notifier).saveCircleInfo(info);
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const SelectStudentsScreen()),
     );
@@ -85,6 +90,8 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final user = ref.watch(authProvider).user;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(AppStrings.circleInfoTitle),
@@ -110,16 +117,13 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
                         color: Colors.grey.shade600,
                       ),
                     ),
-                    const SizedBox(height: 24),
-                    AppTextField(
-                      label: AppStrings.teacherName,
-                      hint: AppStrings.teacherNameHint,
-                      controller: _teacherNameController,
-                      isRequired: true,
-                      textInputAction: TextInputAction.next,
-                      keyboardType: TextInputType.name,
-                    ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
+
+                    // ─── بطاقة معلومات المعلمة (قراءة فقط) ─────────────
+                    if (user != null) _buildReadOnlyInfoCard(user, ref),
+                    const SizedBox(height: 20),
+
+                    // ─── اسم الحلقة ─────────────────────────────────────
                     AppTextField(
                       label: AppStrings.circleName,
                       hint: AppStrings.circleNameHint,
@@ -128,70 +132,51 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
                       textInputAction: TextInputAction.next,
                     ),
                     const SizedBox(height: 16),
-                    AppTextField(
-                      label: AppStrings.mosqueName,
-                      hint: AppStrings.mosqueNameHint,
-                      controller: _mosqueNameController,
-                      isRequired: true,
-                      textInputAction: TextInputAction.next,
-                    ),
-                    const SizedBox(height: 16),
+
+                    // ─── مدرسة / دار ────────────────────────────────────
                     AppTextField(
                       label: 'مدرسة / دار',
                       hint: 'مثال: حفصة رضي الله عنها',
                       controller: _schoolNameController,
                       isRequired: true,
-                      textInputAction: TextInputAction.next,
+                      textInputAction: TextInputAction.done,
                     ),
                     const SizedBox(height: 16),
+
+                    // ─── الشهر والسنة (معبَّآن تلقائياً) ────────────────
                     Row(
                       children: [
                         Expanded(
                           flex: 3,
-                          child: AppDropdownField<String>(
-                            label: AppStrings.month,
-                            hint: AppStrings.selectMonth,
-                            value: _selectedMonth,
-                            items: QuranConstants.hijriMonths,
-                            itemLabel: (m) => m,
-                            isRequired: true,
-                            onChanged: (val) {
-                              setState(() => _selectedMonth = val);
-                            },
-                          ),
+                          child: _buildAutoFilledDropdown(),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           flex: 2,
-                          child: AppTextField(
-                            label: AppStrings.year,
-                            hint: AppStrings.yearHint,
-                            controller: _yearController,
-                            isRequired: true,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                              LengthLimitingTextInputFormatter(4),
-                            ],
-                            validator: (val) {
-                              if (val == null || val.trim().isEmpty) {
-                                return AppStrings.fieldRequired;
-                              }
-                              final year = int.tryParse(val);
-                              if (year == null ||
-                                  year < 1400 ||
-                                  year > 1500) {
-                                return AppStrings.invalidYear;
-                              }
-                              return null;
-                            },
-                            textInputAction: TextInputAction.next,
+                          child: _buildAutoFilledYearField(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(Icons.info_outline_rounded,
+                            size: 13, color: Colors.grey.shade400),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            'مُعبَّأ تلقائياً بالشهر الحالي — يمكنك تغييره',
+                            style: TextStyle(
+                              fontFamily: 'Tajawal',
+                              fontSize: 10.5,
+                              color: Colors.grey.shade500,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    
-                   const SizedBox(height: 32),
+
+                    const SizedBox(height: 32),
                   ],
                 ),
               ),
@@ -207,6 +192,115 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildReadOnlyInfoCard(dynamic user, WidgetRef ref) {
+    final mosques = ref.watch(activeMosquesProvider);
+    final mosqueName = mosques
+            .where((m) => m.id == user.mosqueId)
+            .map((m) => m.name)
+            .firstOrNull ??
+        'غير محدد';
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.lightGreen,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 21,
+            backgroundColor: AppTheme.primaryGreen,
+            child: const Icon(Icons.person_rounded, color: Colors.white),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  user.name,
+                  style: TextStyle(
+                    fontFamily: 'Tajawal',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryGreen,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  mosqueName,
+                  style: TextStyle(
+                    fontFamily: 'Tajawal',
+                    fontSize: 11,
+                    color: AppTheme.primaryGreen.withOpacity(0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.lock_outline_rounded,
+              size: 15, color: AppTheme.primaryGreen.withOpacity(0.5)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAutoFilledDropdown() {
+    return DropdownButtonFormField<String>(
+      value: _selectedMonth,
+      decoration: InputDecoration(
+        labelText: '${AppStrings.month} *',
+        filled: true,
+        fillColor: AppTheme.lightGreen.withOpacity(0.4),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: AppTheme.primaryGreen.withOpacity(0.4)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: AppTheme.primaryGreen.withOpacity(0.4)),
+        ),
+      ),
+      items: _hijriMonths
+          .map((m) => DropdownMenuItem(value: m, child: Text(m,
+              style: const TextStyle(fontFamily: 'Tajawal', fontSize: 14))))
+          .toList(),
+      onChanged: (val) => setState(() => _selectedMonth = val),
+      validator: (val) => val == null ? AppStrings.fieldRequired : null,
+    );
+  }
+
+  Widget _buildAutoFilledYearField() {
+    final controller = TextEditingController(text: _selectedYear);
+    return TextFormField(
+      controller: controller,
+      keyboardType: TextInputType.number,
+      inputFormatters: [
+        FilteringTextInputFormatter.digitsOnly,
+        LengthLimitingTextInputFormatter(4),
+      ],
+      onChanged: (val) => _selectedYear = val,
+      style: const TextStyle(fontFamily: 'Tajawal'),
+      decoration: InputDecoration(
+        labelText: '${AppStrings.year} *',
+        filled: true,
+        fillColor: AppTheme.lightGreen.withOpacity(0.4),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: AppTheme.primaryGreen.withOpacity(0.4)),
+        ),
+      ),
+      validator: (val) {
+        if (val == null || val.trim().isEmpty) return AppStrings.fieldRequired;
+        final year = int.tryParse(val);
+        if (year == null || year < 1400 || year > 1500) {
+          return AppStrings.invalidYear;
+        }
+        return null;
+      },
     );
   }
 }
