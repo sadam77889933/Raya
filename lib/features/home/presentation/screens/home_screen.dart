@@ -4,16 +4,29 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
-
-class HomeScreen extends StatelessWidget {
+import '../../../report_form/presentation/screens/my_reports_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final size = MediaQuery.sizeOf(context);
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('الرئيسية'),
+        automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout_rounded),
+            tooltip: 'تسجيل الخروج',
+            onPressed: () => ref.read(authProvider.notifier).signOut(),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: SizedBox(
           height: size.height - MediaQuery.of(context).padding.top,
@@ -97,19 +110,11 @@ class HomeScreen extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         OutlinedButton.icon(
-          onPressed: () => _showComingSoonDialog(context),
-          icon: Icon(
-            Icons.history_rounded,
-            size: 22,
-            color: Colors.grey.shade400,
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const MyReportsScreen()),
           ),
-          label: Text(
-            AppStrings.previousReports,
-            style: TextStyle(color: Colors.grey.shade400),
-          ),
-          style: OutlinedButton.styleFrom(
-            side: BorderSide(color: Colors.grey.shade300),
-          ),
+          icon: const Icon(Icons.history_rounded, size: 22),
+          label: const Text(AppStrings.previousReports),
         ),
         const SizedBox(height: 12),
         OutlinedButton.icon(
