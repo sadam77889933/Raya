@@ -14,17 +14,34 @@ import '../../../report_form/presentation/widgets/step_indicator.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../report_form/presentation/providers/firestore_report_provider.dart';
 enum _PdfStatus { idle, generating, ready, error }
+enum UploadStatus { uploading, uploaded, failed }
 
 class _PdfExportState {
   final _PdfStatus status;
   final String? pdfPath;
   final String? errorMessage;
+  final UploadStatus? uploadStatus;
 
   const _PdfExportState({
     this.status = _PdfStatus.idle,
     this.pdfPath,
     this.errorMessage,
+    this.uploadStatus,
   });
+
+  _PdfExportState copyWith({
+    _PdfStatus? status,
+    String? pdfPath,
+    String? errorMessage,
+    UploadStatus? uploadStatus,
+  }) {
+    return _PdfExportState(
+      status: status ?? this.status,
+      pdfPath: pdfPath ?? this.pdfPath,
+      errorMessage: errorMessage ?? this.errorMessage,
+      uploadStatus: uploadStatus ?? this.uploadStatus,
+    );
+  }
 }
 
 class _PdfExportNotifier extends StateNotifier<_PdfExportState> {
@@ -37,7 +54,6 @@ class _PdfExportNotifier extends StateNotifier<_PdfExportState> {
       final path = await PdfGenerator.instance.generate(report);
       state = _PdfExportState(status: _PdfStatus.ready, pdfPath: path);
 
-      // رفع التقرير للسحابة — لا نوقف المستخدمة لو فشل الرفع
       _uploadToFirestore(report);
     } catch (e) {
       state = _PdfExportState(
@@ -48,18 +64,23 @@ class _PdfExportNotifier extends StateNotifier<_PdfExportState> {
   }
 
   Future<void> _uploadToFirestore(dynamic report) async {
+    state = state.copyWith(uploadStatus: UploadStatus.uploading);
     try {
       final user = _ref.read(authProvider).user;
-      if (user == null) return;
+      if (user == null) {
+        state = state.copyWith(uploadStatus: UploadStatus.failed);
+        return;
+      }
 
       await _ref.read(firestoreReportServiceProvider).uploadReport(
             report,
             teacherId: user.uid,
             mosqueId: user.mosqueId ?? '',
           );
+
+      state = state.copyWith(uploadStatus: UploadStatus.uploaded);
     } catch (_) {
-      // الرفع فشل (مثلاً بلا إنترنت) — التقرير المحلي وPDF سليمان
-      // لا نعرض خطأً للمعلمة الآن؛ لاحقاً سنبني نظام مزامنة عند توفر الإنترنت
+      state = state.copyWith(uploadStatus: UploadStatus.failed);
     }
   }
 }
@@ -137,7 +158,7 @@ class _PdfExportScreenState extends ConsumerState<PdfExportScreen> {
       case _PdfStatus.generating:
         return _buildGenerating(theme);
       case _PdfStatus.ready:
-        return _buildReady(context, state.pdfPath!, theme);
+        return _buildReady(context, state.pdfPath!, theme, state.uploadStatus);
       case _PdfStatus.error:
         return _buildError(state.errorMessage!, theme);
     }
@@ -174,6 +195,7 @@ class _PdfExportScreenState extends ConsumerState<PdfExportScreen> {
     BuildContext context,
     String pdfPath,
     ThemeData theme,
+    UploadStatus? uploadStatus,
   ) {
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -205,7 +227,10 @@ class _PdfExportScreenState extends ConsumerState<PdfExportScreen> {
             style: theme.textTheme.bodyMedium
                 ?.copyWith(color: Colors.grey.shade600),
           ),
+          const SizedBox(height: 14),
+          _buildUploadBadge(uploadStatus),
           const Spacer(),
+          
           Column(
             children: [
               ElevatedButton.icon(
@@ -235,7 +260,62 @@ class _PdfExportScreenState extends ConsumerState<PdfExportScreen> {
       ),
     );
   }
+Widget _buildUploadBadge(UploadStatus? status) {
+    if (status == null) return const SizedBox.shrink();
 
+    late final IconData icon;
+    late final String text;
+    late final Color color;
+
+    switch (status) {
+      case UploadStatus.uploading:
+        icon = Icons.cloud_upload_outlined;
+        text = 'جاري رفع التقرير...';
+        color = Colors.orange;
+        break;
+      case UploadStatus.uploaded:
+        icon = Icons.cloud_done_rounded;
+        text = 'تم رفع التقرير بنجاح';
+        color = Colors.green;
+        break;
+      case UploadStatus.failed:
+        icon = Icons.cloud_off_rounded;
+        text = 'تعذّر الرفع، سيُحاول لاحقاً';
+        color = Colors.red;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (status == UploadStatus.uploading)
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2, color: color),
+            )
+          else
+            Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: TextStyle(
+              fontFamily: 'Tajawal',
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
   Widget _buildError(String message, ThemeData theme) {
     return Padding(
       padding: const EdgeInsets.all(24),
