@@ -10,6 +10,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'features/auth/presentation/providers/auth_provider.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/auth/presentation/screens/supervisor_dashboard_screen.dart';
+import 'core/services/update_checker_service.dart';
+import 'core/widgets/update_dialog.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -56,11 +58,27 @@ class QuranCircleReportApp extends ConsumerWidget {
   }
 }
 /// بوابة تحقق: توجّه المستخدم لتسجيل الدخول أو للتطبيق حسب حالته
-class _AuthGate extends ConsumerWidget {
+class _AuthGate extends ConsumerStatefulWidget {
   const _AuthGate();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends ConsumerState<_AuthGate> {
+  bool _updateChecked = false;
+
+  Future<void> _checkForUpdate() async {
+    if (_updateChecked) return;
+    _updateChecked = true;
+
+    final updateInfo = await UpdateCheckerService().checkForUpdate();
+    if (!mounted) return;
+    await UpdateDialog.showIfNeeded(context, updateInfo);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
 
     switch (authState.status) {
@@ -72,6 +90,9 @@ class _AuthGate extends ConsumerWidget {
       case AuthStatus.error:
         return const LoginScreen();
       case AuthStatus.signedIn:
+        // نفحص التحديث بعد اكتمال البناء الأول للشاشة
+        WidgetsBinding.instance.addPostFrameCallback((_) => _checkForUpdate());
+
         final user = authState.user;
         if (user != null && user.isSupervisor) {
           return const SupervisorDashboardScreen();

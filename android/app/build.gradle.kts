@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.yourname.quran_circle_report"
-    compileSdk = 35
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
