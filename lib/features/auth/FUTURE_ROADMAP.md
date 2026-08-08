@@ -67,3 +67,24 @@ Console نفسه (خارج نطاق كودنا بالكامل)، مما يستب
 - نفس آلية الحساب الثانوي المؤقت (createTeacherAccount) لكن بـ role: "supervisor"
 - تحتاج نفس معالجة قواعد الأمان الموثقة في القسم السابق (تحسين قواعد الأمان)
   لضمان أن فقط مشرفة موجودة تقدر تُنشئ مشرفة جديدة
+
+  - `viewer`: يفتح لوحة مصغّرة تحتوي فقط بطاقتين:
+  - "جميع التقارير" (نفس AllReportsScreen الموجودة)
+  - "تصدير تقارير مُدمَجة" (نفس MergeReportsScreen الموجودة)
+  - بدون بطاقتي "إنشاء معلمة" و"إدارة المساجد"
+
+### خطة التنفيذ عند البدء
+
+| # | الخطوة |
+|---|--------|
+| 1 | إضافة `UserRole.viewer` في `user_model.dart` |
+| 2 | إضافة getter `isViewer` بجانب `isTeacher` و `isSupervisor` |
+| 3 | بناء `ViewerDashboardScreen` جديدة (تُعيد استخدام `AllReportsScreen` و `MergeReportsScreen` الموجودتين فعلاً — لا تكرار كود) |
+| 4 | تحديث `_AuthGate` في `main.dart`: إذا `user.isViewer` → `ViewerDashboardScreen` |
+| 5 | إنشاء الحساب يدوياً في Firebase (Authentication + Firestore بـ role: "viewer") بنفس طريقة المشرفة |
+| 6 | مراجعة قواعد أمان Firestore: تأكيد أن viewer يقدر يقرأ reports و mosques، لكن لا يكتب في users أو mosques
+
+### ملاحظة معمارية مهمة
+هذا الدور **يُعيد استخدام** الشاشات الموجودة بالفعل (AllReportsScreen,
+MergeReportsScreen) دون أي تعديل عليها — فقط نُقيّد الوصول إليها
+عبر لوحة تحكم مختلفة، ولا نُكرر أي كود.
