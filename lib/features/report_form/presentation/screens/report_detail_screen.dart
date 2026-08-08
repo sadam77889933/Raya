@@ -48,12 +48,16 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final report = widget.report;
-    final mosques = ref.watch(activeMosquesProvider);
-    final mosqueName = mosques
-            .where((m) => m.id == report.mosqueId)
-            .map((m) => m.name)
-            .firstOrNull ??
-        'غير محدد';
+    final mosquesAsync = ref.watch(mosquesStreamProvider);
+    final mosques = mosquesAsync.value ?? [];
+    final mosquesLoading = mosquesAsync.isLoading;
+    final mosqueName = mosquesLoading
+        ? 'جاري التحميل...'
+        : (mosques
+                .where((m) => m.id == report.mosqueId)
+                .map((m) => m.name)
+                .firstOrNull ??
+            'غير محدد');
 
     return Scaffold(
       appBar: AppBar(

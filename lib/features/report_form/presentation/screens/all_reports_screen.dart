@@ -104,14 +104,10 @@ class _AllReportsScreenState extends ConsumerState<AllReportsScreen> {
                               const SizedBox(height: 10),
                           itemBuilder: (context, index) {
                             final report = filtered[index];
-                            final mosqueName = mosques
-                                    .where((m) => m.id == report.mosqueId)
-                                    .map((m) => m.name)
-                                    .firstOrNull ??
-                                'غير محدد';
+                            
                             return _ReportCard(
                               report: report,
-                              mosqueName: mosqueName,
+                             
                               onTap: () => Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (_) =>
@@ -173,19 +169,21 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _ReportCard extends StatelessWidget {
+class _ReportCard extends ConsumerWidget {
   final ReportSummary report;
-  final String mosqueName;
   final VoidCallback onTap;
-
   const _ReportCard({
     required this.report,
-    required this.mosqueName,
     required this.onTap,
   });
-
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mosques = ref.watch(activeMosquesProvider);
+    final mosqueName = mosques
+            .where((m) => m.id == report.mosqueId)
+            .map((m) => m.name)
+            .firstOrNull ??
+        'غير محدد';
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),

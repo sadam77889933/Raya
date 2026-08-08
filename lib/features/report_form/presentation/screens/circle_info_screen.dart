@@ -5,14 +5,14 @@ import 'package:go_router/go_router.dart';
 import 'package:hijri/hijri_calendar.dart';
 
 import '../../../../core/constants/app_strings.dart';
-import '../../../roster/presentation/screens/select_students_screen.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../mosques/presentation/providers/mosque_provider.dart';
+import '../../../roster/presentation/screens/select_students_screen.dart';
 import '../../domain/entities/circle_info.dart';
 import '../providers/report_form_provider.dart';
 import '../widgets/step_indicator.dart';
-import '../../../mosques/presentation/providers/mosque_provider.dart';
 
 class CircleInfoScreen extends ConsumerStatefulWidget {
   const CircleInfoScreen({super.key});
@@ -51,7 +51,6 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
       _selectedMonth = savedInfo.month;
       _selectedYear = savedInfo.year;
     } else {
-      // تعبئة تلقائية بالشهر والسنة الهجريين الحاليين
       final today = HijriCalendar.now();
       _selectedMonth = _hijriMonths[today.hMonth - 1];
       _selectedYear = today.hYear.toString();
@@ -65,13 +64,26 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
     super.dispose();
   }
 
-  void _onNext() {
+  Future<void> _onNext() async {
     if (!_formKey.currentState!.validate()) return;
-
     final user = ref.read(authProvider).user;
     if (user == null) return;
 
-    final mosques = ref.read(activeMosquesProvider);
+    List<dynamic> mosques = ref.read(activeMosquesProvider);
+    if (mosques.isEmpty) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+      for (int i = 0; i < 50; i++) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        mosques = ref.read(activeMosquesProvider);
+        if (mosques.isNotEmpty) break;
+      }
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+    }
+
     final mosqueName = mosques
             .where((m) => m.id == user.mosqueId)
             .map((m) => m.name)
@@ -89,6 +101,7 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
     );
 
     ref.read(reportFormProvider.notifier).saveCircleInfo(info);
+    if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const SelectStudentsScreen()),
     );
@@ -126,11 +139,9 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // ─── بطاقة معلومات المعلمة (قراءة فقط) ─────────────
-                    if (user != null) _buildReadOnlyInfoCard(user, ref),
+                    if (user != null) _ReadOnlyInfoCard(user: user),
                     const SizedBox(height: 20),
 
-                    // ─── اسم الحلقة ─────────────────────────────────────
                     AppTextField(
                       label: AppStrings.circleName,
                       hint: AppStrings.circleNameHint,
@@ -140,7 +151,6 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // ─── مدرسة / دار ────────────────────────────────────
                     AppTextField(
                       label: 'مدرسة / دار',
                       hint: 'مثال: حفصة رضي الله عنها',
@@ -150,7 +160,6 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // ─── الشهر والسنة (معبَّآن تلقائياً) ────────────────
                     Row(
                       children: [
                         Expanded(
@@ -197,59 +206,6 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
               label: const Text(AppStrings.next),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildReadOnlyInfoCard(dynamic user, WidgetRef ref) {
-    final mosques = ref.watch(activeMosquesProvider);
-    final mosqueName = mosques
-            .where((m) => m.id == user.mosqueId)
-            .map((m) => m.name)
-            .firstOrNull ??
-        'غير محدد';
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.lightGreen,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 21,
-            backgroundColor: AppTheme.primaryGreen,
-            child: const Icon(Icons.person_rounded, color: Colors.white),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  user.name,
-                  style: TextStyle(
-                    fontFamily: 'Tajawal',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.primaryGreen,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  mosqueName,
-                  style: TextStyle(
-                    fontFamily: 'Tajawal',
-                    fontSize: 11,
-                    color: AppTheme.primaryGreen.withOpacity(0.8),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(Icons.lock_outline_rounded,
-              size: 15, color: AppTheme.primaryGreen.withOpacity(0.5)),
         ],
       ),
     );
@@ -308,6 +264,67 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
         }
         return null;
       },
+    );
+  }
+}
+
+class _ReadOnlyInfoCard extends ConsumerWidget {
+  final dynamic user;
+
+  const _ReadOnlyInfoCard({required this.user});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mosques = ref.watch(activeMosquesProvider);
+    final mosqueName = mosques
+            .where((m) => m.id == user.mosqueId)
+            .map((m) => m.name)
+            .firstOrNull ??
+        'غير محدد';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.lightGreen,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 21,
+            backgroundColor: AppTheme.primaryGreen,
+            child: const Icon(Icons.person_rounded, color: Colors.white),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  user.name,
+                  style: TextStyle(
+                    fontFamily: 'Tajawal',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryGreen,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  mosqueName,
+                  style: TextStyle(
+                    fontFamily: 'Tajawal',
+                    fontSize: 11,
+                    color: AppTheme.primaryGreen.withOpacity(0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.lock_outline_rounded,
+              size: 15, color: AppTheme.primaryGreen.withOpacity(0.5)),
+        ],
+      ),
     );
   }
 }
