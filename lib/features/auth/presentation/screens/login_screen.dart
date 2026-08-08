@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
+import '../providers/credentials_storage_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -18,6 +19,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _rememberMe = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedCredentials();
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    final saved = await ref
+        .read(credentialsStorageServiceProvider)
+        .getSavedCredentials();
+    if (saved != null && mounted) {
+      setState(() {
+        _emailController.text = saved['email'] ?? '';
+        _passwordController.text = saved['password'] ?? '';
+        _rememberMe = true;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -26,87 +47,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    ref.read(authProvider.notifier).signIn(
-          _emailController.text.trim(),
-          _passwordController.text.trim(),
-        );
-  }
-  Future<void> _showForgotPasswordDialog() async {
-    final controller = TextEditingController(text: _emailController.text);
 
-    final email = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'إعادة تعيين كلمة المرور',
-          style: TextStyle(fontFamily: 'Tajawal', fontWeight: FontWeight.w700),
-          textAlign: TextAlign.center,
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'أدخلي بريدك الإلكتروني، وسنُرسل لك رابطاً لإعادة تعيين كلمة المرور',
-              style: TextStyle(fontFamily: 'Tajawal', fontSize: 12),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              textDirection: TextDirection.ltr,
-              keyboardType: TextInputType.emailAddress,
-              style: const TextStyle(fontFamily: 'Tajawal'),
-              decoration: InputDecoration(
-                hintText: 'البريد الإلكتروني',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('إلغاء', style: TextStyle(fontFamily: 'Tajawal')),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                Navigator.of(ctx).pop(controller.text.trim());
-              }
-            },
-            child: const Text('إرسال', style: TextStyle(fontFamily: 'Tajawal')),
-          ),
-        ],
-      ),
-    );
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
 
-    if (email == null || email.isEmpty || !mounted) return;
-
-    try {
-      await ref.read(authRepositoryProvider).sendPasswordResetEmail(email);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('تم إرسال رابط إعادة التعيين إلى $email'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('تعذّر الإرسال، تأكدي من صحة البريد الإلكتروني'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    final storage = ref.read(credentialsStorageServiceProvider);
+    if (_rememberMe) {
+      await storage.saveCredentials(email, password);
+    } else {
+      await storage.clearCredentials();
     }
+
+    if (!mounted) return;
+    await ref.read(authProvider.notifier).signIn(email, password);
   }
 
   @override
@@ -142,7 +97,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ),
       child: Column(
         children: [
-          // قبة رمزية
           CustomPaint(
             size: const Size(90, 55),
             painter: _DomePainter(color: _gold),
@@ -221,6 +175,42 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               obscureText: _obscurePassword,
               onIconTap: () =>
                   setState(() => _obscurePassword = !_obscurePassword),
+            ),
+            const SizedBox(height: 14),
+
+            InkWell(
+              onTap: () => setState(() => _rememberMe = !_rememberMe),
+              child: Row(
+                children: [
+                  Container(
+                    width: 19,
+                    height: 19,
+                    decoration: BoxDecoration(
+                      color: _rememberMe ? _darkGreen : Colors.transparent,
+                      border: Border.all(
+                        color: _rememberMe
+                            ? _darkGreen
+                            : Colors.grey.shade400,
+                        width: 1.5,
+                      ),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: _rememberMe
+                        ? Icon(Icons.check_rounded, size: 13, color: _gold)
+                        : null,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'تذكّرني في هذا الجهاز',
+                    style: TextStyle(
+                      fontFamily: 'Tajawal',
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: _darkGreen,
+                    ),
+                  ),
+                ],
+              ),
             ),
 
             if (authState.status == AuthStatus.error) ...[
@@ -385,7 +375,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 }
 
-/// رسم قبة مسجد رمزية بسيطة
 class _DomePainter extends CustomPainter {
   final Color color;
   _DomePainter({required this.color});
@@ -407,11 +396,8 @@ class _DomePainter extends CustomPainter {
     path.close();
 
     canvas.drawPath(path, paint);
-
-    // قمة صغيرة
     canvas.drawCircle(Offset(w / 2, -2), 4, paint);
 
-    // قاعدة
     final basePaint = Paint()..color = color.withOpacity(0.7);
     canvas.drawRect(
       Rect.fromLTWH(w * 0.05, h * 0.85, w * 0.9, h * 0.08),
