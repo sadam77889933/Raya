@@ -149,7 +149,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
           const SizedBox(height: 10),
           Text(
-            'دفتر الحلقة',
+            'رعاية',
             style: TextStyle(
               fontFamily: 'Tajawal',
               fontSize: 22,
@@ -377,7 +377,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         textAlign: TextAlign.center,
         style: TextStyle(
           fontFamily: 'Tajawal',
-          fontSize: 10,
+          fontSize: 13,
           color: _gold.withOpacity(0.7),
         ),
       ),

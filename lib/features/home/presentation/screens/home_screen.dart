@@ -40,6 +40,17 @@ class HomeScreen extends ConsumerWidget {
                 _buildActionButtons(context),
                 const Spacer(flex: 1),
                 _buildFooter(theme),
+                
+                const SizedBox(height: 10),
+                Text(
+                  'برمجة: صدام البريكي (أبو ود)',
+                  style: TextStyle(
+                    fontFamily: 'Tajawal',
+                    fontSize: 14,
+                    color: Colors.grey.shade400,
+                  ),
+                ),
+                const SizedBox(height: 24),
                 const SizedBox(height: 24),
               ],
             ),

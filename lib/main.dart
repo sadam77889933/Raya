@@ -44,7 +44,7 @@ class QuranCircleReportApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
-      title: 'دفتر الحلقة',
+      title: 'رعاية',
       builder: (context, child) {
         return Directionality(
           textDirection: TextDirection.rtl,

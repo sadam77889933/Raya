@@ -1,7 +1,7 @@
 class AppStrings {
   AppStrings._();
 
-  static const String appName = 'تقارير الحلقات';
+  static const String appName = 'رعاية';
   static const String appSubtitle = 'نظام إدارة تقارير حلقات القرآن الكريم';
   static const String next = 'التالي';
   static const String back = 'رجوع';

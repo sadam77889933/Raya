@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart';
 import 'create_teacher_screen.dart';
 import 'manage_teachers_screen.dart';
 import '../../../report_form/presentation/screens/all_reports_screen.dart';
+import '../../../pdf_export/presentation/screens/merge_reports_screen.dart';
 class SupervisorDashboardScreen extends ConsumerWidget {
   const SupervisorDashboardScreen({super.key});
 
@@ -90,6 +91,28 @@ class SupervisorDashboardScreen extends ConsumerWidget {
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => const AllReportsScreen(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _DashboardCard(
+              icon: Icons.merge_type_rounded,
+              title: 'تصدير تقارير مُدمَجة',
+              subtitle: 'دمج تقارير كل معلمات مسجد في ملف PDF واحد',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const MergeReportsScreen(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 30),
+            Center(
+              child: Text(
+                'برمجة: صدام البريكي (أبو ود)',
+                style: TextStyle(
+                  fontFamily: 'Tajawal',
+                  fontSize: 14,
+                  color: Colors.grey.shade400,
                 ),
               ),
             ),

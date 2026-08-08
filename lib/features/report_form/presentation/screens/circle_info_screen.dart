@@ -71,17 +71,24 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
     final user = ref.read(authProvider).user;
     if (user == null) return;
 
+    final mosques = ref.read(activeMosquesProvider);
+    final mosqueName = mosques
+            .where((m) => m.id == user.mosqueId)
+            .map((m) => m.name)
+            .firstOrNull ??
+        '';
+
     final info = CircleInfo(
       teacherName: user.name,
       circleName: _circleNameController.text.trim(),
-      mosqueName: '', // يُملأ لاحقاً من اسم المسجد الحقيقي عند بناء PDF
+      mosqueName: mosqueName,
       schoolName: _schoolNameController.text.trim(),
       month: _selectedMonth!,
       year: _selectedYear!,
       studentsCount: 0,
     );
 
-   ref.read(reportFormProvider.notifier).saveCircleInfo(info);
+    ref.read(reportFormProvider.notifier).saveCircleInfo(info);
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const SelectStudentsScreen()),
     );
