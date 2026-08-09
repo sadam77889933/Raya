@@ -19,7 +19,9 @@ const List<String> _hijriMonths = [
 const String _allPeriodsOption = 'كل الفترات';
 
 class MergeReportsScreen extends ConsumerStatefulWidget {
-  const MergeReportsScreen({super.key});
+  final String? restrictToMosqueId;
+
+  const MergeReportsScreen({super.key, this.restrictToMosqueId});
 
   @override
   ConsumerState<MergeReportsScreen> createState() =>
@@ -40,6 +42,11 @@ class _MergeReportsScreenState extends ConsumerState<MergeReportsScreen> {
     final today = HijriCalendar.now();
     _selectedMonth = _hijriMonths[today.hMonth - 1];
     _selectedYear = today.hYear.toString();
+
+    // إذا كانت الشاشة مقيَّدة بمسجد واحد، نحدّده تلقائياً ونمنع تغييره
+    if (widget.restrictToMosqueId != null) {
+      _selectedMosqueIds.add(widget.restrictToMosqueId!);
+    }
   }
 
   List<ReportSummary> _filterByPeriod(List<ReportSummary> reports) {
@@ -141,7 +148,12 @@ class _MergeReportsScreenState extends ConsumerState<MergeReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final mosques = ref.watch(activeMosquesProvider);
+    final allMosques = ref.watch(activeMosquesProvider);
+    final mosques = widget.restrictToMosqueId == null
+        ? allMosques
+        : allMosques
+            .where((m) => m.id == widget.restrictToMosqueId)
+            .toList();
     final allReportsAsync = ref.watch(allReportsStreamProvider);
 
     return Scaffold(

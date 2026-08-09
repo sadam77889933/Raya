@@ -12,6 +12,7 @@ import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/auth/presentation/screens/supervisor_dashboard_screen.dart';
 import 'core/services/update_checker_service.dart';
 import 'core/widgets/update_dialog.dart';
+import 'features/auth/presentation/screens/mosque_supervisor_dashboard_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -90,12 +91,12 @@ class _AuthGateState extends ConsumerState<_AuthGate> {
       case AuthStatus.error:
         return const LoginScreen();
       case AuthStatus.signedIn:
-        // نفحص التحديث بعد اكتمال البناء الأول للشاشة
-        WidgetsBinding.instance.addPostFrameCallback((_) => _checkForUpdate());
-
         final user = authState.user;
         if (user != null && user.isSupervisor) {
           return const SupervisorDashboardScreen();
+        }
+        if (user != null && user.isMosqueSupervisor) {
+          return const MosqueSupervisorDashboardScreen();
         }
         return Router.withConfig(config: appRouter);
     }

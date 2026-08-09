@@ -55,11 +55,13 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  @override
   Future<void> createTeacherAccount({
     required String email,
     required String password,
     required String name,
     required String mosqueId,
+    String role = 'teacher',
   }) async {
     final secondaryApp = await Firebase.initializeApp(
       name: 'secondary',
@@ -73,10 +75,13 @@ class AuthRepositoryImpl implements AuthRepository {
         password: password,
       );
 
+      final resolvedRole =
+          role == 'mosqueSupervisor' ? UserRole.mosqueSupervisor : UserRole.teacher;
+
       final newUser = UserModel(
         uid: credential.user!.uid,
         name: name.trim(),
-        role: UserRole.teacher,
+        role: resolvedRole,
         mosqueId: mosqueId,
         isActive: true,
         createdAt: DateTime.now(),
@@ -108,7 +113,24 @@ class AuthRepositoryImpl implements AuthRepository {
             .map((doc) => UserModel.fromJson(doc.id, doc.data()))
             .toList());
   }
-
+  @override
+  Stream<List<UserModel>> watchTeachersByMosque(String mosqueId) {
+    return _firestore
+        .collection(_usersCollection)
+        .where('role', isEqualTo: 'teacher')
+        .where('mosqueId', isEqualTo: mosqueId)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => UserModel.fromJson(doc.id, doc.data()))
+            .toList());
+  }
+@override
+  Future<void> updateTeacherName(String uid, String newName) async {
+    await _firestore
+        .collection(_usersCollection)
+        .doc(uid)
+        .update({'name': newName.trim()});
+  }
   @override
   Future<void> setTeacherActive(String uid, bool isActive) async {
     await _firestore

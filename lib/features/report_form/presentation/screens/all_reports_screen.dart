@@ -7,7 +7,9 @@ import '../providers/all_reports_provider.dart';
 import 'report_detail_screen.dart';
 
 class AllReportsScreen extends ConsumerStatefulWidget {
-  const AllReportsScreen({super.key});
+  final String? restrictToMosqueId;
+
+  const AllReportsScreen({super.key, this.restrictToMosqueId});
 
   @override
   ConsumerState<AllReportsScreen> createState() => _AllReportsScreenState();
@@ -33,7 +35,12 @@ class _AllReportsScreenState extends ConsumerState<AllReportsScreen> {
           child: Text('حدث خطأ: $err',
               style: const TextStyle(fontFamily: 'Tajawal')),
         ),
-        data: (reports) {
+        data: (allReports) {
+          final reports = widget.restrictToMosqueId == null
+              ? allReports
+              : allReports
+                  .where((r) => r.mosqueId == widget.restrictToMosqueId)
+                  .toList();
           final mosqueCount =
               reports.map((r) => r.mosqueId).toSet().length;
           final totalStudents =

@@ -7,7 +7,9 @@ import '../providers/auth_provider.dart';
 import '../providers/teachers_provider.dart';
 
 class ManageTeachersScreen extends ConsumerStatefulWidget {
-  const ManageTeachersScreen({super.key});
+  final String? restrictToMosqueId;
+
+  const ManageTeachersScreen({super.key, this.restrictToMosqueId});
 
   @override
   ConsumerState<ManageTeachersScreen> createState() =>
@@ -19,7 +21,9 @@ class _ManageTeachersScreenState extends ConsumerState<ManageTeachersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final teachersAsync = ref.watch(teachersStreamProvider);
+    final teachersAsync = widget.restrictToMosqueId != null
+        ? ref.watch(teachersByMosqueProvider(widget.restrictToMosqueId!))
+        : ref.watch(teachersStreamProvider);
     final mosques = ref.watch(activeMosquesProvider);
 
     return Scaffold(
@@ -125,19 +129,82 @@ class _ManageTeachersScreenState extends ConsumerState<ManageTeachersScreen> {
                               onToggle: (val) => ref
                                   .read(authRepositoryProvider)
                                   .setTeacherActive(teacher.uid, val),
+                              onEdit: () => _showEditNameDialog(
+                                  context, ref, teacher),
                             );
                           },
                         ),
                 ),
               ],
-            ),
+          ),
           );
         },
       ),
     );
   }
-}
 
+  Future<void> _showEditNameDialog(
+      BuildContext context, WidgetRef ref, UserModel teacher) async {
+    final controller = TextEditingController(text: teacher.name);
+
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'تعديل اسم المعلمة',
+          style: TextStyle(fontFamily: 'Tajawal', fontWeight: FontWeight.w700),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'هذا التعديل يغيّر اسمها في كل التقارير القادمة',
+              style: TextStyle(fontFamily: 'Tajawal', fontSize: 11),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              textDirection: TextDirection.rtl,
+              style: const TextStyle(fontFamily: 'Tajawal'),
+              decoration: InputDecoration(
+                labelText: 'الاسم الكامل',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('إلغاء', style: TextStyle(fontFamily: 'Tajawal')),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty) {
+                Navigator.of(ctx).pop(controller.text.trim());
+              }
+            },
+            child: const Text('حفظ', style: TextStyle(fontFamily: 'Tajawal')),
+          ),
+        ],
+      ),
+    );
+
+    if (newName != null && newName.isNotEmpty && newName != teacher.name) {
+      await ref.read(authRepositoryProvider).updateTeacherName(
+            teacher.uid,
+            newName,
+          );
+    }
+  }
+}
 class _StatCard extends StatelessWidget {
   final int count;
   final String label;
@@ -189,11 +256,13 @@ class _TeacherCard extends StatelessWidget {
   final UserModel teacher;
   final String mosqueName;
   final void Function(bool) onToggle;
+  final VoidCallback onEdit;
 
   const _TeacherCard({
     required this.teacher,
     required this.mosqueName,
     required this.onToggle,
+    required this.onEdit,
   });
 
   String get _initials {
@@ -283,6 +352,13 @@ class _TeacherCard extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+            IconButton(
+              icon: Icon(Icons.edit_outlined,
+                  size: 18, color: AppTheme.primaryGreen),
+              onPressed: onEdit,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             ),
             Switch(
               value: isActive,

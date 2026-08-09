@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 /// دور المستخدم في التطبيق
-enum UserRole { teacher, supervisor }
+enum UserRole { teacher, supervisor, mosqueSupervisor }
 
 /// بيانات المستخدم كما تُخزَّن في Firestore
 class UserModel extends Equatable {
@@ -23,7 +23,7 @@ class UserModel extends Equatable {
 
   bool get isTeacher => role == UserRole.teacher;
   bool get isSupervisor => role == UserRole.supervisor;
-
+  bool get isMosqueSupervisor => role == UserRole.mosqueSupervisor;
   Map<String, dynamic> toJson() => {
         'name': name,
         'role': role.name,
@@ -33,12 +33,21 @@ class UserModel extends Equatable {
       };
 
   factory UserModel.fromJson(String uid, Map<String, dynamic> json) {
+    UserRole parsedRole;
+    switch (json['role']) {
+      case 'supervisor':
+        parsedRole = UserRole.supervisor;
+        break;
+      case 'mosqueSupervisor':
+        parsedRole = UserRole.mosqueSupervisor;
+        break;
+      default:
+        parsedRole = UserRole.teacher;
+    }
     return UserModel(
       uid: uid,
       name: json['name'] as String,
-      role: json['role'] == 'supervisor'
-          ? UserRole.supervisor
-          : UserRole.teacher,
+      role: parsedRole,
       mosqueId: json['mosqueId'] as String?,
       isActive: json['isActive'] as bool? ?? true,
       createdAt: DateTime.parse(json['createdAt'] as String),

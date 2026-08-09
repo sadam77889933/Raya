@@ -6,7 +6,9 @@ import '../providers/auth_provider.dart';
 import '../../../../core/widgets/app_dropdown_field.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
 class CreateTeacherScreen extends ConsumerStatefulWidget {
-  const CreateTeacherScreen({super.key});
+  final String? lockedMosqueId;
+
+  const CreateTeacherScreen({super.key, this.lockedMosqueId});
 
   @override
   ConsumerState<CreateTeacherScreen> createState() =>
@@ -17,11 +19,20 @@ class _CreateTeacherScreenState extends ConsumerState<CreateTeacherScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   String? _selectedMosqueId;
+  String _selectedRole = 'teacher';
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
   bool _isSubmitting = false;
   bool _obscurePassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.lockedMosqueId != null) {
+      _selectedMosqueId = widget.lockedMosqueId;
+    }
+  }
 
   @override
   void dispose() {
@@ -48,6 +59,7 @@ class _CreateTeacherScreenState extends ConsumerState<CreateTeacherScreen> {
             password: _passwordController.text.trim(),
             name: _nameController.text.trim(),
             mosqueId: _selectedMosqueId!,
+            role: _selectedRole,
           );
 
       if (!mounted) return;
@@ -90,12 +102,46 @@ class _CreateTeacherScreenState extends ConsumerState<CreateTeacherScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'أدخلي بيانات المعلمة الجديدة',
+                'أدخلي بيانات الحساب الجديد',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Colors.grey.shade600,
                     ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+
+              Text(
+                'نوع الحساب',
+                style: TextStyle(
+                  fontFamily: 'Tajawal',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _RoleChip(
+                      label: 'معلمة',
+                      icon: Icons.school_rounded,
+                      isSelected: _selectedRole == 'teacher',
+                      onTap: () => setState(() => _selectedRole = 'teacher'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _RoleChip(
+                      label: 'مشرفة مسجد',
+                      icon: Icons.shield_rounded,
+                      isSelected: _selectedRole == 'mosqueSupervisor',
+                      onTap: () =>
+                          setState(() => _selectedRole = 'mosqueSupervisor'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
 
               AppTextField(
                 label: 'اسم المعلمة',
@@ -106,9 +152,66 @@ class _CreateTeacherScreenState extends ConsumerState<CreateTeacherScreen> {
               ),
               const SizedBox(height: 16),
 
-             Consumer(
+           Consumer(
                 builder: (context, ref, _) {
                   final mosques = ref.watch(activeMosquesProvider);
+
+                  // إذا كانت الشاشة مقيَّدة بمسجد واحد (مشرفة مسجد)،
+                  // نعرض بطاقة ثابتة بدل قائمة اختيار قابلة للتغيير
+                  if (widget.lockedMosqueId != null) {
+                    final lockedMosqueName = mosques
+                            .where((m) => m.id == widget.lockedMosqueId)
+                            .map((m) => m.name)
+                            .firstOrNull ??
+                        'غير محدد';
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'اسم المسجد',
+                          style: TextStyle(
+                            fontFamily: 'Tajawal',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: AppTheme.lightGreen,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.mosque_rounded,
+                                  size: 18, color: AppTheme.primaryGreen),
+                              const SizedBox(width: 8),
+                              Text(
+                                lockedMosqueName,
+                                style: TextStyle(
+                                  fontFamily: 'Tajawal',
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.primaryGreen,
+                                ),
+                              ),
+                              const Spacer(),
+                              Icon(Icons.lock_outline_rounded,
+                                  size: 15,
+                                  color: AppTheme.primaryGreen
+                                      .withOpacity(0.5)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+
                   return AppDropdownField<String>(
                     label: 'اسم المسجد',
                     hint: mosques.isEmpty
@@ -216,6 +319,57 @@ class _CreateTeacherScreenState extends ConsumerState<CreateTeacherScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+class _RoleChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _RoleChip({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.lightGreen : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? AppTheme.primaryGreen : Colors.grey.shade200,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: isSelected ? AppTheme.primaryGreen : Colors.grey.shade400,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'Tajawal',
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isSelected ? AppTheme.primaryGreen : Colors.grey.shade500,
+              ),
+            ),
+          ],
         ),
       ),
     );

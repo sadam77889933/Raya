@@ -6,3 +6,8 @@ import 'auth_provider.dart';
 final teachersStreamProvider = StreamProvider<List<UserModel>>((ref) {
   return ref.watch(authRepositoryProvider).watchAllTeachers();
 });
+/// معلمات مسجد معيّن فقط (لمشرفة المسجد)
+final teachersByMosqueProvider =
+    StreamProvider.family<List<UserModel>, String>((ref, mosqueId) {
+  return ref.watch(authRepositoryProvider).watchTeachersByMosque(mosqueId);
+});
