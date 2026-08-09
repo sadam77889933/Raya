@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../domain/entities/roster_student.dart';
 import '../providers/roster_provider.dart';
 import '../widgets/roster_student_row.dart';
 
@@ -39,16 +40,74 @@ class RosterScreen extends ConsumerWidget {
         ],
       ),
     );
-
     if (name != null && name.isNotEmpty) {
       await ref.read(rosterProvider.notifier).addStudent(name);
+    }
+  }
+
+  Future<void> _showEditDialog(
+      BuildContext context, WidgetRef ref, RosterStudent student) async {
+    final controller = TextEditingController(text: student.name);
+
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'تعديل اسم الطالبة',
+          style: TextStyle(fontFamily: 'Tajawal', fontWeight: FontWeight.w700),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'هذا التعديل يغيّر اسمها في التقارير القادمة فقط',
+              style: TextStyle(fontFamily: 'Tajawal', fontSize: 11),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              textDirection: TextDirection.rtl,
+              style: const TextStyle(fontFamily: 'Tajawal'),
+              decoration: InputDecoration(
+                labelText: 'اسم الطالبة',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('إلغاء', style: TextStyle(fontFamily: 'Tajawal')),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty) {
+                Navigator.of(ctx).pop(controller.text.trim());
+              }
+            },
+            child: const Text('حفظ', style: TextStyle(fontFamily: 'Tajawal')),
+          ),
+        ],
+      ),
+    );
+
+    if (newName != null && newName.isNotEmpty && newName != student.name) {
+      final updated = student.copyWith(name: newName);
+      await ref.read(rosterProvider.notifier).updateStudent(updated);
     }
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(rosterProvider);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('سجل الحلقة'),
@@ -69,7 +128,6 @@ class RosterScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  // خانة البحث
                   TextField(
                     onChanged: (v) =>
                         ref.read(rosterProvider.notifier).setSearchQuery(v),
@@ -87,7 +145,6 @@ class RosterScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-
                   Expanded(
                     child: ListView(
                       children: [
@@ -95,7 +152,7 @@ class RosterScreen extends ConsumerWidget {
                           _sectionLabel('نشطة', state.activeStudents.length,
                               color: Colors.green.shade700),
                           const SizedBox(height: 6),
-                          _groupCard(state.activeStudents, ref),
+                          _groupCard(state.activeStudents, context, ref),
                           const SizedBox(height: 20),
                         ],
                         if (state.inactiveStudents.isNotEmpty) ...[
@@ -103,7 +160,7 @@ class RosterScreen extends ConsumerWidget {
                               'غير نشطة', state.inactiveStudents.length,
                               color: Colors.grey.shade500),
                           const SizedBox(height: 6),
-                          _groupCard(state.inactiveStudents, ref),
+                          _groupCard(state.inactiveStudents, context, ref),
                         ],
                         if (state.filtered.isEmpty)
                           Padding(
@@ -142,7 +199,7 @@ class RosterScreen extends ConsumerWidget {
     );
   }
 
-  Widget _groupCard(List students, WidgetRef ref) {
+  Widget _groupCard(List students, BuildContext context, WidgetRef ref) {
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: Colors.grey.shade200),
@@ -157,6 +214,7 @@ class RosterScreen extends ConsumerWidget {
             isLast: isLast,
             onToggle: () =>
                 ref.read(rosterProvider.notifier).toggleActive(entry.value),
+            onEdit: () => _showEditDialog(context, ref, entry.value),
           );
         }).toList(),
       ),

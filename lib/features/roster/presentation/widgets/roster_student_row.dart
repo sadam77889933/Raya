@@ -6,19 +6,20 @@ import '../../domain/entities/roster_student.dart';
 class RosterStudentRow extends StatelessWidget {
   final RosterStudent student;
   final VoidCallback onToggle;
+  final VoidCallback onEdit;
   final bool isLast;
 
   const RosterStudentRow({
     super.key,
     required this.student,
     required this.onToggle,
+    required this.onEdit,
     this.isLast = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final isActive = student.isActive;
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
       decoration: BoxDecoration(
@@ -49,6 +50,13 @@ class RosterStudentRow extends StatelessWidget {
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
+            ),
+            IconButton(
+              icon: Icon(Icons.edit_outlined,
+                  size: 18, color: AppTheme.primaryGreen),
+              onPressed: onEdit,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             ),
             Switch(
               value: isActive,

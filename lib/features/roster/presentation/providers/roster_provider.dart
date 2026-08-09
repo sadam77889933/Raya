@@ -83,6 +83,11 @@ class RosterNotifier extends StateNotifier<RosterState> {
     await _load();
   }
 
+  Future<void> updateStudent(RosterStudent student) async {
+    await _repo.update(student);
+    await _load();
+  }
+
   Future<void> deleteStudent(String id) async {
     await _repo.delete(id);
     await _load();
