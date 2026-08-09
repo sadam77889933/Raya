@@ -13,6 +13,7 @@ import '../../../report_form/presentation/providers/report_form_provider.dart';
 import '../../../report_form/presentation/widgets/step_indicator.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../report_form/presentation/providers/firestore_report_provider.dart';
+import '../../../notifications/presentation/providers/notification_provider.dart';
 enum _PdfStatus { idle, generating, ready, error }
 enum UploadStatus { uploading, uploaded, failed }
 
@@ -79,6 +80,17 @@ class _PdfExportNotifier extends StateNotifier<_PdfExportState> {
           );
 
       state = state.copyWith(uploadStatus: UploadStatus.uploaded);
+
+      // إشعار تلقائي للمشرفات — لا نوقف العملية لو فشل هذا الجزء
+      try {
+        await _ref.read(notificationServiceProvider).notifyReportCreated(
+              teacherName: user.name,
+              circleName: report.circleInfo.circleName,
+              mosqueId: user.mosqueId ?? '',
+            );
+      } catch (_) {
+        // فشل الإشعار لا يجب أن يؤثر على نجاح رفع التقرير نفسه
+      }
     } catch (_) {
       state = state.copyWith(uploadStatus: UploadStatus.failed);
     }

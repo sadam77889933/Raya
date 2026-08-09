@@ -7,6 +7,8 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../report_form/presentation/screens/my_reports_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../notifications/presentation/providers/notification_provider.dart';
+import '../../../notifications/presentation/screens/notifications_screen.dart';
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -20,6 +22,47 @@ class HomeScreen extends ConsumerWidget {
         title: const Text('الرئيسية'),
         automaticallyImplyLeading: false,
         actions: [
+          Consumer(
+            builder: (context, ref, _) {
+              final user = ref.watch(authProvider).user;
+              final mosqueId = user?.mosqueId ?? '';
+              final unreadCount =
+                  ref.watch(unreadTeacherCountProvider(mosqueId));
+
+              return Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications_outlined),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationsScreen(),
+                      ),
+                    ),
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints:
+                            const BoxConstraints(minWidth: 16, minHeight: 16),
+                        child: Text(
+                          '$unreadCount',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 9),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout_rounded),
             tooltip: 'تسجيل الخروج',

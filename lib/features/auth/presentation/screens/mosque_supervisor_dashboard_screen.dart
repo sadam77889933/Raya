@@ -7,7 +7,8 @@ import '../../../report_form/presentation/screens/all_reports_screen.dart';
 import '../providers/auth_provider.dart';
 import 'create_teacher_screen.dart';
 import 'manage_teachers_screen.dart';
-
+import '../../../notifications/presentation/providers/notification_provider.dart';
+import '../../../notifications/presentation/screens/notifications_screen.dart';
 class MosqueSupervisorDashboardScreen extends ConsumerWidget {
   const MosqueSupervisorDashboardScreen({super.key});
 
@@ -29,6 +30,45 @@ class MosqueSupervisorDashboardScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('لوحة مشرفة المسجد'),
         actions: [
+          if (mosqueId != null)
+            Builder(
+              builder: (context) {
+                final unreadCount =
+                    ref.watch(unreadMosqueSupervisorCountProvider(mosqueId));
+                return Stack(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.notifications_outlined),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationsScreen(),
+                        ),
+                      ),
+                    ),
+                    if (unreadCount > 0)
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(
+                              minWidth: 16, minHeight: 16),
+                          child: Text(
+                            '$unreadCount',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 9),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.logout_rounded),
             onPressed: () => ref.read(authProvider.notifier).signOut(),
