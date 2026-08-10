@@ -213,9 +213,19 @@ class _StudentFormCardState extends State<StudentFormCard> {
             ),
             const SizedBox(height: 14),
             _sectionLabel('الحفظ'),
-            const SizedBox(height: 8),
+           const SizedBox(height: 8),
+            AppDropdownField<String>(
+              label: 'التقدير',
+              hint: 'التقدير',
+              value: _grade,
+              items: QuranConstants.grades,
+              itemLabel: (g) => g,
+              isRequired: true,
+              onChanged: (v) => setState(() => _grade = v),
+            ),
+            const SizedBox(height: 10),
             Row(children: [
-           Expanded(
+              Expanded(
                 child: AppSearchableDropdown(
                   label: 'من سورة',
                   hint: 'اختاري',
@@ -226,7 +236,7 @@ class _StudentFormCardState extends State<StudentFormCard> {
                 ),
               ),
               const SizedBox(width: 8),
-Expanded(
+              Expanded(
                 child: AppSearchableDropdown(
                   label: 'إلى سورة',
                   hint: 'اختاري',
@@ -236,24 +246,22 @@ Expanded(
                   onChanged: (v) => setState(() => _endSurah = v),
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: AppDropdownField<String>(
-                  label: 'التقدير',
-                  hint: 'التقدير',
-                  value: _grade,
-                  items: QuranConstants.grades,
-                  itemLabel: (g) => g,
-                  isRequired: true,
-                  onChanged: (v) => setState(() => _grade = v),
-                ),
-              ),
             ]),
             const SizedBox(height: 14),
             _sectionLabel('المراجعة'),
             const SizedBox(height: 8),
+            AppDropdownField<String>(
+              label: 'التقدير',
+              hint: 'التقدير',
+              value: _reviewGrade,
+              items: QuranConstants.grades,
+              itemLabel: (g) => g,
+              isRequired: true,
+              onChanged: (v) => setState(() => _reviewGrade = v),
+            ),
+            const SizedBox(height: 10),
             Row(children: [
-Expanded(
+              Expanded(
                 child: AppSearchableDropdown(
                   label: 'من سورة',
                   hint: 'اختاري',
@@ -264,7 +272,7 @@ Expanded(
                 ),
               ),
               const SizedBox(width: 8),
-Expanded(
+              Expanded(
                 child: AppSearchableDropdown(
                   label: 'إلى سورة',
                   hint: 'اختاري',
@@ -272,17 +280,6 @@ Expanded(
                   items: QuranConstants.surahs,
                   isRequired: true,
                   onChanged: (v) => setState(() => _reviewEndSurah = v),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: AppDropdownField<String>(
-                  label: 'التقدير',
-                  hint: 'التقدير',
-                  value: _reviewGrade,
-                  items: QuranConstants.grades,
-                  itemLabel: (g) => g,
-                  onChanged: (v) => setState(() => _reviewGrade = v),
                 ),
               ),
             ]),
