@@ -10,6 +10,7 @@ import 'manage_teachers_screen.dart';
 import '../../../notifications/presentation/providers/notification_provider.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../../../notifications/presentation/screens/manage_scheduled_notifications_screen.dart';
+import '../../../report_form/presentation/screens/attendance_report_screen.dart';
 class MosqueSupervisorDashboardScreen extends ConsumerWidget {
   const MosqueSupervisorDashboardScreen({super.key});
 
@@ -77,7 +78,7 @@ class MosqueSupervisorDashboardScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -168,6 +169,17 @@ class MosqueSupervisorDashboardScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 14),
+              _DashboardCard(
+                icon: Icons.bar_chart_rounded,
+                title: 'تقرير الحضور والغياب',
+                subtitle: 'ملخّص غياب طالبات مسجدك عبر فترة زمنية',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const AttendanceReportScreen(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
             ],
 
             _DashboardCard(
@@ -189,7 +201,7 @@ class MosqueSupervisorDashboardScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-            const Spacer(),
+            const SizedBox(height: 30),
             Center(
               child: Text(
                 'برمجة: صدام البريكي (أبو ود)',

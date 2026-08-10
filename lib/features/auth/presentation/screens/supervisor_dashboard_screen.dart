@@ -10,6 +10,7 @@ import '../../../pdf_export/presentation/screens/merge_reports_screen.dart';
 import '../../../notifications/presentation/providers/notification_provider.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../../../notifications/presentation/screens/manage_scheduled_notifications_screen.dart';
+import '../../../report_form/presentation/screens/attendance_report_screen.dart';
 
 class SupervisorDashboardScreen extends ConsumerWidget {
   const SupervisorDashboardScreen({super.key});
@@ -67,7 +68,7 @@ class SupervisorDashboardScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -143,6 +144,17 @@ class SupervisorDashboardScreen extends ConsumerWidget {
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => const MergeReportsScreen(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _DashboardCard(
+              icon: Icons.bar_chart_rounded,
+              title: 'تقرير الحضور والغياب',
+              subtitle: 'ملخّص غياب الطالبات عبر فترة زمنية محدَّدة',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const AttendanceReportScreen(),
                 ),
               ),
             ),

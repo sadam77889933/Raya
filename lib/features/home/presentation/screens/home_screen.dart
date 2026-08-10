@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../notifications/presentation/providers/notification_provider.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
+import '../../../report_form/presentation/screens/attendance_report_screen.dart';
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -176,7 +177,14 @@ class HomeScreen extends ConsumerWidget {
           icon: const Icon(Icons.groups_rounded, size: 22),
           label: const Text('سجل الحلقة'),
         ),
-
+       const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const AttendanceReportScreen()),
+          ),
+          icon: const Icon(Icons.bar_chart_rounded, size: 22),
+          label: const Text('تقرير الحضور والغياب'),
+        ),
       ],
     );
   }
