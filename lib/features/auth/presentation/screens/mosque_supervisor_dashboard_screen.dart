@@ -9,6 +9,7 @@ import 'create_teacher_screen.dart';
 import 'manage_teachers_screen.dart';
 import '../../../notifications/presentation/providers/notification_provider.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
+import '../../../notifications/presentation/screens/manage_scheduled_notifications_screen.dart';
 class MosqueSupervisorDashboardScreen extends ConsumerWidget {
   const MosqueSupervisorDashboardScreen({super.key});
 
@@ -176,7 +177,18 @@ class MosqueSupervisorDashboardScreen extends ConsumerWidget {
               onTap: null,
               isComingSoon: true,
             ),
-
+            const SizedBox(height: 14),
+              _DashboardCard(
+                icon: Icons.calendar_month_rounded,
+                title: 'الرسائل المجدولة',
+                subtitle: 'رسائل تذكيرية لمعلمات مسجدك كل شهر هجري',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        const ManageScheduledNotificationsScreen(),
+                  ),
+                ),
+              ),
             const Spacer(),
             Center(
               child: Text(

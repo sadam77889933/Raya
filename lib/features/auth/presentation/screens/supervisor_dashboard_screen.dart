@@ -9,6 +9,7 @@ import '../../../report_form/presentation/screens/all_reports_screen.dart';
 import '../../../pdf_export/presentation/screens/merge_reports_screen.dart';
 import '../../../notifications/presentation/providers/notification_provider.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
+import '../../../notifications/presentation/screens/manage_scheduled_notifications_screen.dart';
 
 class SupervisorDashboardScreen extends ConsumerWidget {
   const SupervisorDashboardScreen({super.key});
@@ -142,6 +143,17 @@ class SupervisorDashboardScreen extends ConsumerWidget {
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => const MergeReportsScreen(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _DashboardCard(
+              icon: Icons.calendar_month_rounded,
+              title: 'الرسائل المجدولة',
+              subtitle: 'رسائل تذكيرية تُرسَل تلقائياً كل شهر هجري',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const ManageScheduledNotificationsScreen(),
                 ),
               ),
             ),

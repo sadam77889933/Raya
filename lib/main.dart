@@ -13,6 +13,7 @@ import 'features/auth/presentation/screens/supervisor_dashboard_screen.dart';
 import 'core/services/update_checker_service.dart';
 import 'core/widgets/update_dialog.dart';
 import 'features/auth/presentation/screens/mosque_supervisor_dashboard_screen.dart';
+import 'features/notifications/data/scheduled_notification_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -76,6 +77,12 @@ class _AuthGateState extends ConsumerState<_AuthGate> {
     final updateInfo = await UpdateCheckerService().checkForUpdate();
     if (!mounted) return;
     await UpdateDialog.showIfNeeded(context, updateInfo);
+
+    // فحص الرسائل المجدولة بصمت (لا نوقف أي شيء لو فشل)
+    // فحص الرسائل المجدولة بصمت (لا نوقف أي شيء لو فشل)
+    debugPrint('بدء فحص الرسائل المجدولة...');
+    await ScheduledNotificationService().checkAndSendDueNotifications();
+    debugPrint('انتهى فحص الرسائل المجدولة');
   }
 
   @override
@@ -91,6 +98,8 @@ class _AuthGateState extends ConsumerState<_AuthGate> {
       case AuthStatus.error:
         return const LoginScreen();
       case AuthStatus.signedIn:
+        WidgetsBinding.instance.addPostFrameCallback((_) => _checkForUpdate());
+
         final user = authState.user;
         if (user != null && user.isSupervisor) {
           return const SupervisorDashboardScreen();
