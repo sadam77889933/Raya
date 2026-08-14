@@ -402,9 +402,9 @@ pw.Widget _footer(String teacher, pw.Font font, pw.Font bold,
           pw.Row(
             children: [
               if (stampImage != null)
-                pw.Image(stampImage, width: 55, height: 55)
+                pw.Image(stampImage, width: 80, height: 80)
               else
-                pw.SizedBox(width: 55, height: 55),
+                pw.SizedBox(width: 80, height: 80),
               pw.SizedBox(width: 6),
               if (supervisorName != null && supervisorName.trim().isNotEmpty)
                 pw.RichText(
