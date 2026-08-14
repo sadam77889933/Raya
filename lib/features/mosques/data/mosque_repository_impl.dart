@@ -33,4 +33,24 @@ class MosqueRepositoryImpl implements MosqueRepository {
         .doc(mosqueId)
         .update({'isActive': isActive});
   }
+
+  @override
+  Future<void> updateBranding(
+    String mosqueId, {
+    String? stampBase64,
+    bool removeStamp = false,
+    String? supervisorName,
+  }) async {
+    final data = <String, dynamic>{};
+    if (removeStamp) {
+      data['stampBase64'] = FieldValue.delete();
+    } else if (stampBase64 != null) {
+      data['stampBase64'] = stampBase64;
+    }
+    if (supervisorName != null) {
+      data['supervisorName'] = supervisorName;
+    }
+    if (data.isEmpty) return;
+    await _firestore.collection(_collection).doc(mosqueId).update(data);
+  }
 }

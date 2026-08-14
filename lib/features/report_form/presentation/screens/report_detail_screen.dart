@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
@@ -45,12 +47,29 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
   Future<void> _shareReport(String mosqueName) async {
     setState(() => _isSharing = true);
     try {
+      final mosques = ref.read(mosquesStreamProvider).value ?? [];
+      final mosque =
+          mosques.where((m) => m.id == _report.mosqueId).firstOrNull;
+
+      Uint8List? stampBytes;
+      if (mosque?.stampBase64 != null && mosque!.stampBase64!.isNotEmpty) {
+        try {
+          stampBytes = base64Decode(mosque.stampBase64!);
+        } catch (_) {
+          // ختم تالف أو غير صالح: نتجاهله ونترك المكان فارغاً بدل تعطيل التقرير
+        }
+      }
+
       final circleReport = _report.toCircleReport();
       final updatedReport = circleReport.copyWith(
         circleInfo: circleReport.circleInfo.copyWith(mosqueName: mosqueName),
       );
 
-      final path = await PdfGenerator.instance.generate(updatedReport);
+      final path = await PdfGenerator.instance.generate(
+        updatedReport,
+        stampBytes: stampBytes,
+        supervisorName: mosque?.supervisorName,
+      );
 
       if (!mounted) return;
       await Share.shareXFiles(

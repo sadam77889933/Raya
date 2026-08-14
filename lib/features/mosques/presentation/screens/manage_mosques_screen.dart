@@ -7,6 +7,7 @@ import '../../domain/entities/teaching_circle.dart';
 import '../providers/mosque_provider.dart';
 import '../providers/school_provider.dart';
 import '../providers/teaching_circle_provider.dart';
+import 'mosque_branding_screen.dart';
 
 /// شاشة إدارة الهيكل التنظيمي: مسجد ← يحتوي على أكثر من دار/مدرسة ←
 /// الدار تحتوي على أكثر من حلقة.
@@ -156,12 +157,28 @@ class _MosquesTab extends ConsumerWidget {
                         : Colors.grey.shade500,
                   ),
                 ),
-                trailing: Switch(
-                  value: mosque.isActive,
-                  activeColor: AppTheme.primaryGreen,
-                  onChanged: (val) => ref
-                      .read(mosqueRepositoryProvider)
-                      .setActive(mosque.id, val),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.image_outlined,
+                          size: 20, color: AppTheme.primaryGreen),
+                      tooltip: 'الختم وبيانات المشرفة',
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              MosqueBrandingScreen(mosque: mosque),
+                        ),
+                      ),
+                    ),
+                    Switch(
+                      value: mosque.isActive,
+                      activeColor: AppTheme.primaryGreen,
+                      onChanged: (val) => ref
+                          .read(mosqueRepositoryProvider)
+                          .setActive(mosque.id, val),
+                    ),
+                  ],
                 ),
               ),
             );

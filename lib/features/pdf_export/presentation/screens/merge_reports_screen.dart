@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hijri/hijri_calendar.dart';
@@ -82,11 +84,17 @@ class _MergeReportsScreenState extends ConsumerState<MergeReportsScreen> {
 
         if (mosqueReports.isEmpty) continue;
 
-        final mosqueName = mosques
-                .where((m) => m.id == mosqueId)
-                .map((m) => m.name)
-                .firstOrNull ??
-            'مسجد';
+        final mosque = mosques.where((m) => m.id == mosqueId).firstOrNull;
+        final mosqueName = mosque?.name ?? 'مسجد';
+
+        Uint8List? stampBytes;
+        if (mosque?.stampBase64 != null && mosque!.stampBase64!.isNotEmpty) {
+          try {
+            stampBytes = base64Decode(mosque.stampBase64!);
+          } catch (_) {
+            // ختم تالف أو غير صالح: نتجاهله ونترك المكان فارغاً بدل تعطيل التقرير
+          }
+        }
 
         setState(() => _statusText = 'جاري إنشاء تقارير $mosqueName...');
 
@@ -97,7 +105,11 @@ class _MergeReportsScreenState extends ConsumerState<MergeReportsScreen> {
             circleInfo:
                 circleReport.circleInfo.copyWith(mosqueName: mosqueName),
           );
-          final path = await PdfGenerator.instance.generate(updatedReport);
+          final path = await PdfGenerator.instance.generate(
+            updatedReport,
+            stampBytes: stampBytes,
+            supervisorName: mosque?.supervisorName,
+          );
           individualPaths.add(path);
         }
 

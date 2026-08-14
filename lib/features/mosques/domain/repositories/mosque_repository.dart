@@ -9,4 +9,14 @@ abstract class MosqueRepository {
 
   /// تعطيل/تفعيل مسجد
   Future<void> setActive(String mosqueId, bool isActive);
+
+  /// تحديث ختم المسجد (Base64) و/أو اسم مشرفة الحلقات.
+  /// تمرير null لأي من الحقلين يعني "بدون تغيير عليه".
+  /// لحذف الختم نهائياً استخدمي [removeStamp]: true.
+  Future<void> updateBranding(
+    String mosqueId, {
+    String? stampBase64,
+    bool removeStamp = false,
+    String? supervisorName,
+  });
 }

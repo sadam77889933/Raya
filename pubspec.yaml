@@ -26,6 +26,7 @@ dependencies:
   hijri: ^3.0.0
   syncfusion_flutter_pdf: ^28.1.33
   flutter_secure_storage: ^11.0.0
+  image_picker: ^1.1.2
 dev_dependencies:
   flutter_test:
     sdk: flutter

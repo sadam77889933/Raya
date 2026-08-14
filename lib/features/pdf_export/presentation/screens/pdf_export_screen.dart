@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +16,7 @@ import '../../../report_form/presentation/widgets/step_indicator.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../report_form/presentation/providers/firestore_report_provider.dart';
 import '../../../notifications/presentation/providers/notification_provider.dart';
+import '../../../mosques/presentation/providers/mosque_provider.dart';
 enum _PdfStatus { idle, generating, ready, error }
 enum UploadStatus { uploading, uploaded, failed }
 
@@ -52,7 +55,25 @@ class _PdfExportNotifier extends StateNotifier<_PdfExportState> {
   Future<void> generatePdf(dynamic report) async {
     state = const _PdfExportState(status: _PdfStatus.generating);
     try {
-      final path = await PdfGenerator.instance.generate(report);
+      final user = _ref.read(authProvider).user;
+      final mosques = _ref.read(activeMosquesProvider);
+      final mosque =
+          mosques.where((m) => m.id == (user?.mosqueId ?? '')).firstOrNull;
+
+      Uint8List? stampBytes;
+      if (mosque?.stampBase64 != null && mosque!.stampBase64!.isNotEmpty) {
+        try {
+          stampBytes = base64Decode(mosque.stampBase64!);
+        } catch (_) {
+          // ختم تالف أو غير صالح: نتجاهله ونترك المكان فارغاً بدل تعطيل التقرير
+        }
+      }
+
+      final path = await PdfGenerator.instance.generate(
+        report,
+        stampBytes: stampBytes,
+        supervisorName: mosque?.supervisorName,
+      );
       state = _PdfExportState(status: _PdfStatus.ready, pdfPath: path);
 
       _uploadToFirestore(report);

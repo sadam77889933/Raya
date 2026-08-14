@@ -1,4 +1,5 @@
 ﻿import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
@@ -57,11 +58,18 @@ class PdfGenerator {
     12: pw.FixedColumnWidth(_wNum),
   };
 
-  Future<String> generate(CircleReport report) async {
+  /// [stampBytes]: صورة ختم المسجد (إن وُجدت)، تُمرَّر جاهزة كبايتات بعد فك
+  /// ترميزها من Base64. مرّري null إن لم يكن لهذا المسجد ختم بعد، وستظهر
+  /// مساحة فارغة مكانه في التقرير.
+  /// [supervisorName]: اسم مشرفة حلقات هذا المسجد تحديداً.
+  Future<String> generate(
+    CircleReport report, {
+    Uint8List? stampBytes,
+    String? supervisorName,
+  }) async {
     final font     = await _loadFont('assets/fonts/Amiri-Regular.ttf');
     final fontBold = await _loadFont('assets/fonts/Amiri-Bold.ttf');
-    final stampBytes = await rootBundle.load('assets/images/stamp.png');
-    final stampImage = pw.MemoryImage(stampBytes.buffer.asUint8List());
+    final stampImage = stampBytes != null ? pw.MemoryImage(stampBytes) : null;
 
     final pdf = pw.Document(
       theme: pw.ThemeData.withFont(base: font, bold: fontBold),
@@ -78,7 +86,7 @@ class PdfGenerator {
           pageFormat: const PdfPageFormat(_pageW, _pageH),
           margin: pw.EdgeInsets.zero,
           build: (ctx) => _page(
-            report, font, fontBold, stampImage,
+            report, font, fontBold, stampImage, supervisorName,
             start: start, end: end,
             page: p + 1, pages: pageCount,
           ),
@@ -96,7 +104,8 @@ class PdfGenerator {
     CircleReport report,
     pw.Font font,
     pw.Font bold,
-    pw.MemoryImage stampImage, {
+    pw.MemoryImage? stampImage,
+    String? supervisorName, {
     required int start,
     required int end,
     required int page,
@@ -126,7 +135,8 @@ class PdfGenerator {
           _tableHeader(bold),
           _dataTable(report.students, font, start: start, end: end),
           pw.Spacer(),
-          _footer(i.teacherName, font, bold, stampImage, page: page, pages: pages),
+          _footer(i.teacherName, font, bold, stampImage, supervisorName,
+              page: page, pages: pages),
           pw.SizedBox(height: 4),
         ],
       ),
@@ -377,7 +387,8 @@ child: pw.Row(
     );
   }
 
-pw.Widget _footer(String teacher, pw.Font font, pw.Font bold, pw.MemoryImage stampImage,
+pw.Widget _footer(String teacher, pw.Font font, pw.Font bold,
+      pw.MemoryImage? stampImage, String? supervisorName,
       {required int page, required int pages}) {
     return pw.Column(children: [
       pw.SizedBox(height: 6),
@@ -387,20 +398,24 @@ pw.Widget _footer(String teacher, pw.Font font, pw.Font bold, pw.MemoryImage sta
         children: [
           _rtl('التوقيع:...........................', font, 9),
           if (pages > 1) _rtl('$page / $pages', font, 8),
-          // الختم بجانب المشرفة
+          // الختم بجانب المشرفة (يظهر فارغاً إن لم يكن لهذا المسجد ختم بعد)
           pw.Row(
             children: [
-              pw.Image(stampImage, width: 55, height: 55),
+              if (stampImage != null)
+                pw.Image(stampImage, width: 55, height: 55)
+              else
+                pw.SizedBox(width: 55, height: 55),
               pw.SizedBox(width: 6),
-              pw.RichText(
-                textDirection: pw.TextDirection.rtl,
-                text: pw.TextSpan(children: [
-                  pw.TextSpan(text: 'مشرفـ/ـة الحلقات: ',
-                      style: pw.TextStyle(font: bold, fontSize: 9)),
-                  pw.TextSpan(text: 'أم وُد',
-                      style: pw.TextStyle(font: font, fontSize: 9)),
-                ]),
-              ),
+              if (supervisorName != null && supervisorName.trim().isNotEmpty)
+                pw.RichText(
+                  textDirection: pw.TextDirection.rtl,
+                  text: pw.TextSpan(children: [
+                    pw.TextSpan(text: 'مشرفـ/ـة الحلقات: ',
+                        style: pw.TextStyle(font: bold, fontSize: 9)),
+                    pw.TextSpan(text: supervisorName,
+                        style: pw.TextStyle(font: font, fontSize: 9)),
+                  ]),
+                ),
             ],
           ),
           pw.RichText(

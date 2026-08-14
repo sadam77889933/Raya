@@ -5,6 +5,7 @@ import '../../../mosques/presentation/providers/mosque_provider.dart';
 import '../../../pdf_export/presentation/screens/merge_reports_screen.dart';
 import '../../../report_form/presentation/screens/all_reports_screen.dart';
 import '../../../mosques/presentation/screens/manage_mosques_screen.dart';
+import '../../../mosques/presentation/screens/mosque_branding_screen.dart';
 import '../providers/auth_provider.dart';
 import 'create_teacher_screen.dart';
 import 'manage_teachers_screen.dart';
@@ -23,11 +24,8 @@ class MosqueSupervisorDashboardScreen extends ConsumerWidget {
     final mosqueId = user?.mosqueId;
 
     final mosques = ref.watch(activeMosquesProvider);
-    final mosqueName = mosques
-            .where((m) => m.id == mosqueId)
-            .map((m) => m.name)
-            .firstOrNull ??
-        'غير محدد';
+    final mosque = mosques.where((m) => m.id == mosqueId).firstOrNull;
+    final mosqueName = mosque?.name ?? 'غير محدد';
 
     return Scaffold(
       appBar: AppBar(
@@ -192,6 +190,21 @@ class MosqueSupervisorDashboardScreen extends ConsumerWidget {
                         ManageMosquesScreen(restrictToMosqueId: mosqueId),
                   ),
                 ),
+              ),
+              const SizedBox(height: 14),
+
+              _DashboardCard(
+                icon: Icons.image_outlined,
+                title: 'بيانات المسجد',
+                subtitle: 'الختم واسم مشرفة الحلقات اللذان يظهران في التقرير',
+                onTap: mosque == null
+                    ? null
+                    : () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                MosqueBrandingScreen(mosque: mosque),
+                          ),
+                        ),
               ),
               const SizedBox(height: 14),
             ],
