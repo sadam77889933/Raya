@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../domain/entities/mosque.dart';
 import '../providers/mosque_provider.dart';
 
 class ManageMosquesScreen extends ConsumerWidget {
@@ -82,40 +83,72 @@ class ManageMosquesScreen extends ConsumerWidget {
               ),
             );
           }
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: mosques.length,
-            itemBuilder: (context, index) {
-              final mosque = mosques[index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 10),
-                child: ListTile(
-                  leading: Icon(
-                    Icons.mosque_rounded,
+          final activeMosques =
+              mosques.where((m) => m.isActive).toList();
+          final inactiveMosques =
+              mosques.where((m) => !m.isActive).toList();
+
+          Widget mosqueTile(Mosque mosque) {
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: ListTile(
+                leading: Icon(
+                  Icons.mosque_rounded,
+                  color: mosque.isActive
+                      ? AppTheme.primaryGreen
+                      : Colors.grey.shade400,
+                ),
+                title: Text(
+                  mosque.name,
+                  style: TextStyle(
+                    fontFamily: 'Tajawal',
+                    fontSize: 14,
                     color: mosque.isActive
-                        ? AppTheme.primaryGreen
-                        : Colors.grey.shade400,
-                  ),
-                  title: Text(
-                    mosque.name,
-                    style: TextStyle(
-                      fontFamily: 'Tajawal',
-                      fontSize: 14,
-                      color: mosque.isActive
-                          ? Colors.black87
-                          : Colors.grey.shade500,
-                    ),
-                  ),
-                  trailing: Switch(
-                    value: mosque.isActive,
-                    activeColor: AppTheme.primaryGreen,
-                    onChanged: (val) => ref
-                        .read(mosqueRepositoryProvider)
-                        .setActive(mosque.id, val),
+                        ? Colors.black87
+                        : Colors.grey.shade500,
                   ),
                 ),
-              );
-            },
+                trailing: Switch(
+                  value: mosque.isActive,
+                  activeColor: AppTheme.primaryGreen,
+                  onChanged: (val) => ref
+                      .read(mosqueRepositoryProvider)
+                      .setActive(mosque.id, val),
+                ),
+              ),
+            );
+          }
+
+          Widget sectionLabel(String label, int count, Color color) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              child: Text(
+                '$label · $count',
+                style: TextStyle(
+                  fontFamily: 'Tajawal',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+              ),
+            );
+          }
+
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              if (activeMosques.isNotEmpty) ...[
+                sectionLabel(
+                    'نشطة', activeMosques.length, AppTheme.primaryGreen),
+                ...activeMosques.map(mosqueTile),
+                const SizedBox(height: 10),
+              ],
+              if (inactiveMosques.isNotEmpty) ...[
+                sectionLabel('غير نشطة', inactiveMosques.length,
+                    Colors.grey.shade500),
+                ...inactiveMosques.map(mosqueTile),
+              ],
+            ],
           );
         },
       ),

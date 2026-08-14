@@ -6,6 +6,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
 import '../../../pdf_export/data/pdf_generator.dart';
 import '../../domain/entities/report_summary.dart';
+import 'edit_report_screen.dart';
 
 class ReportDetailScreen extends ConsumerStatefulWidget {
   final ReportSummary report;
@@ -19,11 +20,32 @@ class ReportDetailScreen extends ConsumerStatefulWidget {
 
 class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
   bool _isSharing = false;
+  late ReportSummary _report;
+
+  @override
+  void initState() {
+    super.initState();
+    _report = widget.report;
+  }
+
+  Future<void> _editReport() async {
+    final updated = await Navigator.of(context).push<ReportSummary>(
+      MaterialPageRoute(
+        builder: (_) => EditReportScreen(report: _report),
+      ),
+    );
+    if (updated != null && mounted) {
+      setState(() => _report = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم حفظ التعديلات بنجاح')),
+      );
+    }
+  }
 
   Future<void> _shareReport(String mosqueName) async {
     setState(() => _isSharing = true);
     try {
-      final circleReport = widget.report.toCircleReport();
+      final circleReport = _report.toCircleReport();
       final updatedReport = circleReport.copyWith(
         circleInfo: circleReport.circleInfo.copyWith(mosqueName: mosqueName),
       );
@@ -47,7 +69,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final report = widget.report;
+    final report = _report;
     final mosquesAsync = ref.watch(mosquesStreamProvider);
     final mosques = mosquesAsync.value ?? [];
     final mosquesLoading = mosquesAsync.isLoading;
@@ -62,6 +84,13 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('تفاصيل التقرير'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'تعديل التقرير',
+            onPressed: _editReport,
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _isSharing ? null : () => _shareReport(mosqueName),

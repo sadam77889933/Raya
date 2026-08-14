@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/teacher_welcome_banner.dart';
 import '../../../report_form/presentation/screens/my_reports_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -78,8 +79,20 @@ class HomeScreen extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Column(
               children: [
+                Builder(
+                  builder: (context) {
+                    final teacherName = ref.watch(authProvider).user?.name;
+                    if (teacherName == null || teacherName.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: TeacherWelcomeBanner(name: teacherName),
+                    );
+                  },
+                ),
                 const Spacer(flex: 2),
-                _buildHeader(context, theme),
+                _buildHeader(context, theme, ref),
                 const Spacer(flex: 3),
                 _buildActionButtons(context),
                 const Spacer(flex: 1),
@@ -104,7 +117,7 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context, ThemeData theme) {
+  Widget _buildHeader(BuildContext context, ThemeData theme, WidgetRef ref) {
     return Column(
       children: [
         Container(

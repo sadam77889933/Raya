@@ -36,6 +36,20 @@ class FirestoreReportService {
             snapshot.docs.map((doc) => {...doc.data(), 'id': doc.id}).toList());
   }
 
+  /// تحديث بيانات تقرير محفوظ مسبقاً (تعديل طالبات موجودات أو إضافة طالبة جديدة)
+  ///
+  /// لا يُغيّر تاريخ الإنشاء الأصلي للتقرير (createdAt)، فقط يستبدل
+  /// قائمة الطالبات وعددها.
+  Future<void> updateReportStudents(
+    String reportId,
+    List<Map<String, dynamic>> students,
+  ) async {
+    await _firestore.collection(_collection).doc(reportId).update({
+      'students': students,
+      'studentsCount': students.length,
+    });
+  }
+
   /// جلب كل التقارير (لشاشة المشرفة القادمة)
   Stream<List<Map<String, dynamic>>> watchAllReports() {
     return _firestore

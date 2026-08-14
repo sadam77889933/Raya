@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../mosques/domain/entities/mosque.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
 import '../../domain/entities/user_model.dart';
 import '../providers/auth_provider.dart';
@@ -52,6 +53,11 @@ class _ManageTeachersScreenState extends ConsumerState<ManageTeachersScreen> {
               : teachers
                   .where((t) => t.name.contains(_searchQuery.trim()))
                   .toList();
+
+          final activeTeachers =
+              filtered.where((t) => t.isActive).toList();
+          final inactiveTeachers =
+              filtered.where((t) => !t.isActive).toList();
 
           return Padding(
             padding: const EdgeInsets.all(16),
@@ -112,27 +118,60 @@ class _ManageTeachersScreenState extends ConsumerState<ManageTeachersScreen> {
                             ),
                           ),
                         )
-                      : ListView.separated(
-                          itemCount: filtered.length,
-                          separatorBuilder: (_, __) =>
+                      : ListView(
+                          children: [
+                            if (activeTeachers.isNotEmpty) ...[
+                              _sectionLabel(
+                                'نشطة',
+                                activeTeachers.length,
+                                color: AppTheme.primaryGreen,
+                              ),
+                              const SizedBox(height: 8),
+                              ...activeTeachers.map(
+                                (teacher) => Padding(
+                                  padding:
+                                      const EdgeInsets.only(bottom: 10),
+                                  child: _TeacherCard(
+                                    teacher: teacher,
+                                    mosqueName: _mosqueNameFor(
+                                        teacher, mosques),
+                                    onToggle: (val) => ref
+                                        .read(authRepositoryProvider)
+                                        .setTeacherActive(
+                                            teacher.uid, val),
+                                    onEdit: () => _showEditNameDialog(
+                                        context, ref, teacher),
+                                  ),
+                                ),
+                              ),
                               const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final teacher = filtered[index];
-                            final mosqueName = mosques
-                                    .where((m) => m.id == teacher.mosqueId)
-                                    .map((m) => m.name)
-                                    .firstOrNull ??
-                                'غير محدد';
-                            return _TeacherCard(
-                              teacher: teacher,
-                              mosqueName: mosqueName,
-                              onToggle: (val) => ref
-                                  .read(authRepositoryProvider)
-                                  .setTeacherActive(teacher.uid, val),
-                              onEdit: () => _showEditNameDialog(
-                                  context, ref, teacher),
-                            );
-                          },
+                            ],
+                            if (inactiveTeachers.isNotEmpty) ...[
+                              _sectionLabel(
+                                'معطّلة',
+                                inactiveTeachers.length,
+                                color: Colors.grey.shade500,
+                              ),
+                              const SizedBox(height: 8),
+                              ...inactiveTeachers.map(
+                                (teacher) => Padding(
+                                  padding:
+                                      const EdgeInsets.only(bottom: 10),
+                                  child: _TeacherCard(
+                                    teacher: teacher,
+                                    mosqueName: _mosqueNameFor(
+                                        teacher, mosques),
+                                    onToggle: (val) => ref
+                                        .read(authRepositoryProvider)
+                                        .setTeacherActive(
+                                            teacher.uid, val),
+                                    onEdit: () => _showEditNameDialog(
+                                        context, ref, teacher),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                 ),
               ],
@@ -203,6 +242,29 @@ class _ManageTeachersScreenState extends ConsumerState<ManageTeachersScreen> {
             newName,
           );
     }
+  }
+
+  String _mosqueNameFor(UserModel teacher, List<Mosque> mosques) {
+    return mosques
+            .where((m) => m.id == teacher.mosqueId)
+            .map((m) => m.name)
+            .firstOrNull ??
+        'غير محدد';
+  }
+
+  Widget _sectionLabel(String label, int count, {required Color color}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Text(
+        '$label · $count',
+        style: TextStyle(
+          fontFamily: 'Tajawal',
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
   }
 }
 class _StatCard extends StatelessWidget {
