@@ -8,12 +8,17 @@ import '../providers/mosque_provider.dart';
 import '../providers/school_provider.dart';
 import '../providers/teaching_circle_provider.dart';
 
-/// شاشة إدارة الهيكل التنظيمي الكامل (للمشرفة العامة فقط):
-/// مسجد ← يحتوي على أكثر من دار/مدرسة ← الدار تحتوي على أكثر من حلقة.
+/// شاشة إدارة الهيكل التنظيمي: مسجد ← يحتوي على أكثر من دار/مدرسة ←
+/// الدار تحتوي على أكثر من حلقة.
 ///
-/// 3 تبويبات مستقلة، كل واحد له قائمته وزر إضافته الخاص.
+/// - المشرفة العامة (restrictToMosqueId == null): تبويبات المساجد + الدور
+///   + الحلقات، وترى كل المساجد.
+/// - مشرفة المسجد (restrictToMosqueId != null): تبويبا الدور + الحلقات
+///   فقط، مقيَّدان بمسجدها هي دون غيره — لا ترى قائمة كل المساجد إطلاقاً.
 class ManageMosquesScreen extends StatefulWidget {
-  const ManageMosquesScreen({super.key});
+  final String? restrictToMosqueId;
+
+  const ManageMosquesScreen({super.key, this.restrictToMosqueId});
 
   @override
   State<ManageMosquesScreen> createState() => _ManageMosquesScreenState();
@@ -23,10 +28,12 @@ class _ManageMosquesScreenState extends State<ManageMosquesScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
 
+  bool get _isRestricted => widget.restrictToMosqueId != null;
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: _isRestricted ? 2 : 3, vsync: this);
   }
 
   @override
@@ -39,23 +46,23 @@ class _ManageMosquesScreenState extends State<ManageMosquesScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('إدارة المساجد'),
+        title: Text(_isRestricted ? 'الدور والحلقات' : 'إدارة المساجد'),
         bottom: TabBar(
           controller: _tabController,
           labelStyle: const TextStyle(fontFamily: 'Tajawal', fontSize: 12.5),
-          tabs: const [
-            Tab(text: '🕌  المساجد'),
-            Tab(text: '🏫  الدور'),
-            Tab(text: '📖  الحلقات'),
+          tabs: [
+            if (!_isRestricted) const Tab(text: '🕌  المساجد'),
+            const Tab(text: '🏫  الدور'),
+            const Tab(text: '📖  الحلقات'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
-        children: const [
-          _MosquesTab(),
-          _SchoolsTab(),
-          _CirclesTab(),
+        children: [
+          if (!_isRestricted) const _MosquesTab(),
+          _SchoolsTab(restrictToMosqueId: widget.restrictToMosqueId),
+          _CirclesTab(restrictToMosqueId: widget.restrictToMosqueId),
         ],
       ),
     );
@@ -184,8 +191,11 @@ class _MosquesTab extends ConsumerWidget {
 // ═══════════════════════════ تبويب الدور/المدارس ═══════════════════════════
 
 class _SchoolsTab extends ConsumerWidget {
-  const _SchoolsTab();
+  final String? restrictToMosqueId;
 
+  const _SchoolsTab({this.restrictToMosqueId});
+
+  /// حوار إضافة دار عند المشرفة العامة: تختار المسجد من قائمة.
   Future<void> _showAddDialog(
       BuildContext context, WidgetRef ref, List<Mosque> mosques) async {
     final controller = TextEditingController();
@@ -271,6 +281,54 @@ class _SchoolsTab extends ConsumerWidget {
     }
   }
 
+  /// حوار إضافة دار عند مشرفة المسجد: المسجد محدَّد مسبقاً بمسجدها
+  /// (لا تختاره)، فقط تكتب اسم الدار.
+  Future<void> _showAddDialogRestricted(
+      BuildContext context, WidgetRef ref, String mosqueId) async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'إضافة دار / مدرسة جديدة',
+          style: TextStyle(fontFamily: 'Tajawal', fontWeight: FontWeight.w700),
+          textAlign: TextAlign.center,
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textDirection: TextDirection.rtl,
+          style: const TextStyle(fontFamily: 'Tajawal'),
+          decoration: InputDecoration(
+            labelText: 'اسم الدار / المدرسة',
+            hintText: 'مثال: خديجة رضي الله عنها',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('إلغاء', style: TextStyle(fontFamily: 'Tajawal')),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty) {
+                Navigator.of(ctx).pop(controller.text.trim());
+              }
+            },
+            child: const Text('إضافة', style: TextStyle(fontFamily: 'Tajawal')),
+          ),
+        ],
+      ),
+    );
+
+    if (name != null && name.isNotEmpty) {
+      await ref.read(schoolRepositoryProvider).add(name, mosqueId);
+    }
+  }
+
   Future<void> _showEditDialog(
       BuildContext context, WidgetRef ref, School school) async {
     final controller = TextEditingController(text: school.name);
@@ -315,7 +373,11 @@ class _SchoolsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final schoolsAsync = ref.watch(schoolsStreamProvider);
+    final isRestricted = restrictToMosqueId != null;
+
+    final schoolsAsync = isRestricted
+        ? ref.watch(schoolsByMosqueProvider(restrictToMosqueId!))
+        : ref.watch(schoolsStreamProvider);
     final mosquesAsync = ref.watch(mosquesStreamProvider);
     final mosques = mosquesAsync.value ?? [];
 
@@ -327,9 +389,12 @@ class _SchoolsTab extends ConsumerWidget {
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: mosques.isEmpty
-            ? null
-            : () => _showAddDialog(context, ref, mosques),
+        onPressed: isRestricted
+            ? () => _showAddDialogRestricted(
+                context, ref, restrictToMosqueId!)
+            : (mosques.isEmpty
+                ? null
+                : () => _showAddDialog(context, ref, mosques)),
         icon: const Icon(Icons.add_rounded),
         label: const Text('إضافة دار / مدرسة',
             style: TextStyle(fontFamily: 'Tajawal')),
@@ -341,7 +406,7 @@ class _SchoolsTab extends ConsumerWidget {
               style: const TextStyle(fontFamily: 'Tajawal')),
         ),
         data: (schools) {
-          if (mosques.isEmpty) {
+          if (!isRestricted && mosques.isEmpty) {
             return _EmptyState(
                 text: 'أضيفي مسجداً أولاً من تبويب "المساجد"');
           }
@@ -369,11 +434,13 @@ class _SchoolsTab extends ConsumerWidget {
                         color: school.isActive
                             ? Colors.black87
                             : Colors.grey.shade500)),
-                subtitle: Text('🕌 ${mosqueNameFor(school.mosqueId)}',
-                    style: TextStyle(
-                        fontFamily: 'Tajawal',
-                        fontSize: 11,
-                        color: Colors.grey.shade500)),
+                subtitle: isRestricted
+                    ? null
+                    : Text('🕌 ${mosqueNameFor(school.mosqueId)}',
+                        style: TextStyle(
+                            fontFamily: 'Tajawal',
+                            fontSize: 11,
+                            color: Colors.grey.shade500)),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -419,7 +486,9 @@ class _SchoolsTab extends ConsumerWidget {
 // ═══════════════════════════ تبويب الحلقات ═══════════════════════════
 
 class _CirclesTab extends ConsumerWidget {
-  const _CirclesTab();
+  final String? restrictToMosqueId;
+
+  const _CirclesTab({this.restrictToMosqueId});
 
   Future<void> _showAddDialog(
       BuildContext context, WidgetRef ref, List<School> schools) async {
@@ -551,9 +620,14 @@ class _CirclesTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isRestricted = restrictToMosqueId != null;
+
     final circlesAsync = ref.watch(teachingCirclesStreamProvider);
-    final schoolsAsync = ref.watch(schoolsStreamProvider);
+    final schoolsAsync = isRestricted
+        ? ref.watch(schoolsByMosqueProvider(restrictToMosqueId!))
+        : ref.watch(schoolsStreamProvider);
     final schools = schoolsAsync.value ?? [];
+    final schoolIds = schools.map((s) => s.id).toSet();
 
     String schoolNameFor(String schoolId) => schools
             .where((s) => s.id == schoolId)
@@ -576,7 +650,12 @@ class _CirclesTab extends ConsumerWidget {
           child: Text('حدث خطأ: $err',
               style: const TextStyle(fontFamily: 'Tajawal')),
         ),
-        data: (circles) {
+        data: (allCircles) {
+          // نعرض فقط الحلقات التابعة للدور الظاهرة حالياً (كل الدور
+          // للمشرفة العامة، أو دور مسجدها فقط لمشرفة المسجد).
+          final circles =
+              allCircles.where((c) => schoolIds.contains(c.schoolId)).toList();
+
           if (schools.isEmpty) {
             return _EmptyState(
                 text: 'أضيفي دار/مدرسة أولاً من تبويب "الدور"');
