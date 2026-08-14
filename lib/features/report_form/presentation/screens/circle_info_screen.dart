@@ -7,6 +7,7 @@ import 'package:hijri/hijri_calendar.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/app_text_field.dart';
+import '../../../auth/domain/entities/user_model.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../mosques/domain/entities/teaching_circle.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
@@ -83,16 +84,26 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
             .firstOrNull ??
         '';
 
-    final schools =
+    final allMosqueSchools =
         ref.read(activeSchoolsByMosqueProvider(user.mosqueId ?? ''));
+    final schools = user.assignedSchoolIds.isEmpty
+        ? allMosqueSchools
+        : allMosqueSchools
+            .where((s) => user.assignedSchoolIds.contains(s.id))
+            .toList();
     final schoolName = schools
             .where((s) => s.id == _selectedSchoolId)
             .map((s) => s.name)
             .firstOrNull ??
         '';
 
-    final circles =
+    final allSchoolCircles =
         ref.read(activeTeachingCirclesBySchoolProvider(_selectedSchoolId!));
+    final circles = user.assignedCircleIds.isEmpty
+        ? allSchoolCircles
+        : allSchoolCircles
+            .where((c) => user.assignedCircleIds.contains(c.id))
+            .toList();
     final circleName = circles
             .where((c) => c.id == _selectedCircleId)
             .map((c) => c.name)
@@ -152,7 +163,7 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
                     const SizedBox(height: 20),
 
                     if (user?.mosqueId != null)
-                      _buildSchoolAndCircleDropdowns(user!.mosqueId!)
+                      _buildSchoolAndCircleDropdowns(user!)
                     else
                       Text(
                         'لم يتم تحديد مسجد لحسابك بعد، تواصلي مع المشرفة',
@@ -212,11 +223,23 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
     );
   }
 
-  Widget _buildSchoolAndCircleDropdowns(String mosqueId) {
-    final schools = ref.watch(activeSchoolsByMosqueProvider(mosqueId));
-    final circles = _selectedSchoolId == null
+  Widget _buildSchoolAndCircleDropdowns(UserModel user) {
+    final mosqueId = user.mosqueId!;
+    final allMosqueSchools = ref.watch(activeSchoolsByMosqueProvider(mosqueId));
+    final schools = user.assignedSchoolIds.isEmpty
+        ? allMosqueSchools
+        : allMosqueSchools
+            .where((s) => user.assignedSchoolIds.contains(s.id))
+            .toList();
+
+    final allSchoolCircles = _selectedSchoolId == null
         ? const <TeachingCircle>[]
         : ref.watch(activeTeachingCirclesBySchoolProvider(_selectedSchoolId!));
+    final circles = user.assignedCircleIds.isEmpty
+        ? allSchoolCircles
+        : allSchoolCircles
+            .where((c) => user.assignedCircleIds.contains(c.id))
+            .toList();
 
     if (schools.isEmpty) {
       return Container(

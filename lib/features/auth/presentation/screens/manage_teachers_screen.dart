@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../mosques/domain/entities/mosque.dart';
+import '../../../mosques/domain/entities/school.dart';
+import '../../../mosques/domain/entities/teaching_circle.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
+import '../../../mosques/presentation/providers/school_provider.dart';
+import '../../../mosques/presentation/providers/teaching_circle_provider.dart';
 import '../../domain/entities/user_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/teachers_provider.dart';
@@ -141,6 +145,8 @@ class _ManageTeachersScreenState extends ConsumerState<ManageTeachersScreen> {
                                             teacher.uid, val),
                                     onEdit: () => _showEditNameDialog(
                                         context, ref, teacher),
+                                    onAssign: () => _showAssignDialog(
+                                        context, ref, teacher),
                                   ),
                                 ),
                               ),
@@ -166,6 +172,8 @@ class _ManageTeachersScreenState extends ConsumerState<ManageTeachersScreen> {
                                         .setTeacherActive(
                                             teacher.uid, val),
                                     onEdit: () => _showEditNameDialog(
+                                        context, ref, teacher),
+                                    onAssign: () => _showAssignDialog(
                                         context, ref, teacher),
                                   ),
                                 ),
@@ -244,6 +252,204 @@ class _ManageTeachersScreenState extends ConsumerState<ManageTeachersScreen> {
     }
   }
 
+  Future<void> _showAssignDialog(
+      BuildContext context, WidgetRef ref, UserModel teacher) async {
+    final mosqueId = teacher.mosqueId;
+    if (mosqueId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('لم يتم تحديد مسجد لهذه المعلمة بعد',
+              style: TextStyle(fontFamily: 'Tajawal')),
+        ),
+      );
+      return;
+    }
+
+    var selectedSchoolIds = Set<String>.from(teacher.assignedSchoolIds);
+    var selectedCircleIds = Set<String>.from(teacher.assignedCircleIds);
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          return AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text(
+              'ربط المعلمة: ${teacher.name}',
+              style: const TextStyle(
+                  fontFamily: 'Tajawal', fontWeight: FontWeight.w700, fontSize: 15),
+              textAlign: TextAlign.center,
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Consumer(
+                builder: (context, ref, _) {
+                  final schoolsAsync = ref.watch(schoolsByMosqueProvider(mosqueId));
+                  final circlesAsync = ref.watch(teachingCirclesStreamProvider);
+
+                  return schoolsAsync.when(
+                    loading: () => const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                    error: (err, _) => Text('حدث خطأ: $err',
+                        style: const TextStyle(fontFamily: 'Tajawal')),
+                    data: (schools) {
+                      final activeSchools =
+                          schools.where((s) => s.isActive).toList();
+                      final allCircles = circlesAsync.value ?? [];
+                      final circlesForSelectedSchools = allCircles
+                          .where((c) =>
+                              c.isActive &&
+                              selectedSchoolIds.contains(c.schoolId))
+                          .toList();
+
+                      return SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'اختاري الدور والحلقات التي تُدرّسها هذه المعلمة',
+                              style: TextStyle(
+                                  fontFamily: 'Tajawal',
+                                  fontSize: 11,
+                                  color: Colors.grey),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 14),
+                            Row(
+                              children: [
+                                const Text('🏫',
+                                    style: TextStyle(fontSize: 13)),
+                                const SizedBox(width: 6),
+                                const Text(
+                                  'الدور / المدارس',
+                                  style: TextStyle(
+                                      fontFamily: 'Tajawal',
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.black54),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            if (activeSchools.isEmpty)
+                              const Text(
+                                'لا توجد دور/مدارس مضافة لهذا المسجد بعد',
+                                style: TextStyle(
+                                    fontFamily: 'Tajawal',
+                                    fontSize: 11,
+                                    color: Colors.orange),
+                              )
+                            else
+                              ...activeSchools.map((school) {
+                                final checked =
+                                    selectedSchoolIds.contains(school.id);
+                                return _AssignChip(
+                                  label: school.name,
+                                  checked: checked,
+                                  onTap: () => setDialogState(() {
+                                    if (checked) {
+                                      selectedSchoolIds.remove(school.id);
+                                      // إزالة حلقات هذه الدار من التحديد أيضاً
+                                      final schoolCircleIds = allCircles
+                                          .where((c) =>
+                                              c.schoolId == school.id)
+                                          .map((c) => c.id)
+                                          .toSet();
+                                      selectedCircleIds
+                                          .removeAll(schoolCircleIds);
+                                    } else {
+                                      selectedSchoolIds.add(school.id);
+                                    }
+                                  }),
+                                );
+                              }),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                const Text('📖',
+                                    style: TextStyle(fontSize: 13)),
+                                const SizedBox(width: 6),
+                                const Text(
+                                  'الحلقات (من الدور المختارة أعلاه)',
+                                  style: TextStyle(
+                                      fontFamily: 'Tajawal',
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.black54),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            if (selectedSchoolIds.isEmpty)
+                              const Text(
+                                'اختاري دارًا أولاً لعرض حلقاتها',
+                                style: TextStyle(
+                                    fontFamily: 'Tajawal',
+                                    fontSize: 11,
+                                    color: Colors.grey),
+                              )
+                            else if (circlesForSelectedSchools.isEmpty)
+                              const Text(
+                                'لا توجد حلقات مضافة لهذه الدور بعد',
+                                style: TextStyle(
+                                    fontFamily: 'Tajawal',
+                                    fontSize: 11,
+                                    color: Colors.orange),
+                              )
+                            else
+                              ...circlesForSelectedSchools.map((circle) {
+                                final checked =
+                                    selectedCircleIds.contains(circle.id);
+                                return _AssignChip(
+                                  label: circle.name,
+                                  checked: checked,
+                                  onTap: () => setDialogState(() {
+                                    if (checked) {
+                                      selectedCircleIds.remove(circle.id);
+                                    } else {
+                                      selectedCircleIds.add(circle.id);
+                                    }
+                                  }),
+                                );
+                              }),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            actionsAlignment: MainAxisAlignment.center,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child:
+                    const Text('إلغاء', style: TextStyle(fontFamily: 'Tajawal')),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  await ref.read(authRepositoryProvider).updateTeacherAssignments(
+                        teacher.uid,
+                        schoolIds: selectedSchoolIds.toList(),
+                        circleIds: selectedCircleIds.toList(),
+                      );
+                  if (ctx.mounted) Navigator.of(ctx).pop();
+                },
+                child: const Text('حفظ الربط',
+                    style: TextStyle(fontFamily: 'Tajawal')),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   String _mosqueNameFor(UserModel teacher, List<Mosque> mosques) {
     return mosques
             .where((m) => m.id == teacher.mosqueId)
@@ -314,17 +520,81 @@ class _StatCard extends StatelessWidget {
   }
 }
 
+class _AssignChip extends StatelessWidget {
+  final String label;
+  final bool checked;
+  final VoidCallback onTap;
+
+  const _AssignChip({
+    required this.label,
+    required this.checked,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: checked ? AppTheme.lightGreen : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: checked ? AppTheme.primaryGreen : Colors.grey.shade200,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: checked ? AppTheme.primaryGreen : Colors.transparent,
+                borderRadius: BorderRadius.circular(5),
+                border: Border.all(
+                  color: checked ? AppTheme.primaryGreen : Colors.grey.shade400,
+                  width: 2,
+                ),
+              ),
+              child: checked
+                  ? const Icon(Icons.check, size: 12, color: Colors.white)
+                  : null,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'Tajawal',
+                  fontSize: 13,
+                  fontWeight: checked ? FontWeight.w700 : FontWeight.w400,
+                  color: checked ? AppTheme.primaryGreen : Colors.black87,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _TeacherCard extends StatelessWidget {
   final UserModel teacher;
   final String mosqueName;
   final void Function(bool) onToggle;
   final VoidCallback onEdit;
+  final VoidCallback onAssign;
 
   const _TeacherCard({
     required this.teacher,
     required this.mosqueName,
     required this.onToggle,
     required this.onEdit,
+    required this.onAssign,
   });
 
   String get _initials {
@@ -414,6 +684,14 @@ class _TeacherCard extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+            IconButton(
+              icon: Icon(Icons.link_rounded,
+                  size: 18, color: AppTheme.goldAccent),
+              onPressed: onAssign,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              tooltip: 'ربط بالدار والحلقة',
             ),
             IconButton(
               icon: Icon(Icons.edit_outlined,

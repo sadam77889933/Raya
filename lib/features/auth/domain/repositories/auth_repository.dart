@@ -32,4 +32,10 @@ abstract class AuthRepository {
   Future<void> updateTeacherName(String uid, String newName);
   /// تعطيل/تفعيل حساب معلمة
   Future<void> setTeacherActive(String uid, bool isActive);
+  /// تحديد الدور/المدارس والحلقات التي تُدرّس بها المعلمة
+  Future<void> updateTeacherAssignments(
+    String uid, {
+    required List<String> schoolIds,
+    required List<String> circleIds,
+  });
 }

@@ -142,4 +142,15 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<void> sendPasswordResetEmail(String email) async {
     await _auth.sendPasswordResetEmail(email: email.trim());
   }
+  @override
+  Future<void> updateTeacherAssignments(
+    String uid, {
+    required List<String> schoolIds,
+    required List<String> circleIds,
+  }) async {
+    await _firestore.collection(_usersCollection).doc(uid).update({
+      'assignedSchoolIds': schoolIds,
+      'assignedCircleIds': circleIds,
+    });
+  }
 }
