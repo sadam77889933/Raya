@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../../../core/theme/app_theme.dart';
-import '../../../roster/domain/entities/roster_student.dart';
 import '../../../roster/presentation/providers/roster_provider.dart';
 import '../../domain/entities/report_summary.dart';
 import '../../domain/entities/student_record.dart';
@@ -51,24 +49,28 @@ class _EditReportScreenState extends ConsumerState<EditReportScreen> {
 
   /// يضيف تلقائياً أي طالبة جديدة تمت إضافتها لهذا التقرير إلى سجل
   /// الحلقة الدائم، إن لم تكن موجودة فيه أصلاً (بمطابقة الاسم).
-  /// هذا يضمن ظهورها لاحقاً في "سجل الحلقة" وفي التقارير القادمة
-  /// دون الحاجة لإضافتها يدوياً مرتين.
+  ///
+  /// مهم: نستخدم هنا rosterProvider.notifier.addStudent() بالضبط كما
+  /// تفعل شاشة "سجل الحلقة" نفسها، وليس الكتابة المباشرة على المستودع
+  /// (Repository). السبب: الكتابة المباشرة تُحدّث التخزين لكنها لا
+  /// تُخطر نسخة RosterNotifier الحيّة في الذاكرة (إن كانت محمّلة من
+  /// فتحة سابقة لسجل الحلقة في نفس الجلسة)، فتبقى الشاشة تعرض بيانات
+  /// قديمة حتى تُغلَق وتُفتَح من جديد بالكامل. استدعاء addStudent()
+  /// يمرّ عبر نفس الـ Notifier ويُحدّث حالته فوراً أينما كان معروضاً.
   Future<void> _syncNewStudentsToRoster(List<StudentRecord> students) async {
+    final notifier = ref.read(rosterProvider.notifier);
     final repo = ref.read(rosterRepositoryProvider);
-    final existing = await repo.getAll();
-    final existingNames = existing.map((s) => s.name.trim()).toSet();
-    const uuid = Uuid();
+
+    // نقرأ من المستودع مباشرة (وليس من state) لضمان قائمة حديثة
+    // حتى لو لم تُفتَح شاشة سجل الحلقة بعد في هذه الجلسة.
+    final existingNames =
+        (await repo.getAll()).map((s) => s.name.trim()).toSet();
 
     for (final student in students) {
       final name = student.name.trim();
       if (name.isEmpty || existingNames.contains(name)) continue;
 
-      await repo.add(RosterStudent(
-        id: uuid.v4(),
-        name: name,
-        isActive: true,
-        createdAt: DateTime.now(),
-      ));
+      await notifier.addStudent(name);
       existingNames.add(name);
     }
   }

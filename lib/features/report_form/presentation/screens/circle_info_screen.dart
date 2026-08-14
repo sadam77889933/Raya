@@ -8,7 +8,10 @@ import '../../../../core/constants/app_strings.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../mosques/domain/entities/teaching_circle.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
+import '../../../mosques/presentation/providers/school_provider.dart';
+import '../../../mosques/presentation/providers/teaching_circle_provider.dart';
 import '../../../roster/presentation/screens/select_students_screen.dart';
 import '../../domain/entities/circle_info.dart';
 import '../providers/report_form_provider.dart';
@@ -24,8 +27,8 @@ class CircleInfoScreen extends ConsumerStatefulWidget {
 class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  late final TextEditingController _circleNameController;
-  late final TextEditingController _schoolNameController;
+  String? _selectedSchoolId;
+  String? _selectedCircleId;
 
   String? _selectedMonth;
   String? _selectedYear;
@@ -42,11 +45,6 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
 
     final savedInfo = ref.read(reportFormProvider).circleInfo;
 
-    _circleNameController =
-        TextEditingController(text: savedInfo?.circleName ?? '');
-    _schoolNameController =
-        TextEditingController(text: savedInfo?.schoolName ?? '');
-
     if (savedInfo != null) {
       _selectedMonth = savedInfo.month;
       _selectedYear = savedInfo.year;
@@ -57,15 +55,10 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _circleNameController.dispose();
-    _schoolNameController.dispose();
-    super.dispose();
-  }
-
   Future<void> _onNext() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_selectedSchoolId == null || _selectedCircleId == null) return;
+
     final user = ref.read(authProvider).user;
     if (user == null) return;
 
@@ -90,11 +83,27 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
             .firstOrNull ??
         '';
 
+    final schools =
+        ref.read(activeSchoolsByMosqueProvider(user.mosqueId ?? ''));
+    final schoolName = schools
+            .where((s) => s.id == _selectedSchoolId)
+            .map((s) => s.name)
+            .firstOrNull ??
+        '';
+
+    final circles =
+        ref.read(activeTeachingCirclesBySchoolProvider(_selectedSchoolId!));
+    final circleName = circles
+            .where((c) => c.id == _selectedCircleId)
+            .map((c) => c.name)
+            .firstOrNull ??
+        '';
+
     final info = CircleInfo(
       teacherName: user.name,
-      circleName: _circleNameController.text.trim(),
+      circleName: circleName,
       mosqueName: mosqueName,
-      schoolName: _schoolNameController.text.trim(),
+      schoolName: schoolName,
       month: _selectedMonth!,
       year: _selectedYear!,
       studentsCount: 0,
@@ -142,22 +151,14 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
                     if (user != null) _ReadOnlyInfoCard(user: user),
                     const SizedBox(height: 20),
 
-                    AppTextField(
-                      label: AppStrings.circleName,
-                      hint: AppStrings.circleNameHint,
-                      controller: _circleNameController,
-                      isRequired: true,
-                      textInputAction: TextInputAction.next,
-                    ),
-                    const SizedBox(height: 16),
-
-                    AppTextField(
-                      label: 'مدرسة / دار',
-                      hint: 'مثال: حفصة رضي الله عنها',
-                      controller: _schoolNameController,
-                      isRequired: true,
-                      textInputAction: TextInputAction.done,
-                    ),
+                    if (user?.mosqueId != null)
+                      _buildSchoolAndCircleDropdowns(user!.mosqueId!)
+                    else
+                      Text(
+                        'لم يتم تحديد مسجد لحسابك بعد، تواصلي مع المشرفة',
+                        style: TextStyle(
+                            fontFamily: 'Tajawal', color: Colors.red.shade400),
+                      ),
                     const SizedBox(height: 16),
 
                     Row(
@@ -208,6 +209,84 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSchoolAndCircleDropdowns(String mosqueId) {
+    final schools = ref.watch(activeSchoolsByMosqueProvider(mosqueId));
+    final circles = _selectedSchoolId == null
+        ? const <TeachingCircle>[]
+        : ref.watch(activeTeachingCirclesBySchoolProvider(_selectedSchoolId!));
+
+    if (schools.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.orange.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.orange.shade200),
+        ),
+        child: Text(
+          'لا توجد دور/مدارس مضافة لمسجدك بعد، تواصلي مع المشرفة العامة لإضافتها',
+          style: TextStyle(
+              fontFamily: 'Tajawal', fontSize: 12, color: Colors.orange.shade800),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<String>(
+          value: _selectedSchoolId,
+          decoration: InputDecoration(
+            labelText: 'الدار / المدرسة *',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          items: schools
+              .map((s) => DropdownMenuItem(
+                    value: s.id,
+                    child: Text(s.name,
+                        style: const TextStyle(fontFamily: 'Tajawal')),
+                  ))
+              .toList(),
+          onChanged: (val) => setState(() {
+            _selectedSchoolId = val;
+            _selectedCircleId = null;
+          }),
+          validator: (val) => val == null ? AppStrings.fieldRequired : null,
+        ),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<String>(
+          value: _selectedCircleId,
+          decoration: InputDecoration(
+            labelText: '${AppStrings.circleName} *',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          items: circles
+              .map((c) => DropdownMenuItem(
+                    value: c.id,
+                    child: Text(c.name,
+                        style: const TextStyle(fontFamily: 'Tajawal')),
+                  ))
+              .toList(),
+          onChanged: _selectedSchoolId == null
+              ? null
+              : (val) => setState(() => _selectedCircleId = val),
+          validator: (val) => val == null ? AppStrings.fieldRequired : null,
+          disabledHint: const Text('اختاري الدار أولاً',
+              style: TextStyle(fontFamily: 'Tajawal', fontSize: 13)),
+        ),
+        if (_selectedSchoolId != null && circles.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'لا توجد حلقات مضافة لهذه الدار بعد، تواصلي مع المشرفة العامة',
+              style: TextStyle(
+                  fontFamily: 'Tajawal', fontSize: 11, color: Colors.orange.shade700),
+            ),
+          ),
+      ],
     );
   }
 
