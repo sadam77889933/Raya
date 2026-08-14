@@ -232,6 +232,11 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
             .where((s) => user.assignedSchoolIds.contains(s.id))
             .toList();
 
+    // اختيار الدار تلقائياً إن لم يكن أمامها إلا خيار واحد فقط
+    if (_selectedSchoolId == null && schools.length == 1) {
+      _selectedSchoolId = schools.first.id;
+    }
+
     final allSchoolCircles = _selectedSchoolId == null
         ? const <TeachingCircle>[]
         : ref.watch(activeTeachingCirclesBySchoolProvider(_selectedSchoolId!));
@@ -240,6 +245,11 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
         : allSchoolCircles
             .where((c) => user.assignedCircleIds.contains(c.id))
             .toList();
+
+    // اختيار الحلقة تلقائياً إن لم يكن أمامها إلا خيار واحد فقط
+    if (_selectedCircleId == null && circles.length == 1) {
+      _selectedCircleId = circles.first.id;
+    }
 
     if (schools.isEmpty) {
       return Container(
