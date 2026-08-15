@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hijri/hijri_calendar.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../mosques/domain/entities/school.dart';
+import '../../../mosques/domain/entities/teaching_circle.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
+import '../../../mosques/presentation/providers/school_provider.dart';
+import '../../../mosques/presentation/providers/teaching_circle_provider.dart';
 import '../../data/attendance_aggregator.dart';
 import '../../domain/entities/report_summary.dart';
 import '../../domain/entities/student_attendance_summary.dart';
 import '../providers/all_reports_provider.dart';
 import '../providers/my_reports_provider.dart';
-import '../../../auth/domain/entities/user_model.dart';
 import '../../../auth/presentation/providers/teachers_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../data/attendance_pdf_generator.dart';
@@ -31,12 +34,15 @@ class _AttendanceReportScreenState
   String _studentFilter = '';
   String? _mosqueFilter;
   String? _teacherFilter; // اسم المعلمة المختارة (null = الكل)
-  String _circleFilter = '';
+  String? _schoolFilter; // معرّف الدار المختارة (null = الكل)
+  String? _circleFilter; // معرّف الحلقة المختارة (null = الكل)
   bool _isExporting = false;
 
   Future<void> _exportPdf(
     List<StudentAttendanceSummary> summaries,
     List<dynamic> mosques,
+    String? schoolName,
+    String? circleName,
   ) async {
     setState(() => _isExporting = true);
     try {
@@ -56,7 +62,8 @@ class _AttendanceReportScreenState
         periodLabel: periodLabel,
         mosqueName: mosqueName,
         teacherName: _teacherFilter,
-        circleName: _circleFilter.trim().isEmpty ? null : _circleFilter.trim(),
+        schoolName: schoolName,
+        circleName: circleName,
       );
 
       if (!mounted) return;
@@ -106,8 +113,72 @@ class _AttendanceReportScreenState
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => Center(child: Text('حدث خطأ: $err')),
         data: (allReports) {
-          final effectiveMosqueFilter =
-              isMosqueSupervisor ? user.mosqueId : _mosqueFilter;
+          final effectiveMosqueFilter = isMosqueSupervisor || isTeacher
+              ? user.mosqueId
+              : _mosqueFilter;
+
+          // ── الدور (المدارس) الظاهرة حسب الصلاحية ──
+          // المعلمة: دورها المُسندة فقط (لا "الكل" أبداً — نفس قاعدة
+          // الأمان المُطبَّقة في بقية الشاشات). مشرفة المسجد: كل دور
+          // مسجدها. المشرف العام: دور المسجد المختار، أو كل الدور.
+          List<School> visibleSchools = const [];
+          if (isTeacher) {
+            if (user.mosqueId != null) {
+              final allMosqueSchools =
+                  ref.watch(activeSchoolsByMosqueProvider(user.mosqueId!));
+              visibleSchools = allMosqueSchools
+                  .where((s) => user.assignedSchoolIds.contains(s.id))
+                  .toList();
+            }
+          } else if (isMosqueSupervisor) {
+            if (user.mosqueId != null) {
+              visibleSchools =
+                  ref.watch(activeSchoolsByMosqueProvider(user.mosqueId!));
+            }
+          } else if (effectiveMosqueFilter != null) {
+            visibleSchools = ref
+                .watch(activeSchoolsByMosqueProvider(effectiveMosqueFilter));
+          } else {
+            final allSchoolsAsync = ref.watch(schoolsStreamProvider);
+            visibleSchools =
+                (allSchoolsAsync.value ?? []).where((s) => s.isActive).toList();
+          }
+
+          // إلغاء اختيار دار لم تعد ضمن القائمة الحالية (مثلاً بعد تغيير
+          // المسجد المختار) تفادياً لخطأ في القائمة المنسدلة.
+          if (_schoolFilter != null &&
+              !visibleSchools.any((s) => s.id == _schoolFilter)) {
+            _schoolFilter = null;
+          }
+
+          final selectedSchool = _schoolFilter != null
+              ? visibleSchools.where((s) => s.id == _schoolFilter).firstOrNull
+              : null;
+
+          // ── الحلقات الظاهرة: حسب الدار المختارة، أو كل دور النطاق الحالي ──
+          final visibleCircles = <TeachingCircle>[];
+          final schoolsForCircles =
+              selectedSchool != null ? [selectedSchool] : visibleSchools;
+          for (final school in schoolsForCircles) {
+            final schoolCircles =
+                ref.watch(activeTeachingCirclesBySchoolProvider(school.id));
+            visibleCircles.addAll(isTeacher
+                ? schoolCircles.where((c) => user.assignedCircleIds.contains(c.id))
+                : schoolCircles);
+          }
+
+          if (_circleFilter != null &&
+              !visibleCircles.any((c) => c.id == _circleFilter)) {
+            _circleFilter = null;
+          }
+
+          final schoolNameFilter = selectedSchool?.name;
+          final circleNameFilter = _circleFilter != null
+              ? visibleCircles
+                  .where((c) => c.id == _circleFilter)
+                  .map((c) => c.name)
+                  .firstOrNull
+              : null;
 
           final summaries = AttendanceAggregator.aggregate(
             allReports: allReports,
@@ -119,8 +190,8 @@ class _AttendanceReportScreenState
                 _studentFilter.trim().isEmpty ? null : _studentFilter.trim(),
             mosqueIdFilter: effectiveMosqueFilter,
             teacherNameFilter: _teacherFilter,
-            circleNameFilter:
-                _circleFilter.trim().isEmpty ? null : _circleFilter.trim(),
+            schoolNameFilter: schoolNameFilter,
+            circleNameFilter: circleNameFilter,
           );
 
           return SingleChildScrollView(
@@ -162,41 +233,88 @@ class _AttendanceReportScreenState
                   ),
                 ),
                 const SizedBox(height: 12),
-                if (!isTeacher)
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.grey.shade200),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('فلاتر إضافية (اختيارية)',
-                            style: TextStyle(
-                                fontFamily: 'Tajawal',
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade700)),
-                        const SizedBox(height: 10),
-                        if (isGlobalSupervisor) ...[
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('الفلاتر',
+                          style: TextStyle(
+                              fontFamily: 'Tajawal',
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade700)),
+                      const SizedBox(height: 10),
+                      if (isGlobalSupervisor) ...[
+                        DropdownButtonFormField<String?>(
+                          value: _mosqueFilter,
+                          decoration: _filterDecoration(
+                              Icons.mosque_rounded, 'كل المساجد'),
+                          items: [
+                            const DropdownMenuItem<String?>(
+                                value: null, child: Text('كل المساجد')),
+                            ...mosques.map((m) => DropdownMenuItem<String?>(
+                                value: m.id, child: Text(m.name))),
+                          ],
+                          onChanged: (val) => setState(() {
+                            _mosqueFilter = val;
+                            _schoolFilter = null;
+                            _circleFilter = null;
+                          }),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      if (visibleSchools.isNotEmpty) ...[
+                        if (visibleSchools.length == 1)
+                          _buildSingleValueLabel(Icons.apartment_rounded,
+                              'الدار: ${visibleSchools.first.name}')
+                        else
                           DropdownButtonFormField<String?>(
-                            value: _mosqueFilter,
+                            value: _schoolFilter,
                             decoration: _filterDecoration(
-                                Icons.mosque_rounded, 'كل المساجد'),
+                                Icons.apartment_rounded, 'كل الدور'),
                             items: [
                               const DropdownMenuItem<String?>(
-                                  value: null, child: Text('كل المساجد')),
-                              ...mosques.map((m) => DropdownMenuItem<String?>(
-                                  value: m.id, child: Text(m.name))),
+                                  value: null, child: Text('كل الدور')),
+                              ...visibleSchools.map((s) =>
+                                  DropdownMenuItem<String?>(
+                                      value: s.id, child: Text(s.name))),
+                            ],
+                            onChanged: (val) => setState(() {
+                              _schoolFilter = val;
+                              _circleFilter = null;
+                            }),
+                          ),
+                        const SizedBox(height: 8),
+                      ],
+                      if (visibleCircles.isNotEmpty) ...[
+                        if (visibleCircles.length == 1)
+                          _buildSingleValueLabel(Icons.groups_rounded,
+                              'الحلقة: ${visibleCircles.first.name}')
+                        else
+                          DropdownButtonFormField<String?>(
+                            value: _circleFilter,
+                            decoration: _filterDecoration(
+                                Icons.groups_rounded, 'كل الحلقات'),
+                            items: [
+                              const DropdownMenuItem<String?>(
+                                  value: null, child: Text('كل الحلقات')),
+                              ...visibleCircles.map((c) =>
+                                  DropdownMenuItem<String?>(
+                                      value: c.id, child: Text(c.name))),
                             ],
                             onChanged: (val) =>
-                                setState(() => _mosqueFilter = val),
+                                setState(() => _circleFilter = val),
                           ),
-                          const SizedBox(height: 8),
-                        ],
-                     Consumer(
+                        const SizedBox(height: 8),
+                      ],
+                      if (!isTeacher) ...[
+                        Consumer(
                           builder: (context, ref, _) {
                             final teachersAsync = effectiveMosqueFilter != null
                                 ? ref.watch(teachersByMosqueProvider(
@@ -229,28 +347,17 @@ class _AttendanceReportScreenState
                               },
                             );
                           },
-                        ), 
-                        const SizedBox(height: 8),
-                        TextField(
-                          onChanged: (v) => setState(() => _circleFilter = v),
-                          decoration: _filterDecoration(
-                              Icons.groups_rounded, 'اسم الحلقة (اختياري)'),
                         ),
                         const SizedBox(height: 8),
-                        TextField(
-                          onChanged: (v) => setState(() => _studentFilter = v),
-                          decoration: _filterDecoration(
-                              Icons.search_rounded, 'اسم طالبة معيّنة'),
-                        ),
                       ],
-                    ),
-                  )
-                else
-                  TextField(
-                    onChanged: (v) => setState(() => _studentFilter = v),
-                    decoration: _filterDecoration(
-                        Icons.search_rounded, 'اسم طالبة معيّنة (اختياري)'),
+                      TextField(
+                        onChanged: (v) => setState(() => _studentFilter = v),
+                        decoration: _filterDecoration(
+                            Icons.search_rounded, 'اسم طالبة معيّنة (اختياري)'),
+                      ),
+                    ],
                   ),
+                ),
                 const SizedBox(height: 12),
                 Text(
                   '${summaries.length} طالبة',
@@ -328,7 +435,8 @@ class _AttendanceReportScreenState
                     child: ElevatedButton.icon(
                       onPressed: _isExporting
                           ? null
-                          : () => _exportPdf(summaries, mosques),
+                          : () => _exportPdf(summaries, mosques,
+                              schoolNameFilter, circleNameFilter),
                       icon: _isExporting
                           ? const SizedBox(
                               width: 18,
@@ -348,6 +456,33 @@ class _AttendanceReportScreenState
             ),
           );
         },
+      ),
+    );
+  }
+
+  /// تسمية للقيمة الوحيدة المتاحة (دار واحدة أو حلقة واحدة) بدل قائمة
+  /// منسدلة لا فائدة من الاختيار منها.
+  Widget _buildSingleValueLabel(IconData icon, String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: Colors.grey.shade600),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                  fontFamily: 'Tajawal', fontSize: 12, color: Colors.grey.shade700),
+            ),
+          ),
+        ],
       ),
     );
   }

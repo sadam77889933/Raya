@@ -42,60 +42,85 @@ class SelectRosterCircleScreen extends ConsumerWidget {
     List<String> assignedSchoolIds,
     List<String> assignedCircleIds,
   ) {
-    final allMosqueSchools = ref.watch(activeSchoolsByMosqueProvider(mosqueId));
-    final schools = assignedSchoolIds.isEmpty
-        ? allMosqueSchools
-        : allMosqueSchools
-            .where((s) => assignedSchoolIds.contains(s.id))
-            .toList();
+    // نراقب الـ Stream الخام مباشرة (وليس مزوّداً مشتقاً يُحوّل "لسا ما
+    // وصلت البيانات" إلى قائمة فارغة)، حتى لا نُظهر رسالة "لا توجد
+    // حلقات" خطأً بينما البيانات لا تزال في طريقها من Firestore.
+    final schoolsAsync = ref.watch(schoolsByMosqueProvider(mosqueId));
 
-    if (schools.isEmpty) {
-      return Center(
+    return schoolsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (_, __) => Center(
         child: Text(
-          'لا توجد حلقات مرتبطة بحسابك بعد',
+          'تعذّر تحميل البيانات',
           style: TextStyle(fontFamily: 'Tajawal', color: Colors.grey.shade500),
         ),
-      );
-    }
+      ),
+      data: (allSchools) {
+        // قائمة فارغة = لم يُسند لها شيء بعد، وليست إباحة لكل دور المسجد.
+        final schools = allSchools
+            .where((s) => s.isActive && assignedSchoolIds.contains(s.id))
+            .toList();
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: schools.length,
-      itemBuilder: (context, index) {
-        final school = schools[index];
-        final allSchoolCircles =
-            ref.watch(activeTeachingCirclesBySchoolProvider(school.id));
-        final circles = assignedCircleIds.isEmpty
-            ? allSchoolCircles
-            : allSchoolCircles
-                .where((c) => assignedCircleIds.contains(c.id))
-                .toList();
+        if (schools.isEmpty) {
+          return Center(
+            child: Text(
+              'لا توجد حلقات مرتبطة بحسابك بعد',
+              style:
+                  TextStyle(fontFamily: 'Tajawal', color: Colors.grey.shade500),
+            ),
+          );
+        }
 
-        if (circles.isEmpty) return const SizedBox.shrink();
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: schools.length,
+          itemBuilder: (context, index) {
+            final school = schools[index];
+            final circlesAsync =
+                ref.watch(teachingCirclesBySchoolProvider(school.id));
 
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-                child: Text(
-                  school.name,
-                  style: TextStyle(
-                    fontFamily: 'Tajawal',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
+            return circlesAsync.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: LinearProgressIndicator(),
               ),
-              ...circles.map((circle) => _CircleCard(
-                    circle: circle,
-                    school: school,
-                  )),
-            ],
-          ),
+              error: (_, __) => const SizedBox.shrink(),
+              data: (allCircles) {
+                final circles = allCircles
+                    .where((c) =>
+                        c.isActive && assignedCircleIds.contains(c.id))
+                    .toList();
+
+                if (circles.isEmpty) return const SizedBox.shrink();
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 6),
+                        child: Text(
+                          school.name,
+                          style: TextStyle(
+                            fontFamily: 'Tajawal',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ),
+                      ...circles.map((circle) => _CircleCard(
+                            circle: circle,
+                            school: school,
+                          )),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
         );
       },
     );

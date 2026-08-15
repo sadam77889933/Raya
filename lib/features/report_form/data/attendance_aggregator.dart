@@ -23,6 +23,7 @@ class AttendanceAggregator {
     String? studentNameFilter,
     String? mosqueIdFilter,
     String? teacherNameFilter,
+    String? schoolNameFilter,
     String? circleNameFilter,
   }) {
     final fromKey = _monthKey(fromMonth, fromYear);
@@ -33,10 +34,18 @@ class AttendanceAggregator {
       if (reportKey < fromKey || reportKey > toKey) return false;
 
       if (mosqueIdFilter != null && r.mosqueId != mosqueIdFilter) return false;
-      if (teacherNameFilter != null &&
-          !r.teacherName.contains(teacherNameFilter)) return false;
-      if (circleNameFilter != null &&
-          !r.circleName.contains(circleNameFilter)) return false;
+      // مطابقة تامة (وليست "يحتوي على"): هذه القيم تأتي دائماً من اختيار
+      // فعلي في قائمة منسدلة (اسم معلمة/دار/حلقة حقيقي)، وليست نصاً حراً،
+      // فتفادي المطابقة الجزئية يمنع تداخل الأسماء المتشابهة.
+      if (teacherNameFilter != null && r.teacherName != teacherNameFilter) {
+        return false;
+      }
+      if (schoolNameFilter != null && r.schoolName != schoolNameFilter) {
+        return false;
+      }
+      if (circleNameFilter != null && r.circleName != circleNameFilter) {
+        return false;
+      }
 
       return true;
     }).toList();

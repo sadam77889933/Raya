@@ -11,6 +11,7 @@ class AttendancePdfGenerator {
     required String periodLabel,
     String? mosqueName,
     String? teacherName,
+    String? schoolName,
     String? circleName,
   }) async {
     final regularData =
@@ -27,6 +28,9 @@ class AttendancePdfGenerator {
     }
     if (teacherName != null && teacherName.isNotEmpty) {
       filterLines.add(_filterRow('المعلمة', teacherName, font, boldFont));
+    }
+    if (schoolName != null && schoolName.isNotEmpty) {
+      filterLines.add(_filterRow('الدار', schoolName, font, boldFont));
     }
     if (circleName != null && circleName.isNotEmpty) {
       filterLines.add(_filterRow('الحلقة', circleName, font, boldFont));

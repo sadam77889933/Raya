@@ -8,6 +8,8 @@ import '../../../../core/widgets/teacher_welcome_banner.dart';
 import '../../../report_form/presentation/screens/my_reports_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../mosques/domain/entities/school.dart';
+import '../../../mosques/domain/entities/teaching_circle.dart';
 import '../../../mosques/presentation/providers/school_provider.dart';
 import '../../../mosques/presentation/providers/teaching_circle_provider.dart';
 import '../../../notifications/presentation/providers/notification_provider.dart';
@@ -238,7 +240,14 @@ class HomeScreen extends ConsumerWidget {
   /// واحدة فقط إجمالاً (عبر كل مدارسها المُسندة)، أو شاشة اختيار حلقة
   /// إن كان لديها أكثر من واحدة، أو رسالة توضيحية إن لم توجد أي حلقة
   /// بعد — بنفس منطق الفلترة المُستخدم في شاشة بيانات الحلقة.
-  void _onRosterPressed(BuildContext context, WidgetRef ref) {
+  ///
+  /// نستخدم هنا انتظار البيانات الحقيقية (await على الـ Stream) بدل
+  /// قراءتها فورياً، لأن القراءة الفورية قد تُرجع قائمة فارغة "مؤقتاً"
+  /// إن لم تكن بيانات الدور/الحلقات قد وصلت بعد من Firestore (خاصة
+  /// مباشرة بعد تسجيل الدخول، أو بعد تسجيل الخروج الذي يُبطل البيانات
+  /// المخزّنة مؤقتاً) — وهذا كان يُظهر رسالة "لا يوجد سجل" خطأً رغم
+  /// وجود حلقات فعلية، ريثما تصل البيانات في محاولة لاحقة.
+  Future<void> _onRosterPressed(BuildContext context, WidgetRef ref) async {
     final user = ref.read(authProvider).user;
     if (user == null || user.mosqueId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -247,27 +256,34 @@ class HomeScreen extends ConsumerWidget {
       return;
     }
 
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
     final mosqueId = user.mosqueId!;
-    final allMosqueSchools = ref.read(activeSchoolsByMosqueProvider(mosqueId));
-    final schools = user.assignedSchoolIds.isEmpty
-        ? allMosqueSchools
-        : allMosqueSchools
-            .where((s) => user.assignedSchoolIds.contains(s.id))
-            .toList();
+    final allMosqueSchools = await _loadActiveSchools(ref, mosqueId);
+    // ملاحظة أمنية: قائمة فارغة تعني أنه لم يتم إسناد أي دار لهذه المعلمة
+    // بعد من قِبل المشرفة، وليس معناها إباحة كل دور المسجد — لذلك لا يوجد
+    // فرع "أظهري الكل" هنا.
+    final schools = allMosqueSchools
+        .where((s) => user.assignedSchoolIds.contains(s.id))
+        .toList();
 
     final assignedCircles = <(String circleId, String circleName, String schoolName)>[];
     for (final school in schools) {
-      final allSchoolCircles =
-          ref.read(activeTeachingCirclesBySchoolProvider(school.id));
-      final circles = user.assignedCircleIds.isEmpty
-          ? allSchoolCircles
-          : allSchoolCircles
-              .where((c) => user.assignedCircleIds.contains(c.id))
-              .toList();
+      final allSchoolCircles = await _loadActiveCircles(ref, school.id);
+      final circles = allSchoolCircles
+          .where((c) => user.assignedCircleIds.contains(c.id))
+          .toList();
       for (final circle in circles) {
         assignedCircles.add((circle.id, circle.name, school.name));
       }
     }
+
+    if (!context.mounted) return;
+    Navigator.of(context, rootNavigator: true).pop(); // إغلاق مؤشر التحميل
 
     if (assignedCircles.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -289,6 +305,27 @@ class HomeScreen extends ConsumerWidget {
         MaterialPageRoute(builder: (_) => const SelectRosterCircleScreen()),
       );
     }
+  }
+
+  /// يجلب الدور النشطة لمسجد معيّن، منتظراً وصول أول قيمة حقيقية من
+  /// Firestore إن لم تكن قد وصلت بعد (بدل إرجاع قائمة فارغة مؤقتة).
+  Future<List<School>> _loadActiveSchools(
+      WidgetRef ref, String mosqueId) async {
+    final current = ref.read(schoolsByMosqueProvider(mosqueId));
+    final schools = current.hasValue
+        ? current.value!
+        : await ref.read(schoolsByMosqueProvider(mosqueId).future);
+    return schools.where((s) => s.isActive).toList();
+  }
+
+  /// نفس الفكرة أعلاه، لكن لحلقات دار معيّنة.
+  Future<List<TeachingCircle>> _loadActiveCircles(
+      WidgetRef ref, String schoolId) async {
+    final current = ref.read(teachingCirclesBySchoolProvider(schoolId));
+    final circles = current.hasValue
+        ? current.value!
+        : await ref.read(teachingCirclesBySchoolProvider(schoolId).future);
+    return circles.where((c) => c.isActive).toList();
   }
 
   void _showComingSoonDialog(BuildContext context) {

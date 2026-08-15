@@ -86,11 +86,10 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
 
     final allMosqueSchools =
         ref.read(activeSchoolsByMosqueProvider(user.mosqueId ?? ''));
-    final schools = user.assignedSchoolIds.isEmpty
-        ? allMosqueSchools
-        : allMosqueSchools
-            .where((s) => user.assignedSchoolIds.contains(s.id))
-            .toList();
+    // قائمة فارغة = لم يُسند لها شيء بعد، وليست إباحة لكل دور المسجد.
+    final schools = allMosqueSchools
+        .where((s) => user.assignedSchoolIds.contains(s.id))
+        .toList();
     final schoolName = schools
             .where((s) => s.id == _selectedSchoolId)
             .map((s) => s.name)
@@ -99,11 +98,9 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
 
     final allSchoolCircles =
         ref.read(activeTeachingCirclesBySchoolProvider(_selectedSchoolId!));
-    final circles = user.assignedCircleIds.isEmpty
-        ? allSchoolCircles
-        : allSchoolCircles
-            .where((c) => user.assignedCircleIds.contains(c.id))
-            .toList();
+    final circles = allSchoolCircles
+        .where((c) => user.assignedCircleIds.contains(c.id))
+        .toList();
     final circleName = circles
             .where((c) => c.id == _selectedCircleId)
             .map((c) => c.name)
@@ -228,11 +225,10 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
   Widget _buildSchoolAndCircleDropdowns(UserModel user) {
     final mosqueId = user.mosqueId!;
     final allMosqueSchools = ref.watch(activeSchoolsByMosqueProvider(mosqueId));
-    final schools = user.assignedSchoolIds.isEmpty
-        ? allMosqueSchools
-        : allMosqueSchools
-            .where((s) => user.assignedSchoolIds.contains(s.id))
-            .toList();
+    // قائمة فارغة = لم يُسند لها شيء بعد، وليست إباحة لكل دور المسجد.
+    final schools = allMosqueSchools
+        .where((s) => user.assignedSchoolIds.contains(s.id))
+        .toList();
 
     // اختيار الدار تلقائياً إن لم يكن أمامها إلا خيار واحد فقط
     if (_selectedSchoolId == null && schools.length == 1) {
@@ -242,11 +238,9 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
     final allSchoolCircles = _selectedSchoolId == null
         ? const <TeachingCircle>[]
         : ref.watch(activeTeachingCirclesBySchoolProvider(_selectedSchoolId!));
-    final circles = user.assignedCircleIds.isEmpty
-        ? allSchoolCircles
-        : allSchoolCircles
-            .where((c) => user.assignedCircleIds.contains(c.id))
-            .toList();
+    final circles = allSchoolCircles
+        .where((c) => user.assignedCircleIds.contains(c.id))
+        .toList();
 
     // اختيار الحلقة تلقائياً إن لم يكن أمامها إلا خيار واحد فقط
     if (_selectedCircleId == null && circles.length == 1) {

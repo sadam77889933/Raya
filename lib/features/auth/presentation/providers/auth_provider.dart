@@ -2,6 +2,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/auth_repository_impl.dart';
 import '../../domain/entities/user_model.dart';
 import '../../domain/repositories/auth_repository.dart';
+import '../../../mosques/presentation/providers/mosque_provider.dart';
+import '../../../mosques/presentation/providers/school_provider.dart';
+import '../../../mosques/presentation/providers/teaching_circle_provider.dart';
+import '../../../roster/presentation/providers/roster_provider.dart';
+import 'teachers_provider.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => AuthRepositoryImpl(),
@@ -35,8 +40,9 @@ class AuthState {
 
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthRepository _repo;
+  final Ref _ref;
 
-  AuthNotifier(this._repo) : super(const AuthState()) {
+  AuthNotifier(this._repo, this._ref) : super(const AuthState()) {
     _checkCurrentUser();
   }
 
@@ -68,6 +74,24 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> signOut() async {
     await _repo.signOut();
     state = const AuthState(status: AuthStatus.signedOut);
+    _clearCachedMosqueData();
+  }
+
+  /// إبطال كل مزوّدات بيانات المساجد/الدور/الحلقات/السجلات/المعلمات
+  /// المخزّنة مؤقتاً، حتى لا تبقى بيانات حساب المعلمة السابقة في الذاكرة
+  /// عند دخول معلمة أخرى من نفس الجهاز مباشرة بعد تسجيل الخروج.
+  void _clearCachedMosqueData() {
+    _ref.invalidate(mosquesStreamProvider);
+    _ref.invalidate(activeMosquesProvider);
+    _ref.invalidate(schoolsStreamProvider);
+    _ref.invalidate(schoolsByMosqueProvider);
+    _ref.invalidate(activeSchoolsByMosqueProvider);
+    _ref.invalidate(teachingCirclesStreamProvider);
+    _ref.invalidate(teachingCirclesBySchoolProvider);
+    _ref.invalidate(activeTeachingCirclesBySchoolProvider);
+    _ref.invalidate(rosterProvider);
+    _ref.invalidate(teachersStreamProvider);
+    _ref.invalidate(teachersByMosqueProvider);
   }
 
   void clearError() {
@@ -76,5 +100,5 @@ class AuthNotifier extends StateNotifier<AuthState> {
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>(
-  (ref) => AuthNotifier(ref.read(authRepositoryProvider)),
+  (ref) => AuthNotifier(ref.read(authRepositoryProvider), ref),
 );
