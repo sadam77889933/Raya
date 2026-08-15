@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../providers/auth_provider.dart';
 import '../providers/credentials_storage_provider.dart';
 
@@ -20,10 +21,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _rememberMe = false;
+  late final Future<PackageInfo> _packageInfoFuture;
 
   @override
   void initState() {
     super.initState();
+    _packageInfoFuture = PackageInfo.fromPlatform();
     _loadSavedCredentials();
   }
 
@@ -362,14 +365,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         color: _darkGreen,
         border: Border(top: BorderSide(color: _gold.withOpacity(0.2))),
       ),
-      child: Text(
-        'الإصدار 1.0.0 · برمجة: صدام البريكي (أبو ود)',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontFamily: 'Tajawal',
-          fontSize: 13,
-          color: _gold.withOpacity(0.7),
-        ),
+      child: FutureBuilder<PackageInfo>(
+        future: _packageInfoFuture,
+        builder: (context, snapshot) {
+          final version = snapshot.data?.version ?? '';
+          final text = version.isEmpty
+              ? 'برمجة: صدام البريكي (أبو ود)'
+              : 'الإصدار $version · برمجة: صدام البريكي (أبو ود)';
+          return Text(
+            text,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Tajawal',
+              fontSize: 13,
+              color: _gold.withOpacity(0.7),
+            ),
+          );
+        },
       ),
     );
   }
