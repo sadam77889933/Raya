@@ -8,9 +8,13 @@ import '../../../../core/widgets/teacher_welcome_banner.dart';
 import '../../../report_form/presentation/screens/my_reports_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../mosques/presentation/providers/school_provider.dart';
+import '../../../mosques/presentation/providers/teaching_circle_provider.dart';
 import '../../../notifications/presentation/providers/notification_provider.dart';
 import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../../../report_form/presentation/screens/attendance_report_screen.dart';
+import '../../../roster/presentation/screens/roster_screen.dart';
+import '../../../roster/presentation/screens/select_roster_circle_screen.dart';
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -94,7 +98,7 @@ class HomeScreen extends ConsumerWidget {
                 const Spacer(flex: 2),
                 _buildHeader(context, theme, ref),
                 const Spacer(flex: 3),
-                _buildActionButtons(context),
+                _buildActionButtons(context, ref),
                 const Spacer(flex: 1),
                 _buildFooter(theme),
                 
@@ -165,7 +169,7 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildActionButtons(BuildContext context) {
+  Widget _buildActionButtons(BuildContext context, WidgetRef ref) {
     return Column(
       children: [
         ElevatedButton.icon(
@@ -186,7 +190,7 @@ class HomeScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 12),
         OutlinedButton.icon(
-          onPressed: () => context.push(AppRoutes.roster),
+          onPressed: () => _onRosterPressed(context, ref),
           icon: const Icon(Icons.groups_rounded, size: 22),
           label: const Text('سجل الحلقة'),
         ),
@@ -228,6 +232,63 @@ class HomeScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// تحدّد وجهة زر "سجل الحلقة": دخول مباشر إن كان لدى المعلمة حلقة
+  /// واحدة فقط إجمالاً (عبر كل مدارسها المُسندة)، أو شاشة اختيار حلقة
+  /// إن كان لديها أكثر من واحدة، أو رسالة توضيحية إن لم توجد أي حلقة
+  /// بعد — بنفس منطق الفلترة المُستخدم في شاشة بيانات الحلقة.
+  void _onRosterPressed(BuildContext context, WidgetRef ref) {
+    final user = ref.read(authProvider).user;
+    if (user == null || user.mosqueId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لا توجد حلقات مرتبطة بحسابك بعد')),
+      );
+      return;
+    }
+
+    final mosqueId = user.mosqueId!;
+    final allMosqueSchools = ref.read(activeSchoolsByMosqueProvider(mosqueId));
+    final schools = user.assignedSchoolIds.isEmpty
+        ? allMosqueSchools
+        : allMosqueSchools
+            .where((s) => user.assignedSchoolIds.contains(s.id))
+            .toList();
+
+    final assignedCircles = <(String circleId, String circleName, String schoolName)>[];
+    for (final school in schools) {
+      final allSchoolCircles =
+          ref.read(activeTeachingCirclesBySchoolProvider(school.id));
+      final circles = user.assignedCircleIds.isEmpty
+          ? allSchoolCircles
+          : allSchoolCircles
+              .where((c) => user.assignedCircleIds.contains(c.id))
+              .toList();
+      for (final circle in circles) {
+        assignedCircles.add((circle.id, circle.name, school.name));
+      }
+    }
+
+    if (assignedCircles.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لا توجد حلقات مرتبطة بحسابك بعد')),
+      );
+    } else if (assignedCircles.length == 1) {
+      final only = assignedCircles.first;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => RosterScreen(
+            circleId: only.$1,
+            circleName: only.$2,
+            schoolName: only.$3,
+          ),
+        ),
+      );
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const SelectRosterCircleScreen()),
+      );
+    }
   }
 
   void _showComingSoonDialog(BuildContext context) {

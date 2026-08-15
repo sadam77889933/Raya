@@ -6,7 +6,16 @@ import '../providers/roster_provider.dart';
 import '../widgets/roster_student_row.dart';
 
 class RosterScreen extends ConsumerWidget {
-  const RosterScreen({super.key});
+  final String circleId;
+  final String circleName;
+  final String schoolName;
+
+  const RosterScreen({
+    super.key,
+    required this.circleId,
+    required this.circleName,
+    required this.schoolName,
+  });
 
   Future<void> _showAddDialog(BuildContext context, WidgetRef ref) async {
     final controller = TextEditingController();
@@ -41,7 +50,7 @@ class RosterScreen extends ConsumerWidget {
       ),
     );
     if (name != null && name.isNotEmpty) {
-      await ref.read(rosterProvider.notifier).addStudent(name);
+      await ref.read(rosterProvider(circleId).notifier).addStudent(name);
     }
   }
 
@@ -101,13 +110,61 @@ class RosterScreen extends ConsumerWidget {
 
     if (newName != null && newName.isNotEmpty && newName != student.name) {
       final updated = student.copyWith(name: newName);
-      await ref.read(rosterProvider.notifier).updateStudent(updated);
+      await ref.read(rosterProvider(circleId).notifier).updateStudent(updated);
     }
+  }
+
+  /// شارة توضّح لأي حلقة/دار ينتمي هذا السجل — تكرار للنمط البصري
+  /// المستخدم بالفعل في MosqueBrandingScreen (Container أخضر فاتح +
+  /// أيقونة دائرية داكنة + عمود من سطرين).
+  Widget _buildContextBadge() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.lightGreen,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: const BoxDecoration(
+              color: AppTheme.primaryGreen,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.menu_book_rounded,
+                color: Colors.white, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('الحلقة',
+                  style: TextStyle(
+                      fontFamily: 'Tajawal',
+                      fontSize: 11,
+                      color: Colors.grey.shade600)),
+              Text(
+                '$circleName · $schoolName',
+                style: const TextStyle(
+                  fontFamily: 'Tajawal',
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.primaryGreen,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(rosterProvider);
+    final state = ref.watch(rosterProvider(circleId));
     return Scaffold(
       appBar: AppBar(
         title: const Text('سجل الحلقة'),
@@ -122,65 +179,76 @@ class RosterScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: state.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  TextField(
-                    onChanged: (v) =>
-                        ref.read(rosterProvider.notifier).setSearchQuery(v),
-                    textDirection: TextDirection.rtl,
-                    style: const TextStyle(fontFamily: 'Tajawal', fontSize: 14),
-                    decoration: InputDecoration(
-                      hintText: 'ابحثي باسم الطالبة...',
-                      prefixIcon: const Icon(Icons.search_rounded),
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: ListView(
+      body: Column(
+        children: [
+          _buildContextBadge(),
+          Expanded(
+            child: state.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
                       children: [
-                        if (state.activeStudents.isNotEmpty) ...[
-                          _sectionLabel('نشطة', state.activeStudents.length,
-                              color: Colors.green.shade700),
-                          const SizedBox(height: 6),
-                          _groupCard(state.activeStudents, context, ref),
-                          const SizedBox(height: 20),
-                        ],
-                        if (state.inactiveStudents.isNotEmpty) ...[
-                          _sectionLabel(
-                              'غير نشطة', state.inactiveStudents.length,
-                              color: Colors.grey.shade500),
-                          const SizedBox(height: 6),
-                          _groupCard(state.inactiveStudents, context, ref),
-                        ],
-                        if (state.filtered.isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 60),
-                            child: Center(
-                              child: Text(
-                                'لا توجد نتائج',
-                                style: TextStyle(
-                                  fontFamily: 'Tajawal',
-                                  color: Colors.grey.shade400,
-                                ),
-                              ),
+                        TextField(
+                          onChanged: (v) => ref
+                              .read(rosterProvider(circleId).notifier)
+                              .setSearchQuery(v),
+                          textDirection: TextDirection.rtl,
+                          style: const TextStyle(
+                              fontFamily: 'Tajawal', fontSize: 14),
+                          decoration: InputDecoration(
+                            hintText: 'ابحثي باسم الطالبة...',
+                            prefixIcon: const Icon(Icons.search_rounded),
+                            filled: true,
+                            fillColor: Colors.grey.shade100,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide.none,
                             ),
                           ),
+                        ),
+                        const SizedBox(height: 16),
+                        Expanded(
+                          child: ListView(
+                            children: [
+                              if (state.activeStudents.isNotEmpty) ...[
+                                _sectionLabel(
+                                    'نشطة', state.activeStudents.length,
+                                    color: Colors.green.shade700),
+                                const SizedBox(height: 6),
+                                _groupCard(state.activeStudents, context, ref),
+                                const SizedBox(height: 20),
+                              ],
+                              if (state.inactiveStudents.isNotEmpty) ...[
+                                _sectionLabel(
+                                    'غير نشطة', state.inactiveStudents.length,
+                                    color: Colors.grey.shade500),
+                                const SizedBox(height: 6),
+                                _groupCard(
+                                    state.inactiveStudents, context, ref),
+                              ],
+                              if (state.filtered.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 60),
+                                  child: Center(
+                                    child: Text(
+                                      'لا توجد نتائج',
+                                      style: TextStyle(
+                                        fontFamily: 'Tajawal',
+                                        color: Colors.grey.shade400,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -212,8 +280,9 @@ class RosterScreen extends ConsumerWidget {
           return RosterStudentRow(
             student: entry.value,
             isLast: isLast,
-            onToggle: () =>
-                ref.read(rosterProvider.notifier).toggleActive(entry.value),
+            onToggle: () => ref
+                .read(rosterProvider(circleId).notifier)
+                .toggleActive(entry.value),
             onEdit: () => _showEditDialog(context, ref, entry.value),
           );
         }).toList(),

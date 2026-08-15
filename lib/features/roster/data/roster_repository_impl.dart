@@ -1,51 +1,56 @@
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../domain/entities/roster_student.dart';
 import '../domain/repositories/roster_repository.dart';
 
-/// تنفيذ فعلي للسجل باستخدام SharedPreferences
-/// يحفظ قائمة الطالبات كـ JSON في مفتاح واحد
+/// تنفيذ فعلي لسجل الحلقة عبر Firestore
+///
+/// كل طالبة موثّقة بمستند مستقل ضمن مجموعة roster_students، مرتبطة
+/// بحلقة تحفيظ واحدة عبر circleId (يماثل تماماً نمط SchoolRepositoryImpl
+/// و TeachingCircleRepositoryImpl الموجودَين في features/mosques).
 class RosterRepositoryImpl implements RosterRepository {
-  static const _key = 'roster_students_v1';
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static const _collection = 'roster_students';
 
   @override
-  Future<List<RosterStudent>> getAll() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_key);
-    if (raw == null) return [];
-    final list = jsonDecode(raw) as List;
-    return list
-        .map((e) => RosterStudent.fromJson(e as Map<String, dynamic>))
-        .toList();
-  }
-
-  Future<void> _saveAll(List<RosterStudent> students) async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = jsonEncode(students.map((s) => s.toJson()).toList());
-    await prefs.setString(_key, raw);
-  }
-
-  @override
-  Future<void> add(RosterStudent student) async {
-    final all = await getAll();
-    all.add(student);
-    await _saveAll(all);
+  Stream<List<RosterStudent>> watchByCircle(String circleId) {
+    return _firestore
+        .collection(_collection)
+        .where('circleId', isEqualTo: circleId)
+        .snapshots()
+        .map((snapshot) {
+      final students = snapshot.docs
+          .map((doc) =>
+              RosterStudent.fromJson({...doc.data(), 'id': doc.id}))
+          .toList();
+      // ترتيب أبجدي على مستوى العميل، كما تفعل بقية المستودعات هنا
+      students.sort((a, b) => a.name.compareTo(b.name));
+      return students;
+    });
   }
 
   @override
-  Future<void> update(RosterStudent student) async {
-    final all = await getAll();
-    final index = all.indexWhere((s) => s.id == student.id);
-    if (index != -1) {
-      all[index] = student;
-      await _saveAll(all);
-    }
+  Future<void> add(String name, String circleId) async {
+    await _firestore.collection(_collection).add({
+      'name': name.trim(),
+      'circleId': circleId,
+      'isActive': true,
+      'createdAt': DateTime.now().toIso8601String(),
+    });
   }
 
   @override
-  Future<void> delete(String id) async {
-    final all = await getAll();
-    all.removeWhere((s) => s.id == id);
-    await _saveAll(all);
+  Future<void> updateName(String studentId, String name) async {
+    await _firestore
+        .collection(_collection)
+        .doc(studentId)
+        .update({'name': name.trim()});
+  }
+
+  @override
+  Future<void> setActive(String studentId, bool isActive) async {
+    await _firestore
+        .collection(_collection)
+        .doc(studentId)
+        .update({'isActive': isActive});
   }
 }

@@ -6,14 +6,12 @@ import '../../features/report_form/presentation/screens/circle_info_screen.dart'
 import '../../features/report_form/presentation/screens/students_table_screen.dart';
 import '../../features/report_form/presentation/screens/report_preview_screen.dart';
 import '../../features/pdf_export/presentation/screens/pdf_export_screen.dart';
-import '../../features/roster/presentation/screens/roster_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/mosques/presentation/screens/manage_mosques_screen.dart';
 class AppRoutes {
   AppRoutes._();
   static const String home = '/';
   static const String login = '/login';
-  static const String roster = '/roster';
   static const String circleInfo = '/circle-info';
   static const String studentsTable = '/students-table';
   static const String reportPreview = '/report-preview';
@@ -43,13 +41,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => _buildPage(
         state: state,
         child: const HomeScreen(),
-      ),
-    ),
-    GoRoute(
-      path: AppRoutes.roster,
-      pageBuilder: (context, state) => _buildPage(
-        state: state,
-        child: const RosterScreen(),
       ),
     ),
     GoRoute(

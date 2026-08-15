@@ -5,6 +5,7 @@ class ReportSummary {
   final String id;
   final String teacherName;
   final String mosqueId;
+  final String circleId;
   final String circleName;
   final String schoolName;
   final String month;
@@ -17,6 +18,7 @@ class ReportSummary {
     required this.id,
     required this.teacherName,
     required this.mosqueId,
+    this.circleId = '',
     required this.circleName,
     required this.schoolName,
     required this.month,
@@ -31,6 +33,7 @@ class ReportSummary {
       id: data['id'] as String,
       teacherName: data['teacherName'] as String? ?? '',
       mosqueId: data['mosqueId'] as String? ?? '',
+      circleId: data['circleId'] as String? ?? '',
       circleName: data['circleName'] as String? ?? '',
       schoolName: data['schoolName'] as String? ?? '',
       month: data['month'] as String? ?? '',
@@ -44,6 +47,35 @@ class ReportSummary {
           [],
     );
   }
+
+  ReportSummary copyWith({
+    String? id,
+    String? teacherName,
+    String? mosqueId,
+    String? circleId,
+    String? circleName,
+    String? schoolName,
+    String? month,
+    String? year,
+    int? studentsCount,
+    DateTime? createdAt,
+    List<Map<String, dynamic>>? students,
+  }) {
+    return ReportSummary(
+      id: id ?? this.id,
+      teacherName: teacherName ?? this.teacherName,
+      mosqueId: mosqueId ?? this.mosqueId,
+      circleId: circleId ?? this.circleId,
+      circleName: circleName ?? this.circleName,
+      schoolName: schoolName ?? this.schoolName,
+      month: month ?? this.month,
+      year: year ?? this.year,
+      studentsCount: studentsCount ?? this.studentsCount,
+      createdAt: createdAt ?? this.createdAt,
+      students: students ?? this.students,
+    );
+  }
+
   /// تحويل الملخص إلى CircleReport كامل لإعادة استخدام PdfGenerator
   /// الموجود بالفعل بدون تكرار أي كود
   CircleReport toCircleReport() {
@@ -51,8 +83,10 @@ class ReportSummary {
       id: id,
       circleInfo: CircleInfo(
         teacherName: teacherName,
+        circleId: circleId,
         circleName: circleName,
         mosqueName: '', // يُملأ من الخارج عند الحاجة لاسم المسجد الحقيقي
+        schoolId: '', // غير مُخزَّن ضمن ReportSummary حالياً
         schoolName: schoolName,
         month: month,
         year: year,

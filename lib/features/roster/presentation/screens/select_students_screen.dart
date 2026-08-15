@@ -25,6 +25,9 @@ class _SelectStudentsScreenState extends ConsumerState<SelectStudentsScreen> {
     Future.microtask(() => ref.read(selectStudentsProvider.notifier).reset());
   }
 
+  String get _circleId =>
+      ref.read(reportFormProvider).circleInfo?.circleId ?? '';
+
   Future<void> _addNewStudent() async {
     final controller = TextEditingController();
     final name = await showDialog<String>(
@@ -59,9 +62,10 @@ class _SelectStudentsScreenState extends ConsumerState<SelectStudentsScreen> {
     );
 
     if (name != null && name.isNotEmpty) {
-      await ref.read(rosterProvider.notifier).addStudent(name);
+      final circleId = _circleId;
+      await ref.read(rosterProvider(circleId).notifier).addStudent(name);
       // تحديد الطالبة الجديدة تلقائياً بعد إضافتها
-      final roster = ref.read(rosterProvider).students;
+      final roster = ref.read(rosterProvider(circleId)).students;
       final added = roster.firstWhere((s) => s.name == name.trim());
       ref.read(selectStudentsProvider.notifier).toggle(added.id);
     }
@@ -98,7 +102,9 @@ class _SelectStudentsScreenState extends ConsumerState<SelectStudentsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final rosterState = ref.watch(rosterProvider);
+    final circleId = ref.watch(
+        reportFormProvider.select((s) => s.circleInfo?.circleId ?? ''));
+    final rosterState = ref.watch(rosterProvider(circleId));
     final selectState = ref.watch(selectStudentsProvider);
     final notifier = ref.read(selectStudentsProvider.notifier);
 

@@ -48,6 +48,7 @@ class CircleReport extends Equatable {
       'teacherId': teacherId,
       'teacherName': circleInfo.teacherName,
       'mosqueId': mosqueId,
+      'circleId': circleInfo.circleId,
       'circleName': circleInfo.circleName,
       'schoolName': circleInfo.schoolName,
       'month': circleInfo.month,

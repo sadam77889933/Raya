@@ -1,12 +1,13 @@
 import '../entities/roster_student.dart';
 
-/// عقد مجرّد لتخزين واسترجاع سجل الحلقة
+/// عقد مجرّد لتخزين واسترجاع سجل الحلقة — مُقسّم حسب معرّف الحلقة (circleId)
 ///
-/// النسخة الحالية: SharedPreferences (محلي على الجهاز)
-/// النسخة القادمة: Firebase — بدون تغيير أي كود يستخدم هذا العقد
+/// النسخة الحالية: Firestore (نفس نمط المساجد/الدور/الحلقات)، مع دفق
+/// حيّ (snapshots) يمنحنا مزامنة فورية بين الأجهزة وتخزيناً مؤقتاً
+/// دون اتصال مجاناً من حزمة Firestore نفسها.
 abstract class RosterRepository {
-  Future<List<RosterStudent>> getAll();
-  Future<void> add(RosterStudent student);
-  Future<void> update(RosterStudent student);
-  Future<void> delete(String id);
+  Stream<List<RosterStudent>> watchByCircle(String circleId);
+  Future<void> add(String name, String circleId);
+  Future<void> updateName(String studentId, String name);
+  Future<void> setActive(String studentId, bool isActive);
 }

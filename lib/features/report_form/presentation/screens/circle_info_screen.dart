@@ -112,8 +112,10 @@ class _CircleInfoScreenState extends ConsumerState<CircleInfoScreen> {
 
     final info = CircleInfo(
       teacherName: user.name,
+      circleId: _selectedCircleId!,
       circleName: circleName,
       mosqueName: mosqueName,
+      schoolId: _selectedSchoolId!,
       schoolName: schoolName,
       month: _selectedMonth!,
       year: _selectedYear!,

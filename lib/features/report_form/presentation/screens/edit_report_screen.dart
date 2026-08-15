@@ -58,13 +58,19 @@ class _EditReportScreenState extends ConsumerState<EditReportScreen> {
   /// قديمة حتى تُغلَق وتُفتَح من جديد بالكامل. استدعاء addStudent()
   /// يمرّ عبر نفس الـ Notifier ويُحدّث حالته فوراً أينما كان معروضاً.
   Future<void> _syncNewStudentsToRoster(List<StudentRecord> students) async {
-    final notifier = ref.read(rosterProvider.notifier);
+    final circleId = widget.report.circleId;
+    // تقرير قديم من قبل الترحيل لسجل الحلقة (لا يحمل معرّف حلقة):
+    // نتجاهل المزامنة بدل تخمين حلقة قد تكون خاطئة.
+    if (circleId.isEmpty) return;
+
     final repo = ref.read(rosterRepositoryProvider);
+    final notifier = ref.read(rosterProvider(circleId).notifier);
 
     // نقرأ من المستودع مباشرة (وليس من state) لضمان قائمة حديثة
     // حتى لو لم تُفتَح شاشة سجل الحلقة بعد في هذه الجلسة.
-    final existingNames =
-        (await repo.getAll()).map((s) => s.name.trim()).toSet();
+    final existingNames = (await repo.watchByCircle(circleId).first)
+        .map((s) => s.name.trim())
+        .toSet();
 
     for (final student in students) {
       final name = student.name.trim();
@@ -104,6 +110,7 @@ class _EditReportScreenState extends ConsumerState<EditReportScreen> {
         id: widget.report.id,
         teacherName: widget.report.teacherName,
         mosqueId: widget.report.mosqueId,
+        circleId: widget.report.circleId,
         circleName: widget.report.circleName,
         schoolName: widget.report.schoolName,
         month: widget.report.month,

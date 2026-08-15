@@ -1,5 +1,6 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 import '../../data/roster_repository_impl.dart';
 import '../../domain/entities/roster_student.dart';
 import '../../domain/repositories/roster_repository.dart';
@@ -8,7 +9,7 @@ final rosterRepositoryProvider = Provider<RosterRepository>(
   (ref) => RosterRepositoryImpl(),
 );
 
-/// حالة شاشة سجل الحلقة
+/// حالة شاشة سجل الحلقة (مُقسّمة حسب الحلقة عبر circleId)
 class RosterState {
   final List<RosterStudent> students;
   final String searchQuery;
@@ -47,19 +48,17 @@ class RosterState {
   }
 }
 
+/// إدارة سجل حلقة واحدة (circleId) — تشترك في دفق Firestore الحيّ
+/// وتبقي حالة البحث محلياً بنفس أسلوب الشاشة السابق تماماً.
 class RosterNotifier extends StateNotifier<RosterState> {
   final RosterRepository _repo;
-  final _uuid = const Uuid();
+  final String circleId;
+  StreamSubscription<List<RosterStudent>>? _subscription;
 
-  RosterNotifier(this._repo) : super(const RosterState()) {
-    _load();
-  }
-
-  Future<void> _load() async {
-    final students = await _repo.getAll();
-    // ترتيب أبجدي لسهولة القراءة
-    students.sort((a, b) => a.name.compareTo(b.name));
-    state = state.copyWith(students: students, isLoading: false);
+  RosterNotifier(this._repo, this.circleId) : super(const RosterState()) {
+    _subscription = _repo.watchByCircle(circleId).listen((students) {
+      state = state.copyWith(students: students, isLoading: false);
+    });
   }
 
   void setSearchQuery(String query) {
@@ -67,34 +66,26 @@ class RosterNotifier extends StateNotifier<RosterState> {
   }
 
   Future<void> addStudent(String name) async {
-    final student = RosterStudent(
-      id: _uuid.v4(),
-      name: name.trim(),
-      isActive: true,
-      createdAt: DateTime.now(),
-    );
-    await _repo.add(student);
-    await _load();
+    await _repo.add(name.trim(), circleId);
+    // لا حاجة لإعادة تحميل يدوي: الدفق الحيّ يُحدّث الحالة تلقائياً
   }
 
   Future<void> toggleActive(RosterStudent student) async {
-    final updated = student.copyWith(isActive: !student.isActive);
-    await _repo.update(updated);
-    await _load();
+    await _repo.setActive(student.id, !student.isActive);
   }
 
   Future<void> updateStudent(RosterStudent student) async {
-    await _repo.update(student);
-    await _load();
+    await _repo.updateName(student.id, student.name);
   }
 
-  Future<void> deleteStudent(String id) async {
-    await _repo.delete(id);
-    await _load();
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
   }
 }
 
 final rosterProvider =
-    StateNotifierProvider<RosterNotifier, RosterState>(
-  (ref) => RosterNotifier(ref.read(rosterRepositoryProvider)),
+    StateNotifierProvider.family<RosterNotifier, RosterState, String>(
+  (ref, circleId) => RosterNotifier(ref.read(rosterRepositoryProvider), circleId),
 );
