@@ -180,6 +180,16 @@ class _AttendanceReportScreenState
                   .firstOrNull
               : null;
 
+          // للعرض في تذييل تقرير PDF فقط (لا تُستخدم للفلترة الفعلية):
+          // إن كانت هناك دار/حلقة واحدة فقط ظاهرة تلقائياً (بدون قائمة
+          // اختيار)، نوضّحها في التقرير المُصدَّر أيضاً حتى تكون واضحة
+          // للقارئ، دون أن نضيف فلترة فعلية إضافية على البيانات (تفادياً
+          // لإخفاء تقارير قديمة للمعلمة من دار أخرى إن أُعيد إسنادها لاحقاً).
+          final schoolNameForPdf = schoolNameFilter ??
+              (visibleSchools.length == 1 ? visibleSchools.first.name : null);
+          final circleNameForPdf = circleNameFilter ??
+              (visibleCircles.length == 1 ? visibleCircles.first.name : null);
+
           final summaries = AttendanceAggregator.aggregate(
             allReports: allReports,
             fromMonth: _fromMonth,
@@ -436,7 +446,7 @@ class _AttendanceReportScreenState
                       onPressed: _isExporting
                           ? null
                           : () => _exportPdf(summaries, mosques,
-                              schoolNameFilter, circleNameFilter),
+                              schoolNameForPdf, circleNameForPdf),
                       icon: _isExporting
                           ? const SizedBox(
                               width: 18,
