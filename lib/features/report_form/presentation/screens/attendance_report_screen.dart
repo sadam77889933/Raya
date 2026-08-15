@@ -198,9 +198,9 @@ class _AttendanceReportScreenState
                         ],
                      Consumer(
                           builder: (context, ref, _) {
-                            final teachersAsync = _mosqueFilter != null
-                                ? ref.watch(
-                                    teachersByMosqueProvider(_mosqueFilter!))
+                            final teachersAsync = effectiveMosqueFilter != null
+                                ? ref.watch(teachersByMosqueProvider(
+                                    effectiveMosqueFilter))
                                 : ref.watch(teachersStreamProvider);
 
                             return teachersAsync.when(

@@ -45,6 +45,14 @@ class TeachingCircleRepositoryImpl {
         .update({'name': name.trim()});
   }
 
+  /// إعادة ربط الحلقة بدار/مدرسة أخرى (تصحيح خطأ عند الإضافة مثلاً)
+  Future<void> updateSchoolId(String circleId, String schoolId) async {
+    await _firestore
+        .collection(_collection)
+        .doc(circleId)
+        .update({'schoolId': schoolId});
+  }
+
   Future<void> setActive(String circleId, bool isActive) async {
     await _firestore
         .collection(_collection)

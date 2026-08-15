@@ -58,6 +58,13 @@ class QuranConstants {
   static const List<String> companionCurriculums = [
     'تفسير',
     'فقه',
+    'النورانية',
+    'التجويد',
+    'العقيدة',
+    'السيرة',
+    'الآداب',
+    'احتفال',
+    'مسابقة',
     'أخرى',
   ];
 

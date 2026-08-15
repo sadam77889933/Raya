@@ -45,6 +45,14 @@ class SchoolRepositoryImpl {
         .update({'name': name.trim()});
   }
 
+  /// إعادة ربط الدار/المدرسة بمسجد آخر (تصحيح خطأ عند الإضافة مثلاً)
+  Future<void> updateMosqueId(String schoolId, String mosqueId) async {
+    await _firestore
+        .collection(_collection)
+        .doc(schoolId)
+        .update({'mosqueId': mosqueId});
+  }
+
   Future<void> setActive(String schoolId, bool isActive) async {
     await _firestore
         .collection(_collection)
