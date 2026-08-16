@@ -605,6 +605,10 @@ class _TeacherCard extends StatelessWidget {
     return parts.isNotEmpty && parts[0].isNotEmpty ? parts[0][0] : '؟';
   }
 
+  /// "مربوطة" فعلياً تعني وجود حلقة واحدة على الأقل مُسندة لها (وجود
+  /// دار فقط بدون حلقة لا يكفي لتتمكن من العمل).
+  bool get _isLinked => teacher.assignedCircleIds.isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
     final isActive = teacher.isActive;
@@ -686,12 +690,17 @@ class _TeacherCard extends StatelessWidget {
               ),
             ),
             IconButton(
-              icon: Icon(Icons.link_rounded,
-                  size: 18, color: AppTheme.goldAccent),
+              icon: Icon(
+                _isLinked ? Icons.link_rounded : Icons.link_off_rounded,
+                size: 18,
+                color: _isLinked ? AppTheme.primaryGreen : Colors.orange,
+              ),
               onPressed: onAssign,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              tooltip: 'ربط بالدار والحلقة',
+              tooltip: _isLinked
+                  ? 'مربوطة بدار وحلقة — اضغطي للتعديل'
+                  : 'غير مربوطة بحلقة بعد — اضغطي للربط',
             ),
             IconButton(
               icon: Icon(Icons.edit_outlined,
