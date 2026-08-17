@@ -11,6 +11,10 @@ class CircleInfo extends Equatable {
   final String year;
   final int studentsCount;
 
+  /// المناهج المصاحبة التي دُرّست لكل طالبات الحلقة خلال هذا الشهر
+  /// (اختيار واحد يخص الحلقة كاملة، وليس لكل طالبة على حدة).
+  final List<String> companionCurriculums;
+
   const CircleInfo({
     required this.teacherName,
     required this.circleId,
@@ -21,6 +25,7 @@ class CircleInfo extends Equatable {
     required this.month,
     required this.year,
     required this.studentsCount,
+    this.companionCurriculums = const [],
   });
 
   CircleInfo copyWith({
@@ -33,6 +38,7 @@ class CircleInfo extends Equatable {
     String? month,
     String? year,
     int? studentsCount,
+    List<String>? companionCurriculums,
   }) {
     return CircleInfo(
       teacherName: teacherName ?? this.teacherName,
@@ -44,12 +50,13 @@ class CircleInfo extends Equatable {
       month: month ?? this.month,
       year: year ?? this.year,
       studentsCount: studentsCount ?? this.studentsCount,
+      companionCurriculums: companionCurriculums ?? this.companionCurriculums,
     );
   }
 
   @override
   List<Object?> get props => [
         teacherName, circleId, circleName, mosqueName, schoolId, schoolName,
-        month, year, studentsCount,
+        month, year, studentsCount, companionCurriculums,
       ];
 }

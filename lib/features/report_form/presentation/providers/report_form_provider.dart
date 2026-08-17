@@ -79,6 +79,16 @@ class ReportFormNotifier extends StateNotifier<ReportFormState> {
     state = state.copyWith(students: updated);
   }
 
+  /// تحديث المناهج المصاحبة المُختارة لهذه الحلقة (اختيار واحد يخص
+  /// الحلقة كاملة، يُطبَّق تلقائياً على كل الطالبات عند التصدير).
+  void setCompanionCurriculums(List<String> items) {
+    final info = state.circleInfo;
+    if (info == null) return;
+    state = state.copyWith(
+      circleInfo: info.copyWith(companionCurriculums: items),
+    );
+  }
+
   CircleReport buildReport() {
     return CircleReport(
       id: _uuid.v4(),

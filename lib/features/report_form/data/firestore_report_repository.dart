@@ -42,11 +42,14 @@ class FirestoreReportService {
   /// قائمة الطالبات وعددها.
   Future<void> updateReportStudents(
     String reportId,
-    List<Map<String, dynamic>> students,
-  ) async {
+    List<Map<String, dynamic>> students, {
+    List<String>? companionCurriculums,
+  }) async {
     await _firestore.collection(_collection).doc(reportId).update({
       'students': students,
       'studentsCount': students.length,
+      if (companionCurriculums != null)
+        'companionCurriculums': companionCurriculums,
     });
   }
 

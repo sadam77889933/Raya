@@ -6,6 +6,7 @@ import '../../../roster/presentation/providers/roster_provider.dart';
 import '../../domain/entities/report_summary.dart';
 import '../../domain/entities/student_record.dart';
 import '../providers/firestore_report_provider.dart';
+import '../widgets/companion_curriculum_selector.dart';
 import '../widgets/student_form_card.dart';
 
 /// شاشة تعديل تقرير سابق محفوظ في Firestore.
@@ -26,6 +27,7 @@ class EditReportScreen extends ConsumerStatefulWidget {
 
 class _EditReportScreenState extends ConsumerState<EditReportScreen> {
   late List<StudentRecord> _students;
+  late List<String> _companionCurriculums;
   int _expandedIndex = -1;
   bool _isSaving = false;
 
@@ -36,6 +38,7 @@ class _EditReportScreenState extends ConsumerState<EditReportScreen> {
         .map((json) => StudentRecord.fromJson(json))
         .toList()
       ..sort((a, b) => a.index.compareTo(b.index));
+    _companionCurriculums = [...widget.report.companionCurriculums];
   }
 
   void _addStudent() {
@@ -98,9 +101,11 @@ class _EditReportScreenState extends ConsumerState<EditReportScreen> {
       final studentsJson =
           completeStudents.map((s) => s.toJson()).toList();
 
-      await ref
-          .read(firestoreReportServiceProvider)
-          .updateReportStudents(widget.report.id, studentsJson);
+      await ref.read(firestoreReportServiceProvider).updateReportStudents(
+            widget.report.id,
+            studentsJson,
+            companionCurriculums: _companionCurriculums,
+          );
 
       await _syncNewStudentsToRoster(completeStudents);
 
@@ -118,6 +123,7 @@ class _EditReportScreenState extends ConsumerState<EditReportScreen> {
         studentsCount: completeStudents.length,
         createdAt: widget.report.createdAt,
         students: studentsJson,
+        companionCurriculums: _companionCurriculums,
       );
 
       Navigator.of(context).pop(updatedReport);
@@ -167,6 +173,14 @@ class _EditReportScreenState extends ConsumerState<EditReportScreen> {
                   ),
                 ),
               ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: CompanionCurriculumSelector(
+              selected: _companionCurriculums,
+              onChanged: (items) =>
+                  setState(() => _companionCurriculums = items),
             ),
           ),
           Expanded(

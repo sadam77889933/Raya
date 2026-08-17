@@ -54,6 +54,7 @@ class CircleReport extends Equatable {
       'month': circleInfo.month,
       'year': circleInfo.year,
       'studentsCount': circleInfo.studentsCount,
+      'companionCurriculums': circleInfo.companionCurriculums,
       'students': students.map((s) => s.toJson()).toList(),
       'createdAt': createdAt.toIso8601String(),
     };

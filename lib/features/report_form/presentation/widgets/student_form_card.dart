@@ -45,12 +45,19 @@ class _StudentFormCardState extends State<StudentFormCard> {
   String? _reviewEndSurah;
   String? _reviewGrade;
   String? _absenceReason;
-  String? _companionCurriculum;
+
+  /// إن كان اسم الطالبة معروفاً مسبقاً عند فتح البطاقة (عادةً لأنها
+  /// جاءت من "سجل الحلقة" الدائم عبر شاشة اختيار الطالبات)، فلا داعي
+  /// لحقل تعديل إضافي يكرّر نفس الاسم — يُعرض حينها للقراءة فقط.
+  /// وإن كانت طالبة جديدة تماماً (مثل الإضافة اليدوية أثناء تعديل
+  /// تقرير سابق) فيبقى الحقل قابلاً للكتابة لتُدخل المعلمة اسمها.
+  late final bool _nameIsPrefilled;
 
   @override
   void initState() {
     super.initState();
     final s = widget.student;
+    _nameIsPrefilled = s?.name.trim().isNotEmpty == true;
     _nameController = TextEditingController(text: s?.name ?? '');
     _absenceDaysController = TextEditingController(
       text: (s?.absenceDays ?? 0) > 0 ? '${s!.absenceDays}' : '',
@@ -68,7 +75,6 @@ class _StudentFormCardState extends State<StudentFormCard> {
     _reviewEndSurah = s?.reviewEndSurah.isNotEmpty == true ? s!.reviewEndSurah : null;
     _reviewGrade = s?.reviewGrade.isNotEmpty == true ? s!.reviewGrade : null;
     _absenceReason = s?.absenceReason.isNotEmpty == true ? s!.absenceReason : null;
-    _companionCurriculum = s?.companionCurriculum.isNotEmpty == true ? s!.companionCurriculum : null;
   }
 
   @override
@@ -85,6 +91,11 @@ class _StudentFormCardState extends State<StudentFormCard> {
 
   void _save() {
     if (!_formKey.currentState!.validate()) return;
+    // إغلاق لوحة المفاتيح فوراً (إن كانت مفتوحة من حقل مثل "ملاحظات")
+    // قبل تمرير الشاشة لبطاقة الطالبة التالية — وإلا فإغلاقها لاحقاً
+    // أثناء حركة التمرير يُغيّر ارتفاع الشاشة المرئي بعد حساب موضع
+    // التمرير، فينزل عرض الشاشة لمكان غير صحيح.
+    FocusManager.instance.primaryFocus?.unfocus();
     widget.onSaved(StudentRecord(
       index: widget.studentIndex,
       name: _nameController.text.trim(),
@@ -98,7 +109,6 @@ class _StudentFormCardState extends State<StudentFormCard> {
       attendanceDays: int.tryParse(_attendanceDaysController.text.trim()) ?? 0,
       absenceDays: int.tryParse(_absenceDaysController.text.trim()) ?? 0,
       absenceReason: _absenceReason ?? '',
-      companionCurriculum: _companionCurriculum ?? '',
       notes: _notesController.text.trim(),
     ));
   }
@@ -147,16 +157,24 @@ class _StudentFormCardState extends State<StudentFormCard> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          widget.student?.name.isNotEmpty == true
-                              ? widget.student!.name
-                              : 'الطالبة ${widget.studentIndex}',
+                          // عند الفتح، الحقل القابل للتعديل "اسم الطالبة"
+                          // يظهر مباشرة أسفل هذا العنوان، فنعرض هنا رقم
+                          // الطالبة فقط بدل تكرار اسمها مرتين على الشاشة.
+                          widget.isExpanded
+                              ? 'الطالبة ${widget.studentIndex}'
+                              : (widget.student?.name.isNotEmpty == true
+                                  ? widget.student!.name
+                                  : 'الطالبة ${widget.studentIndex}'),
                           style: theme.textTheme.titleSmall?.copyWith(
-                            color: widget.student?.name.isNotEmpty == true
+                            color: !widget.isExpanded &&
+                                    widget.student?.name.isNotEmpty == true
                                 ? theme.colorScheme.onSurface
                                 : Colors.grey.shade400,
                           ),
                         ),
-                        if (_isComplete && widget.student != null) ...[
+                        if (!widget.isExpanded &&
+                            _isComplete &&
+                            widget.student != null) ...[
                           const SizedBox(height: 2),
                           Text(
                             'حفظ: ${widget.student!.startSurah} ← ${widget.student!.endSurah}  |  ${widget.student!.grade}',
@@ -204,13 +222,7 @@ class _StudentFormCardState extends State<StudentFormCard> {
           children: [
             const Divider(height: 1),
             const SizedBox(height: 16),
-            AppTextField(
-              label: AppStrings.studentName,
-              hint: AppStrings.studentNameHint,
-              controller: _nameController,
-              isRequired: true,
-              textInputAction: TextInputAction.next,
-            ),
+            _nameIsPrefilled ? _readOnlyNameField() : _editableNameField(),
             const SizedBox(height: 14),
             _sectionLabel('الحفظ'),
            const SizedBox(height: 8),
@@ -284,31 +296,31 @@ class _StudentFormCardState extends State<StudentFormCard> {
               ),
             ]),
             const SizedBox(height: 14),
-            _sectionLabel('السلوك والانضباط'),
-            const SizedBox(height: 8),
-            AppTextField(
-              label: 'الدرجة من 10',
-              hint: '10',
-              controller: _behaviorController,
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(2),
-              ],
-              validator: (v) {
-                if (v == null || v.isEmpty) return null;
-                final n = int.tryParse(v);
-                if (n == null || n < 0 || n > 10) return 'من 0 إلى 10';
-                return null;
-              },
-            ),
-            const SizedBox(height: 14),
-            _sectionLabel('الحضور والغياب'),
+            _sectionLabel('السلوك والحضور والغياب'),
             const SizedBox(height: 8),
             Row(children: [
               Expanded(
                 child: AppTextField(
-                  label: 'أيام الحضور',
+                  label: 'السلوك',
+                  hint: '10',
+                  controller: _behaviorController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(2),
+                  ],
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return null;
+                    final n = int.tryParse(v);
+                    if (n == null || n < 0 || n > 10) return '0-10';
+                    return null;
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: AppTextField(
+                  label: 'الحضور',
                   hint: '0',
                   controller: _attendanceDaysController,
                   keyboardType: TextInputType.number,
@@ -321,7 +333,7 @@ class _StudentFormCardState extends State<StudentFormCard> {
               const SizedBox(width: 8),
               Expanded(
                 child: AppTextField(
-                  label: 'أيام الغياب',
+                  label: 'الغياب',
                   hint: '0',
                   controller: _absenceDaysController,
                   keyboardType: TextInputType.number,
@@ -345,15 +357,6 @@ class _StudentFormCardState extends State<StudentFormCard> {
               ),
             ],
             const SizedBox(height: 14),
-            AppDropdownField<String>(
-              label: 'المنهج المصاحب',
-              hint: 'اختياري',
-              value: _companionCurriculum,
-              items: QuranConstants.companionCurriculums,
-              itemLabel: (c) => c,
-              onChanged: (v) => setState(() => _companionCurriculum = v),
-            ),
-            const SizedBox(height: 14),
             AppTextField(
               label: AppStrings.notes,
               hint: AppStrings.notesHint,
@@ -375,6 +378,46 @@ class _StudentFormCardState extends State<StudentFormCard> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _editableNameField() {
+    return AppTextField(
+      label: AppStrings.studentName,
+      hint: AppStrings.studentNameHint,
+      controller: _nameController,
+      isRequired: true,
+      textInputAction: TextInputAction.next,
+    );
+  }
+
+  /// عرض اسم الطالبة للقراءة فقط (بدل تكرار حقل تعديل لا حاجة له)
+  /// حين تكون الطالبة مُضافة أصلاً من سجل الحلقة الدائم.
+  Widget _readOnlyNameField() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.person_rounded, size: 16, color: Colors.grey.shade500),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _nameController.text,
+              style: const TextStyle(
+                fontFamily: 'Tajawal',
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Icon(Icons.lock_outline_rounded, size: 13, color: Colors.grey.shade400),
+        ],
       ),
     );
   }

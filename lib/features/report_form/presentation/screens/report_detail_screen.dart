@@ -181,6 +181,13 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
                       ),
                     ],
                   ),
+                  if (report.companionCurriculums.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    _InfoTile(
+                      label: 'المنهج المصاحب',
+                      value: report.companionCurriculums.join(' + '),
+                    ),
+                  ],
                 ],
               ),
             ),

@@ -13,7 +13,6 @@ class StudentRecord extends Equatable {
   final int attendanceDays;
   final int absenceDays;
   final String absenceReason;
-  final String companionCurriculum;
   final String notes;
 
   const StudentRecord({
@@ -29,7 +28,6 @@ class StudentRecord extends Equatable {
     this.attendanceDays = 0,
     this.absenceDays = 0,
     this.absenceReason = '',
-    this.companionCurriculum = '',
     this.notes = '',
   });
 
@@ -62,7 +60,6 @@ class StudentRecord extends Equatable {
     int? attendanceDays,
     int? absenceDays,
     String? absenceReason,
-    String? companionCurriculum,
     String? notes,
   }) {
     return StudentRecord(
@@ -77,7 +74,6 @@ class StudentRecord extends Equatable {
       attendanceDays: attendanceDays ?? this.attendanceDays,
       absenceDays: absenceDays ?? this.absenceDays,
       absenceReason: absenceReason ?? this.absenceReason,
-      companionCurriculum: companionCurriculum ?? this.companionCurriculum,
       notes: notes ?? this.notes,
     );
   }
@@ -87,7 +83,7 @@ class StudentRecord extends Equatable {
         index, name, startSurah, endSurah, grade,behaviorScore,
         reviewStartSurah, reviewEndSurah, reviewGrade,
         attendanceDays, absenceDays, absenceReason,
-        companionCurriculum, notes,
+        notes,
       ];
       Map<String, dynamic> toJson() => {
         'index': index,
@@ -101,7 +97,6 @@ class StudentRecord extends Equatable {
         'attendanceDays': attendanceDays,
         'absenceDays': absenceDays,
         'absenceReason': absenceReason,
-        'companionCurriculum': companionCurriculum,
         'notes': notes,
       };
 
@@ -118,7 +113,6 @@ class StudentRecord extends Equatable {
       attendanceDays: json['attendanceDays'] as int? ?? 0,
       absenceDays: json['absenceDays'] as int? ?? 0,
       absenceReason: json['absenceReason'] as String? ?? '',
-      companionCurriculum: json['companionCurriculum'] as String? ?? '',
       notes: json['notes'] as String? ?? '',
     );
   }

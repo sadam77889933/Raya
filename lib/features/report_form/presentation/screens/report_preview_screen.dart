@@ -120,8 +120,14 @@ class _CircleInfoCard extends StatelessWidget {
             _InfoRow(
               label: 'عدد الطالبات',
               value: '${info.studentsCount} طالبة',
-              isLast: true,
+              isLast: info.companionCurriculums.isEmpty,
             ),
+            if (info.companionCurriculums.isNotEmpty)
+              _InfoRow(
+                label: 'المنهج المصاحب',
+                value: info.companionCurriculums.join(' + '),
+                isLast: true,
+              ),
           ],
         ),
       ),

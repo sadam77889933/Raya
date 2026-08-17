@@ -132,8 +132,23 @@ class PdfGenerator {
           ),
           _countRow(i.studentsCount, font, bold),
           pw.SizedBox(height: 5),
-          _tableHeader(bold),
-          _dataTable(report.students, font, start: start, end: end),
+          pw.Stack(
+            children: [
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                children: [
+                  _tableHeader(bold),
+                  _dataTable(report.students, font, start: start, end: end),
+                ],
+              ),
+              _curriculumOverlay(
+                i.companionCurriculums,
+                font,
+                bold,
+                rowsCount: end - start,
+              ),
+            ],
+          ),
           pw.Spacer(),
           _footer(i.teacherName, font, bold, stampImage, supervisorName,
               page: page, pages: pages),
@@ -350,7 +365,10 @@ child: pw.Row(
       decoration: pw.BoxDecoration(color: bg),
       children: [
         _cell(s?.notes ?? '', font),
-        _cell(s?.companionCurriculum ?? '', font),
+        // خلية فارغة هيكلياً فقط: العمود الفعلي "المنهج المصاحب" يُرسم
+        // كصندوق واحد مدموج فوق كل صفوف الطالبات (انظر _curriculumOverlay)
+        // بدل تكرار نفس القيمة نصياً في كل صف على حدة.
+        _cell('', font),
         _cell(s == null ? '' : (s.absenceDays > 0 ? '${s.absenceDays}' : '-'), font),
         _cell(s == null ? '' : (s.attendanceDays > 0 ? '${s.attendanceDays}' : ''), font),
         _cell(s == null ? '' : '${s.behaviorScore}', font),
@@ -364,6 +382,105 @@ child: pw.Row(
         _cell('$n', font),
       ],
     );
+  }
+
+  /// يرسم عمود "المنهج المصاحب" كخلية واحدة مدمجة عمودياً تمتد على طول
+  /// كل صفوف الطالبات في هذه الصفحة، بدل تكرار نفس القيمة نصياً في كل
+  /// صف — مطابقةً لشكل العمود المدموج في نموذج التقرير الأصلي.
+  ///
+  /// السبب التقني: مكتبة PDF المستخدمة لا تدعم دمج خلايا الجدول
+  /// (rowSpan) مباشرة، لذلك نرسم صندوقاً منفصلاً بخلفية بيضاء فوق
+  /// المكان الذي يشغله هذا العمود بالضبط داخل الجدول.
+  ///
+  /// مهم بخصوص الارتفاع: الوضع الطبيعي (الغالب) هو تحديد ارتفاع الصندوق
+  /// عبر `top` + `bottom: 0` (وليس برقم ثابت محسوب يدوياً) حتى يتطابق
+  /// تماماً مع الحافة السفلية الحقيقية للجدول أياً كانت، فلا يبقى أي
+  /// فجوة أو خط غير مغلق أسفل آخر صف. وبدل تكبير الصندوق عند قلة عدد
+  /// الطالبات، نُصغّر حجم الخط تلقائياً ليتّسع للنص كاملاً.
+  ///
+  /// لكن للخط حد أدنى مقروء (5)، فلو كان عدد الطالبات قليلاً جداً مع
+  /// عدد كبير من بنود المنهج المصاحب، قد لا يكفي التصغير وحده لعرض كل
+  /// البنود فيختفي آخرها بصمت — وهذا أخطر من تجاوز بصري بسيط للجدول.
+  /// في هذه الحالة الاستثنائية فقط، نسمح للصندوق بتجاوز الحافة السفلية
+  /// الحقيقية للجدول (ارتفاع صريح بدل bottom:0) لضمان ظهور كل بند
+  /// اختارته المعلمة دون قصّ، حتى لو امتدّ قليلاً إلى المساحة الفارغة
+  /// أسفل الجدول في تلك الصفحة.
+  pw.Widget _curriculumOverlay(
+    List<String> items,
+    pw.Font font,
+    pw.Font bold, {
+    required int rowsCount,
+  }) {
+    const double minFontSize = 5.0;
+    const double maxFontSize = 7.0;
+    final double availableHeight = rowsCount * _rowH;
+    final int lineCount = items.isEmpty ? 0 : items.length * 2 - 1;
+
+    double fontSize = maxFontSize;
+    double? overflowHeight;
+    if (lineCount > 0) {
+      final double fitFontSize = (availableHeight - 6) / lineCount - 3;
+      if (fitFontSize >= minFontSize) {
+        fontSize = fitFontSize.clamp(minFontSize, maxFontSize);
+      } else {
+        // حتى بأصغر خط مقروء، البنود لا تتّسع ضمن صفوف هذه الصفحة —
+        // نستخدم أصغر خط ونكبّر الصندوق بدل قصّ آخر بند بصمت.
+        fontSize = minFontSize;
+        final double needed = lineCount * (minFontSize + 3) + 6;
+        overflowHeight = needed > availableHeight ? needed : availableHeight;
+      }
+    }
+
+    return pw.Positioned(
+      left: _wNotes,
+      top: _h1 + _h2,
+      bottom: overflowHeight == null ? 0.0 : null,
+      child: pw.Container(
+        width: _wCurric,
+        height: overflowHeight,
+        decoration: pw.BoxDecoration(
+          color: PdfColors.white,
+          border: pw.Border.all(color: _line, width: 0.6),
+        ),
+        child: items.isEmpty
+            ? null
+            : pw.Center(
+                child: pw.Column(
+                  mainAxisSize: pw.MainAxisSize.min,
+                  children: _curriculumLines(items, font, bold, fontSize),
+                ),
+              ),
+      ),
+    );
+  }
+
+  List<pw.Widget> _curriculumLines(
+    List<String> items,
+    pw.Font font,
+    pw.Font bold,
+    double fontSize,
+  ) {
+    final widgets = <pw.Widget>[];
+    for (var idx = 0; idx < items.length; idx++) {
+      widgets.add(
+        pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(vertical: 1),
+          child: pw.Text(
+            items[idx],
+            textDirection: pw.TextDirection.rtl,
+            textAlign: pw.TextAlign.center,
+            style: pw.TextStyle(font: font, fontSize: fontSize),
+          ),
+        ),
+      );
+      if (idx != items.length - 1) {
+        widgets.add(
+          pw.Text('+',
+              style: pw.TextStyle(font: bold, fontSize: fontSize + 1)),
+        );
+      }
+    }
+    return widgets;
   }
 
   pw.Widget _cell(String text, pw.Font font, {bool right = false}) {

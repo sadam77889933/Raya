@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/router/app_router.dart';
 import '../providers/report_form_provider.dart';
+import '../widgets/companion_curriculum_selector.dart';
 import '../widgets/step_indicator.dart';
 import '../widgets/student_form_card.dart';
 
@@ -17,6 +18,10 @@ class StudentsTableScreen extends ConsumerStatefulWidget {
 }
 
 class _StudentsTableScreenState extends ConsumerState<StudentsTableScreen> {
+  // -1 = كل البطاقات مطوية. بعد حفظ أي طالبة تُطوى كل البطاقات (بدل
+  // فتح التالية تلقائياً)، فتختار المعلمة نفسها أي طالبة تريد تعبئتها
+  // بعد ذلك بالضغط عليها — أبسط وأكثر موثوقية من محاولة تمرير الشاشة
+  // تلقائياً لبطاقة معيّنة.
   int _expandedIndex = 0;
 
   void _onNext() {
@@ -139,32 +144,48 @@ class _StudentsTableScreenState extends ConsumerState<StudentsTableScreen> {
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: studentsCount,
+              // عنصر إضافي في الأعلى لقسم "المنهج المصاحب"، بدل أن يكون
+              // ثابتاً خارج القائمة — هذا يجعل الشاشة كاملة قابلة للتمرير
+              // معاً، فلا يحدث تجاوز (Overflow) عند ظهور لوحة المفاتيح
+              // أثناء كتابة منهج جديد عبر "+ أخرى".
+              itemCount: studentsCount + 1,
               itemBuilder: (context, index) {
-                final studentIndex = index + 1;
-                final student = state.students.length > index
-                    ? state.students[index]
+                if (index == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: CompanionCurriculumSelector(
+                      selected:
+                          state.circleInfo?.companionCurriculums ?? const [],
+                      onChanged: (items) => ref
+                          .read(reportFormProvider.notifier)
+                          .setCompanionCurriculums(items),
+                    ),
+                  );
+                }
+
+                final listIndex = index - 1;
+                final studentIndex = listIndex + 1;
+                final student = state.students.length > listIndex
+                    ? state.students[listIndex]
                     : null;
 
                 return StudentFormCard(
                   studentIndex: studentIndex,
                   student: student,
-                  isExpanded: _expandedIndex == index,
+                  isExpanded: _expandedIndex == listIndex,
                   onToggle: () {
                     setState(() {
                       _expandedIndex =
-                          _expandedIndex == index ? -1 : index;
+                          _expandedIndex == listIndex ? -1 : listIndex;
                     });
                   },
                   onSaved: (updatedStudent) {
                     ref
                         .read(reportFormProvider.notifier)
                         .updateStudent(studentIndex, updatedStudent);
-                    if (index < studentsCount - 1) {
-                      setState(() => _expandedIndex = index + 1);
-                    } else {
-                      setState(() => _expandedIndex = -1);
-                    }
+                    // طي كل البطاقات دائماً بعد الحفظ — المعلمة تختار
+                    // الطالبة التالية بنفسها من القائمة.
+                    setState(() => _expandedIndex = -1);
                   },
                 );
               },

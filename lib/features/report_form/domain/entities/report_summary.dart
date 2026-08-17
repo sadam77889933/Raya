@@ -13,6 +13,7 @@ class ReportSummary {
   final int studentsCount;
   final DateTime createdAt;
   final List<Map<String, dynamic>> students;
+  final List<String> companionCurriculums;
 
   const ReportSummary({
     required this.id,
@@ -26,6 +27,7 @@ class ReportSummary {
     required this.studentsCount,
     required this.createdAt,
     required this.students,
+    this.companionCurriculums = const [],
   });
 
   factory ReportSummary.fromFirestore(Map<String, dynamic> data) {
@@ -45,6 +47,10 @@ class ReportSummary {
               ?.map((e) => e as Map<String, dynamic>)
               .toList() ??
           [],
+      companionCurriculums: (data['companionCurriculums'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
     );
   }
 
@@ -60,6 +66,7 @@ class ReportSummary {
     int? studentsCount,
     DateTime? createdAt,
     List<Map<String, dynamic>>? students,
+    List<String>? companionCurriculums,
   }) {
     return ReportSummary(
       id: id ?? this.id,
@@ -73,6 +80,7 @@ class ReportSummary {
       studentsCount: studentsCount ?? this.studentsCount,
       createdAt: createdAt ?? this.createdAt,
       students: students ?? this.students,
+      companionCurriculums: companionCurriculums ?? this.companionCurriculums,
     );
   }
 
@@ -91,6 +99,7 @@ class ReportSummary {
         month: month,
         year: year,
         studentsCount: studentsCount,
+        companionCurriculums: companionCurriculums,
       ),
       students: students
           .map((s) => StudentRecord.fromJson(s))
