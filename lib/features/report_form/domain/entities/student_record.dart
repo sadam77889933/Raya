@@ -68,6 +68,7 @@ class StudentRecord extends Equatable {
       startSurah: startSurah ?? this.startSurah,
       endSurah: endSurah ?? this.endSurah,
       grade: grade ?? this.grade,
+      behaviorScore: behaviorScore ?? this.behaviorScore,
       reviewStartSurah: reviewStartSurah ?? this.reviewStartSurah,
       reviewEndSurah: reviewEndSurah ?? this.reviewEndSurah,
       reviewGrade: reviewGrade ?? this.reviewGrade,
@@ -91,6 +92,7 @@ class StudentRecord extends Equatable {
         'startSurah': startSurah,
         'endSurah': endSurah,
         'grade': grade,
+        'behaviorScore': behaviorScore,
         'reviewStartSurah': reviewStartSurah,
         'reviewEndSurah': reviewEndSurah,
         'reviewGrade': reviewGrade,
@@ -107,6 +109,11 @@ class StudentRecord extends Equatable {
       startSurah: json['startSurah'] as String,
       endSurah: json['endSurah'] as String,
       grade: json['grade'] as String,
+      // ملاحظة: التقارير المحفوظة قبل هذا الإصلاح لا تحتوي على هذا الحقل
+      // إطلاقاً (خلل سابق كان يُسقطه عند الحفظ)، فتُعرض بالقيمة الافتراضية
+      // 10 لتلك التقارير القديمة فقط — لا يوجد حل رجعي ممكن لاسترجاع القيمة
+      // الحقيقية التي كتبتها المعلمة وقتها لأنها لم تُخزَّن أصلاً.
+      behaviorScore: json['behaviorScore'] as int? ?? 10,
       reviewStartSurah: json['reviewStartSurah'] as String? ?? '',
       reviewEndSurah: json['reviewEndSurah'] as String? ?? '',
       reviewGrade: json['reviewGrade'] as String? ?? '',
