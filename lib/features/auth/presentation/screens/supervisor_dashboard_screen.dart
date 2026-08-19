@@ -11,6 +11,7 @@ import '../../../notifications/presentation/providers/notification_provider.dart
 import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../../../notifications/presentation/screens/manage_scheduled_notifications_screen.dart';
 import '../../../report_form/presentation/screens/attendance_report_screen.dart';
+import '../../../statistical_report/presentation/screens/statistical_report_screen.dart';
 
 class SupervisorDashboardScreen extends ConsumerWidget {
   const SupervisorDashboardScreen({super.key});
@@ -155,6 +156,17 @@ class SupervisorDashboardScreen extends ConsumerWidget {
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => const AttendanceReportScreen(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _DashboardCard(
+              icon: Icons.insights_rounded,
+              title: 'تقرير إحصائي لأداء الحلقة',
+              subtitle: 'ملخّص أداء حلقة عبر فترة هجرية، مُجمَّع من تقاريرها الشهرية',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const StatisticalReportScreen(),
                 ),
               ),
             ),
