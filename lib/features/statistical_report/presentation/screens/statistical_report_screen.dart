@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hijri/hijri_calendar.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/constants/quran_constants.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -15,6 +16,7 @@ import '../../../mosques/presentation/providers/teaching_circle_provider.dart';
 import '../../../report_form/presentation/providers/all_reports_provider.dart';
 import '../../../roster/presentation/providers/roster_provider.dart';
 import '../../data/statistical_report_aggregator.dart';
+import '../../data/statistical_report_pdf_generator.dart';
 import '../../domain/entities/statistical_report_result.dart';
 import '../../domain/performance_rating.dart';
 import '../widgets/follow_up_card.dart';
@@ -122,6 +124,16 @@ class _StatisticalReportScreenState
           final schoolNameFilter = selectedSchool?.name;
           final circleNameFilter = selectedCircle?.name;
 
+          final periodLabel = _fromMonth == _toMonth && _fromYear == _toYear
+              ? '$_fromMonth $_fromYear هـ'
+              : 'من $_fromMonth $_fromYear هـ إلى $_toMonth $_toYear هـ';
+
+          final mosqueName = effectiveMosqueFilter != null
+              ? _firstOrNull(
+                  mosques.where((m) => m.id == effectiveMosqueFilter),
+                )?.name
+              : null;
+
           final StatisticalReportResult result = selectedCircle != null
               ? StatisticalReportAggregator.aggregate(
                   allReports: allReports,
@@ -162,6 +174,10 @@ class _StatisticalReportScreenState
                   result: result,
                   circleId: selectedCircle.id,
                   circleName: selectedCircle.name,
+                  periodLabel: periodLabel,
+                  mosqueName: mosqueName,
+                  schoolName: schoolNameFilter,
+                  teacherName: _teacherFilter,
                 ),
             ],
           );
@@ -394,11 +410,19 @@ class _ReportBody extends ConsumerWidget {
   final StatisticalReportResult result;
   final String circleId;
   final String circleName;
+  final String periodLabel;
+  final String? mosqueName;
+  final String? schoolName;
+  final String? teacherName;
 
   const _ReportBody({
     required this.result,
     required this.circleId,
     required this.circleName,
+    required this.periodLabel,
+    this.mosqueName,
+    this.schoolName,
+    this.teacherName,
   });
 
   @override
@@ -549,7 +573,98 @@ class _ReportBody extends ConsumerWidget {
         const ReportSectionTitle(title: 'ملخّص أداء الطالبات خلال الفترة'),
         StudentSummaryTable(students: result.students),
         const SizedBox(height: 20),
+        _ExportPdfButton(
+          result: result,
+          circleName: circleName,
+          periodLabel: periodLabel,
+          mosqueName: mosqueName,
+          schoolName: schoolName,
+          teacherName: teacherName,
+          totalStudents: totalStudents,
+          activeCount: activeCount,
+          inactiveCount: inactiveCount,
+        ),
+        const SizedBox(height: 20),
       ],
+    );
+  }
+}
+
+/// زر تصدير التقرير كـ PDF — يحمل حالته الخاصة (جاري التصدير أم لا)
+/// بمعزل عن بقية الشاشة، بنفس نمط زر التصدير في AttendanceReportScreen
+/// الموجود مسبقاً في المشروع.
+class _ExportPdfButton extends StatefulWidget {
+  final StatisticalReportResult result;
+  final String circleName;
+  final String periodLabel;
+  final String? mosqueName;
+  final String? schoolName;
+  final String? teacherName;
+  final int totalStudents;
+  final int activeCount;
+  final int inactiveCount;
+
+  const _ExportPdfButton({
+    required this.result,
+    required this.circleName,
+    required this.periodLabel,
+    this.mosqueName,
+    this.schoolName,
+    this.teacherName,
+    required this.totalStudents,
+    required this.activeCount,
+    required this.inactiveCount,
+  });
+
+  @override
+  State<_ExportPdfButton> createState() => _ExportPdfButtonState();
+}
+
+class _ExportPdfButtonState extends State<_ExportPdfButton> {
+  bool _isExporting = false;
+
+  Future<void> _export() async {
+    setState(() => _isExporting = true);
+    try {
+      final path = await StatisticalReportPdfGenerator.generate(
+        result: widget.result,
+        circleName: widget.circleName,
+        periodLabel: widget.periodLabel,
+        mosqueName: widget.mosqueName,
+        schoolName: widget.schoolName,
+        teacherName: widget.teacherName,
+        totalStudents: widget.totalStudents,
+        activeCount: widget.activeCount,
+        inactiveCount: widget.inactiveCount,
+      );
+
+      if (!mounted) return;
+      await Share.shareXFiles([XFile(path)], subject: 'تقرير إحصائي لأداء الحلقة');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('حدث خطأ أثناء تصدير PDF: ${e.toString()}')),
+      );
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: _isExporting ? null : _export,
+        icon: _isExporting
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              )
+            : const Icon(Icons.picture_as_pdf_rounded, size: 18),
+        label: Text(_isExporting ? 'جاري التصدير...' : 'تصدير PDF'),
+      ),
     );
   }
 }
