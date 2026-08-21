@@ -185,6 +185,11 @@ class PdfGenerator {
   /// تماماً، ولا نص أيسر ولا شعار)، تُرسَم الترويسة حرفياً بنفس الأسطر
   /// وأحجام الخطوط التي كانت مكتوبة يدوياً هنا قبل هذه الميزة — فلا يظهر
   /// أي فرق بصري إطلاقاً على أي مسجد لم يفتح شاشة الإعدادات من الأساس.
+  ///
+  /// عند وجود شعار و/أو نص أيسر: الشعار يُرسم في مُنتصف الترويسة تماماً
+  /// (بين عمودين متساويي العرض للنص الأيسر والنص الأيمن، فيتوسّط بصرياً
+  /// بصرف النظر عن طول كل نص)، والنصان الأيمن والأيسر بنفس حجم ووزن
+  /// الخط تماماً (Bold 11) ليبدوا متناسقين بدل اختلاف واضح بينهما.
   pw.Widget _orgHeader(
     pw.Font font,
     pw.Font bold,
@@ -205,44 +210,55 @@ class PdfGenerator {
         .toList();
     final hasLeftContent = logoImage != null || leftLines.isNotEmpty;
 
+    final rightBlock = pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.end,
+      children: isDefaultRightText
+          ? [
+              _rtl('مجمع آيات بينات لتعليم القرآن', bold, 11),
+              _rtl('الكريم وعلومه', bold, 11),
+              _rtl('شبوة- عتق', bold, 12),
+            ]
+          : rightLines.map((l) => _rtl(l, bold, 11)).toList(),
+    );
+
+    if (!hasLeftContent) {
+      // لا شعار ولا نص أيسر: نفس التخطيط الأصلي بعرض كامل الصفحة تماماً.
+      return pw.Align(alignment: pw.Alignment.centerRight, child: rightBlock);
+    }
+
+    final leftBlock = leftLines.isEmpty
+        ? null
+        : pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.end,
+            // نفس حجم ووزن خط النص الأيمن بالضبط، بدل خط أصغر وأخف كان
+            // يبدو غير متناسق بجانبه.
+            children: leftLines.map((l) => _rtl(l, bold, 11)).toList(),
+          );
+
     return pw.Row(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      crossAxisAlignment: pw.CrossAxisAlignment.center,
       children: [
-        if (hasLeftContent)
+        pw.Expanded(
+          child: leftBlock == null
+              ? pw.SizedBox()
+              : pw.Align(
+                  alignment: pw.Alignment.centerRight, child: leftBlock),
+        ),
+        if (logoImage != null)
           pw.Padding(
-            padding: const pw.EdgeInsets.only(left: 6),
-            child: pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.center,
-              children: [
-                if (logoImage != null)
-                  pw.Container(
-                    width: 38,
-                    height: 38,
-                    child: pw.Image(logoImage, fit: pw.BoxFit.contain),
-                  ),
-                if (logoImage != null && leftLines.isNotEmpty)
-                  pw.SizedBox(width: 6),
-                if (leftLines.isNotEmpty)
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.end,
-                    children: leftLines.map((l) => _rtl(l, font, 8)).toList(),
-                  ),
-              ],
+            padding: const pw.EdgeInsets.symmetric(horizontal: 8),
+            child: pw.Container(
+              width: 42,
+              height: 42,
+              child: pw.Image(logoImage, fit: pw.BoxFit.contain),
             ),
-          ),
+          )
+        else
+          pw.SizedBox(width: 8),
         pw.Expanded(
           child: pw.Align(
             alignment: pw.Alignment.centerRight,
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.end,
-              children: isDefaultRightText
-                  ? [
-                      _rtl('مجمع آيات بينات لتعليم القرآن', bold, 11),
-                      _rtl('الكريم وعلومه', bold, 11),
-                      _rtl('شبوة- عتق', bold, 12),
-                    ]
-                  : rightLines.map((l) => _rtl(l, bold, 11)).toList(),
-            ),
+            child: rightBlock,
           ),
         ),
       ],
