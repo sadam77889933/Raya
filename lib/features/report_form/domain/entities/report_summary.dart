@@ -1,4 +1,4 @@
-import '../../../core/constants/quran_constants.dart';
+import '../../../../core/constants/quran_constants.dart';
 import 'circle_info.dart';
 import 'circle_report.dart';
 import 'student_record.dart';
