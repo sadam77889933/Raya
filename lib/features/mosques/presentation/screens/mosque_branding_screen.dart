@@ -37,6 +37,9 @@ class _MosqueBrandingScreenState extends ConsumerState<MosqueBrandingScreen> {
   Uint8List? _pickedHeaderLogoBytes; // شعار جديد اختارته المستخدمة، لم يُحفظ بعد
   bool _headerLogoRemoved = false; // ضغطت "حذف الشعار"
 
+  // نص شريط عنوان التقرير الشهري (جديد)
+  late final TextEditingController _monthlyBannerController;
+
   @override
   void initState() {
     super.initState();
@@ -49,6 +52,9 @@ class _MosqueBrandingScreenState extends ConsumerState<MosqueBrandingScreen> {
         text: widget.mosque.rightHeaderText ?? Mosque.defaultRightHeaderText);
     _leftHeaderController =
         TextEditingController(text: widget.mosque.leftHeaderText ?? '');
+    _monthlyBannerController = TextEditingController(
+        text: widget.mosque.monthlyBannerText ??
+            Mosque.defaultMonthlyBannerText);
   }
 
   @override
@@ -56,6 +62,7 @@ class _MosqueBrandingScreenState extends ConsumerState<MosqueBrandingScreen> {
     _nameController.dispose();
     _rightHeaderController.dispose();
     _leftHeaderController.dispose();
+    _monthlyBannerController.dispose();
     super.dispose();
   }
 
@@ -155,6 +162,12 @@ class _MosqueBrandingScreenState extends ConsumerState<MosqueBrandingScreen> {
     });
   }
 
+  void _resetMonthlyBannerTextToDefault() {
+    setState(() {
+      _monthlyBannerController.text = Mosque.defaultMonthlyBannerText;
+    });
+  }
+
   Future<void> _save() async {
     setState(() => _isSaving = true);
     try {
@@ -177,6 +190,7 @@ class _MosqueBrandingScreenState extends ConsumerState<MosqueBrandingScreen> {
             leftHeaderText: _leftHeaderController.text.trim(),
             headerLogoBase64: newHeaderLogoBase64,
             removeHeaderLogo: _headerLogoRemoved,
+            monthlyBannerText: _monthlyBannerController.text.trim(),
           );
 
       if (!mounted) return;
@@ -537,6 +551,70 @@ class _MosqueBrandingScreenState extends ConsumerState<MosqueBrandingScreen> {
                       ),
                     ),
                   ],
+
+                  const SizedBox(height: 18),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'نص عنوان التقرير الشهري',
+                        style: TextStyle(
+                          fontFamily: 'Tajawal',
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade800,
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: _resetMonthlyBannerTextToDefault,
+                        child: const Text(
+                          'استعادة الافتراضي',
+                          style: TextStyle(
+                            fontFamily: 'Tajawal',
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.primaryGreen,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _monthlyBannerController,
+                    textDirection: TextDirection.rtl,
+                    maxLines: 2,
+                    minLines: 2,
+                    style: const TextStyle(fontFamily: 'Tajawal', fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.goldAccent.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.info_outline_rounded,
+                            size: 14, color: AppTheme.goldAccent),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'عبارة "لشهر: [اسم الشهر]" تُضاف تلقائياً في نهاية هذا النص دائماً — لا تُكتب هنا، ولا يمكن تعديلها لأنها تتغيّر مع كل تقرير.',
+                            style: TextStyle(
+                              fontFamily: 'Tajawal',
+                              fontSize: 10.5,
+                              color: Colors.grey.shade700,
+                              height: 1.6,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),

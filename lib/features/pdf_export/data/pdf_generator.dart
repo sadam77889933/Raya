@@ -70,6 +70,9 @@ class PdfGenerator {
   /// [leftHeaderText]: نص أيسر اختياري للترويسة، و[headerLogoBytes]: شعار
   /// اختياري يُرسم في يسار الترويسة. كلاهما null يعني عدم وجود أي منهما،
   /// فتبقى الترويسة مطابقة تماماً لشكلها قبل هذه الميزة.
+  /// [monthlyBannerText]: نص شريط عنوان التقرير الشهري أسفل الترويسة،
+  /// بدون عبارة "لشهر: ..." التي تُضاف دائماً تلقائياً في نهايته. مرّري
+  /// null إن لم يُخصَّص، وسيُستخدم [Mosque.defaultMonthlyBannerText].
   Future<String> generate(
     CircleReport report, {
     Uint8List? stampBytes,
@@ -77,6 +80,7 @@ class PdfGenerator {
     String? rightHeaderText,
     String? leftHeaderText,
     Uint8List? headerLogoBytes,
+    String? monthlyBannerText,
   }) async {
     final font     = await _loadFont('assets/fonts/Amiri-Regular.ttf');
     final fontBold = await _loadFont('assets/fonts/Amiri-Bold.ttf');
@@ -85,6 +89,8 @@ class PdfGenerator {
         headerLogoBytes != null ? pw.MemoryImage(headerLogoBytes) : null;
     final effectiveRightHeaderText =
         rightHeaderText ?? Mosque.defaultRightHeaderText;
+    final effectiveMonthlyBannerText =
+        monthlyBannerText ?? Mosque.defaultMonthlyBannerText;
 
     final pdf = pw.Document(
       theme: pw.ThemeData.withFont(base: font, bold: fontBold),
@@ -105,6 +111,7 @@ class PdfGenerator {
             rightHeaderText: effectiveRightHeaderText,
             leftHeaderText: leftHeaderText,
             headerLogoImage: headerLogoImage,
+            monthlyBannerText: effectiveMonthlyBannerText,
             start: start, end: end,
             page: p + 1, pages: pageCount,
           ),
@@ -127,6 +134,7 @@ class PdfGenerator {
     required String rightHeaderText,
     String? leftHeaderText,
     pw.MemoryImage? headerLogoImage,
+    required String monthlyBannerText,
     required int start,
     required int end,
     required int page,
@@ -140,7 +148,7 @@ class PdfGenerator {
         children: [
           _orgHeader(font, bold, rightHeaderText, leftHeaderText, headerLogoImage),
           pw.SizedBox(height: 4),
-          _monthBanner(i.month, i.year, font, bold),
+          _monthBanner(i.month, i.year, monthlyBannerText, font, bold),
           _infoRow(
             leftLabel: 'مدرسة/ دار: ', leftValue: i.schoolName,
             rightLabel: 'المسجد: ',    rightValue: i.mosqueName,
@@ -268,7 +276,8 @@ class PdfGenerator {
     );
   }
 
- pw.Widget _monthBanner(String month, String year, pw.Font font, pw.Font bold) {
+ pw.Widget _monthBanner(
+    String month, String year, String bannerText, pw.Font font, pw.Font bold) {
     return pw.Container(
       width: double.infinity,
       decoration: pw.BoxDecoration(border: pw.Border.all(color: _line, width: 0.6)),
@@ -278,10 +287,9 @@ child: pw.Row(
         children: [
           _rtl('$year هـ', bold, 9),
           pw.SizedBox(width: 10),
-          _rtl(
-            'التقرير الشهري لحلقات مجمع آيات بينات لتعليم القرآن الكريم وعلومه لشهر: $month',
-            font, 9,
-          ),
+          // "لشهر: $month" تُضاف دائماً تلقائياً في النهاية — لا تُخزَّن
+          // ضمن bannerText نفسه لأنها تتغيّر مع كل تقرير.
+          _rtl('$bannerText لشهر: $month', font, 9),
         ],
       ),
     );

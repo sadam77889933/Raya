@@ -61,6 +61,7 @@ class MosqueRepositoryImpl implements MosqueRepository {
     String? leftHeaderText,
     String? headerLogoBase64,
     bool removeHeaderLogo = false,
+    String? monthlyBannerText,
   }) async {
     final data = <String, dynamic>{};
     if (rightHeaderText != null) {
@@ -73,6 +74,9 @@ class MosqueRepositoryImpl implements MosqueRepository {
       data['headerLogoBase64'] = FieldValue.delete();
     } else if (headerLogoBase64 != null) {
       data['headerLogoBase64'] = headerLogoBase64;
+    }
+    if (monthlyBannerText != null) {
+      data['monthlyBannerText'] = monthlyBannerText;
     }
     if (data.isEmpty) return;
     await _firestore.collection(_collection).doc(mosqueId).update(data);

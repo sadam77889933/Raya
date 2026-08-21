@@ -28,12 +28,24 @@ class Mosque extends Equatable {
   /// [stampBase64]. null تعني عدم وجود شعار (لا يظهر شيء في الترويسة).
   final String? headerLogoBase64;
 
+  /// نص شريط عنوان التقرير الشهري (أسفل الترويسة مباشرة)، بدون عبارة
+  /// "لشهر: ..." التي تُضاف دائماً تلقائياً في نهايته عند العرض — لأنها
+  /// يجب أن تعكس الشهر الفعلي لكل تقرير، فلا يصح تخزينها ضمن نص ثابت.
+  /// null تعني عدم التخصيص، فيُستخدم [defaultMonthlyBannerText].
+  final String? monthlyBannerText;
+
   /// النص الافتراضي الحالي لترويسة التقرير اليمنى — مطابق تماماً للنص
   /// المرسوم بشكل ثابت في PdfGenerator._orgHeader قبل إضافة هذه الميزة.
   /// يُستخدم كتعبئة أولى في شاشة الإعدادات، وكقيمة احتياطية عند توليد PDF
   /// لأي مسجد لم يُخصِّص [rightHeaderText] إطلاقاً (لا يزال null).
   static const String defaultRightHeaderText =
       'مجمع آيات بينات لتعليم القرآن\nالكريم وعلومه\nشبوة- عتق';
+
+  /// النص الافتراضي الحالي لشريط عنوان التقرير الشهري — مطابق تماماً
+  /// للنص المرسوم بشكل ثابت في PdfGenerator._monthBanner قبل إضافة هذه
+  /// الميزة (بدون عبارة "لشهر: ..." التي تُضاف دائماً تلقائياً بعده).
+  static const String defaultMonthlyBannerText =
+      'التقرير الشهري لحلقات مجمع آيات بينات لتعليم القرآن الكريم وعلومه';
 
   const Mosque({
     required this.id,
@@ -45,6 +57,7 @@ class Mosque extends Equatable {
     this.rightHeaderText,
     this.leftHeaderText,
     this.headerLogoBase64,
+    this.monthlyBannerText,
   });
 
   Map<String, dynamic> toJson() => {
@@ -56,6 +69,7 @@ class Mosque extends Equatable {
         if (rightHeaderText != null) 'rightHeaderText': rightHeaderText,
         if (leftHeaderText != null) 'leftHeaderText': leftHeaderText,
         if (headerLogoBase64 != null) 'headerLogoBase64': headerLogoBase64,
+        if (monthlyBannerText != null) 'monthlyBannerText': monthlyBannerText,
       };
 
   factory Mosque.fromJson(String id, Map<String, dynamic> json) {
@@ -69,6 +83,7 @@ class Mosque extends Equatable {
       rightHeaderText: json['rightHeaderText'] as String?,
       leftHeaderText: json['leftHeaderText'] as String?,
       headerLogoBase64: json['headerLogoBase64'] as String?,
+      monthlyBannerText: json['monthlyBannerText'] as String?,
     );
   }
 
@@ -80,6 +95,7 @@ class Mosque extends Equatable {
     String? rightHeaderText,
     String? leftHeaderText,
     String? headerLogoBase64,
+    String? monthlyBannerText,
   }) {
     return Mosque(
       id: id,
@@ -91,6 +107,7 @@ class Mosque extends Equatable {
       rightHeaderText: rightHeaderText ?? this.rightHeaderText,
       leftHeaderText: leftHeaderText ?? this.leftHeaderText,
       headerLogoBase64: headerLogoBase64 ?? this.headerLogoBase64,
+      monthlyBannerText: monthlyBannerText ?? this.monthlyBannerText,
     );
   }
 
@@ -105,5 +122,6 @@ class Mosque extends Equatable {
         rightHeaderText,
         leftHeaderText,
         headerLogoBase64,
+        monthlyBannerText,
       ];
 }

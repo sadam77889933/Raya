@@ -86,6 +86,7 @@ class _PdfExportNotifier extends StateNotifier<_PdfExportState> {
         rightHeaderText: mosque?.rightHeaderText,
         leftHeaderText: mosque?.leftHeaderText,
         headerLogoBytes: headerLogoBytes,
+        monthlyBannerText: mosque?.monthlyBannerText,
       );
       state = _PdfExportState(status: _PdfStatus.ready, pdfPath: path);
 

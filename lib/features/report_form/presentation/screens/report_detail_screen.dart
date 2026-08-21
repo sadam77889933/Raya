@@ -82,6 +82,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
         rightHeaderText: mosque?.rightHeaderText,
         leftHeaderText: mosque?.leftHeaderText,
         headerLogoBytes: headerLogoBytes,
+        monthlyBannerText: mosque?.monthlyBannerText,
       );
 
       if (!mounted) return;

@@ -122,6 +122,7 @@ class _MergeReportsScreenState extends ConsumerState<MergeReportsScreen> {
             rightHeaderText: mosque?.rightHeaderText,
             leftHeaderText: mosque?.leftHeaderText,
             headerLogoBytes: headerLogoBytes,
+            monthlyBannerText: mosque?.monthlyBannerText,
           );
           individualPaths.add(path);
         }

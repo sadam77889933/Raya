@@ -21,7 +21,7 @@ abstract class MosqueRepository {
   });
 
   /// تحديث إعدادات ترويسة تقارير PDF الخاصة بهذا المسجد: النص الأيمن،
-  /// النص الأيسر، وشعار الترويسة (Base64).
+  /// النص الأيسر، شعار الترويسة (Base64)، ونص شريط عنوان التقرير الشهري.
   /// تمرير null للنصوص يعني "بدون تغيير عليه" — وتمرير نص فارغ '' يعني
   /// حذف القيمة عمداً (فلا يظهر شيء بدلاً عنها، وليس رجوعاً للافتراضي).
   /// لحذف الشعار نهائياً استخدمي [removeHeaderLogo]: true.
@@ -31,5 +31,6 @@ abstract class MosqueRepository {
     String? leftHeaderText,
     String? headerLogoBase64,
     bool removeHeaderLogo = false,
+    String? monthlyBannerText,
   });
 }
