@@ -1,3 +1,4 @@
+import '../../../core/constants/quran_constants.dart';
 import 'circle_info.dart';
 import 'circle_report.dart';
 import 'student_record.dart';
@@ -15,6 +16,14 @@ class ReportSummary {
   final List<Map<String, dynamic>> students;
   final List<String> companionCurriculums;
 
+  /// مفتاح الفترة الهجرية الرقمي (السنة×12 + رقم الشهر). التقارير المرفوعة
+  /// حديثاً تحمله مُخزَّناً في Firestore؛ التقارير القديمة التي رُفعت قبل
+  /// إضافة هذا الحقل لا تملكه، فيُحسَب هنا في الذاكرة من `month`/`year`
+  /// بنفس الصيغة تماماً (`QuranConstants.hijriPeriodKey`) — بحيث تبقى قيمة
+  /// `periodKey` صحيحة ومتاحة لكل تقرير بلا استثناء، بغض النظر عن كونها
+  /// مخزَّنة في المستند نفسه أو محسوبة عند القراءة.
+  final int periodKey;
+
   const ReportSummary({
     required this.id,
     required this.teacherName,
@@ -28,9 +37,12 @@ class ReportSummary {
     required this.createdAt,
     required this.students,
     this.companionCurriculums = const [],
+    required this.periodKey,
   });
 
   factory ReportSummary.fromFirestore(Map<String, dynamic> data) {
+    final month = data['month'] as String? ?? '';
+    final year = data['year'] as String? ?? '';
     return ReportSummary(
       id: data['id'] as String,
       teacherName: data['teacherName'] as String? ?? '',
@@ -38,8 +50,8 @@ class ReportSummary {
       circleId: data['circleId'] as String? ?? '',
       circleName: data['circleName'] as String? ?? '',
       schoolName: data['schoolName'] as String? ?? '',
-      month: data['month'] as String? ?? '',
-      year: data['year'] as String? ?? '',
+      month: month,
+      year: year,
       studentsCount: data['studentsCount'] as int? ?? 0,
       createdAt: DateTime.tryParse(data['createdAt'] as String? ?? '') ??
           DateTime.now(),
@@ -51,6 +63,8 @@ class ReportSummary {
               ?.map((e) => e.toString())
               .toList() ??
           [],
+      periodKey: data['periodKey'] as int? ??
+          QuranConstants.hijriPeriodKey(month, year),
     );
   }
 
@@ -67,6 +81,7 @@ class ReportSummary {
     DateTime? createdAt,
     List<Map<String, dynamic>>? students,
     List<String>? companionCurriculums,
+    int? periodKey,
   }) {
     return ReportSummary(
       id: id ?? this.id,
@@ -81,6 +96,7 @@ class ReportSummary {
       createdAt: createdAt ?? this.createdAt,
       students: students ?? this.students,
       companionCurriculums: companionCurriculums ?? this.companionCurriculums,
+      periodKey: periodKey ?? this.periodKey,
     );
   }
 

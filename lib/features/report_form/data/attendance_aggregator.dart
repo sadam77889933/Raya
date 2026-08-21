@@ -1,3 +1,4 @@
+import '../../../core/constants/quran_constants.dart';
 import '../domain/entities/report_summary.dart';
 import '../domain/entities/student_attendance_summary.dart';
 
@@ -8,11 +9,11 @@ class AttendanceAggregator {
     'رمضان', 'شوال', 'ذو القعدة', 'ذو الحجة',
   ];
 
-  static int _monthKey(String month, String year) {
-    final monthIndex = hijriMonths.indexOf(month);
-    final yearNum = int.tryParse(year) ?? 0;
-    return yearNum * 12 + (monthIndex >= 0 ? monthIndex : 0);
-  }
+  // نفس صيغة `QuranConstants.hijriPeriodKey` تماماً — تُستدعى هنا بدل تكرار
+  // الحساب محلياً، توحيداً لمصدر الصيغة (كانت مكرَّرة سابقاً مع
+  // StatisticalReportAggregator ومع حساب periodKey عند رفع التقرير).
+  static int _monthKey(String month, String year) =>
+      QuranConstants.hijriPeriodKey(month, year);
 
   static List<StudentAttendanceSummary> aggregate({
     required List<ReportSummary> allReports,

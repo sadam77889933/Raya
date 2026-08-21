@@ -124,6 +124,7 @@ class _EditReportScreenState extends ConsumerState<EditReportScreen> {
         createdAt: widget.report.createdAt,
         students: studentsJson,
         companionCurriculums: _companionCurriculums,
+        periodKey: widget.report.periodKey,
       );
 
       Navigator.of(context).pop(updatedReport);

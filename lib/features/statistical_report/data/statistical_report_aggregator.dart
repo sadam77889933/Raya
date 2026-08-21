@@ -23,11 +23,11 @@ class StatisticalReportAggregator {
   static int _monthIndex(String month) =>
       QuranConstants.hijriMonths.indexOf(month);
 
-  static int _monthKey(String month, String year) {
-    final mi = _monthIndex(month);
-    final y = int.tryParse(year) ?? 0;
-    return y * 12 + (mi >= 0 ? mi : 0);
-  }
+  // نفس صيغة `QuranConstants.hijriPeriodKey` تماماً — مُوحَّدة هناك الآن بدل
+  // تكرارها هنا (كانت مكرَّرة سابقاً مع AttendanceAggregator ومع حساب
+  // periodKey عند رفع التقرير في CircleReport.toFirestoreJson).
+  static int _monthKey(String month, String year) =>
+      QuranConstants.hijriPeriodKey(month, year);
 
   static int _daysInHijriMonth(String month, String year) {
     final mi = _monthIndex(month);

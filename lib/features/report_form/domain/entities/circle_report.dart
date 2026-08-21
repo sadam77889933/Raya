@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import '../../../../core/constants/quran_constants.dart';
 import 'circle_info.dart';
 import 'student_record.dart';
 
@@ -53,6 +54,12 @@ class CircleReport extends Equatable {
       'schoolName': circleInfo.schoolName,
       'month': circleInfo.month,
       'year': circleInfo.year,
+      // مفتاح رقمي متسلسل للفترة الهجرية (السنة×12 + رقم الشهر)، يُخزَّن
+      // وقت الرفع لاستخدامه مستقبلاً في استعلامات Firestore مُصفّاة
+      // بالفترة من جهة السيرفر (`.where('periodKey', ...)`) بدل تحميل كل
+      // التقارير وتصفيتها في Dart كما يحدث حالياً. حقل إضافي بحت — لا
+      // يُقرأ بعد في أي مكان، فلا يُغيّر أي سلوك حالي.
+      'periodKey': QuranConstants.hijriPeriodKey(circleInfo.month, circleInfo.year),
       'studentsCount': circleInfo.studentsCount,
       'companionCurriculums': circleInfo.companionCurriculums,
       'students': students.map((s) => s.toJson()).toList(),

@@ -55,6 +55,18 @@ class QuranConstants {
     'رمضان', 'شوال', 'ذو القعدة', 'ذو الحجة',
   ];
 
+  /// يحسب مفتاحاً رقمياً متسلسلاً لشهر هجري (السنة×12 + رقم الشهر بدءاً من
+  /// صفر) يزيد بشكل رتيب عبر حدود السنوات، فيصلح للمقارنة/الترتيب/الفلترة
+  /// بين فترتين هجريتين مباشرة (بدل مقارنة الشهر والسنة كنصّين منفصلين).
+  /// هذه نفس الصيغة التي كانت مكرَّرة في `AttendanceAggregator` و
+  /// `StatisticalReportAggregator`، وُحِّدت هنا في مصدر واحد يستخدمانه معاً،
+  /// وتُستخدم أيضاً لحساب `periodKey` المُخزَّن مع كل تقرير عند رفعه.
+  static int hijriPeriodKey(String month, String year) {
+    final monthIndex = hijriMonths.indexOf(month);
+    final yearNum = int.tryParse(year) ?? 0;
+    return yearNum * 12 + (monthIndex >= 0 ? monthIndex : 0);
+  }
+
   static const List<String> companionCurriculums = [
     'تفسير',
     'فقه',
