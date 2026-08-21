@@ -217,7 +217,14 @@ class _StatisticalReportScreenState
           const SizedBox(height: 10),
           if (isGlobalSupervisor) ...[
             DropdownButtonFormField<String?>(
-              value: _mosqueFilter,
+              // حارس أمان: نمرّر القيمة فقط إن كانت موجودة فعلاً ضمن
+              // القائمة الحالية. بدون هذا، أي عدم تزامن مؤقت بين
+              // _mosqueFilter والقائمة (كما حدث مع الدار والحلقة أدناه —
+              // خاصة عند وصول دفق Firestore على مرحلتين: نسخة محلية مخزَّنة
+              // ثم نسخة كاملة من السيرفر) يُسبّب Failed assertion من
+              // DropdownButtonFormField نفسه ("There should be exactly one
+              // item with [DropdownButton]'s value").
+              value: mosques.any((m) => m.id == _mosqueFilter) ? _mosqueFilter : null,
               decoration: _filterDecoration(Icons.mosque_rounded, 'اختاري المسجد'),
               items: [
                 const DropdownMenuItem<String?>(
@@ -238,7 +245,10 @@ class _StatisticalReportScreenState
                 Icons.apartment_rounded, 'الدار: ${visibleSchools.first.name}')
           else
             DropdownButtonFormField<String?>(
-              value: _schoolFilter,
+              // حارس أمان مطابق لقائمة المسجد أعلاه — راجع التعليق هناك.
+              value: visibleSchools.any((s) => s.id == _schoolFilter)
+                  ? _schoolFilter
+                  : null,
               decoration:
                   _filterDecoration(Icons.apartment_rounded, 'اختاري الدار'),
               items: [
@@ -260,7 +270,10 @@ class _StatisticalReportScreenState
                 Icons.groups_rounded, 'الحلقة: ${visibleCircles.first.name}')
           else
             DropdownButtonFormField<String?>(
-              value: _circleFilter,
+              // حارس أمان مطابق لقائمة المسجد أعلاه — راجع التعليق هناك.
+              value: visibleCircles.any((c) => c.id == _circleFilter)
+                  ? _circleFilter
+                  : null,
               decoration:
                   _filterDecoration(Icons.groups_rounded, 'اختاري الحلقة'),
               items: [
