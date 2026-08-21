@@ -60,6 +60,16 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
         }
       }
 
+      Uint8List? headerLogoBytes;
+      if (mosque?.headerLogoBase64 != null &&
+          mosque!.headerLogoBase64!.isNotEmpty) {
+        try {
+          headerLogoBytes = base64Decode(mosque.headerLogoBase64!);
+        } catch (_) {
+          // شعار تالف أو غير صالح: نتجاهله ونترك مكانه فارغاً بدل تعطيل التقرير
+        }
+      }
+
       final circleReport = _report.toCircleReport();
       final updatedReport = circleReport.copyWith(
         circleInfo: circleReport.circleInfo.copyWith(mosqueName: mosqueName),
@@ -69,6 +79,9 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
         updatedReport,
         stampBytes: stampBytes,
         supervisorName: mosque?.supervisorName,
+        rightHeaderText: mosque?.rightHeaderText,
+        leftHeaderText: mosque?.leftHeaderText,
+        headerLogoBytes: headerLogoBytes,
       );
 
       if (!mounted) return;

@@ -53,4 +53,28 @@ class MosqueRepositoryImpl implements MosqueRepository {
     if (data.isEmpty) return;
     await _firestore.collection(_collection).doc(mosqueId).update(data);
   }
+
+  @override
+  Future<void> updateHeaderSettings(
+    String mosqueId, {
+    String? rightHeaderText,
+    String? leftHeaderText,
+    String? headerLogoBase64,
+    bool removeHeaderLogo = false,
+  }) async {
+    final data = <String, dynamic>{};
+    if (rightHeaderText != null) {
+      data['rightHeaderText'] = rightHeaderText;
+    }
+    if (leftHeaderText != null) {
+      data['leftHeaderText'] = leftHeaderText;
+    }
+    if (removeHeaderLogo) {
+      data['headerLogoBase64'] = FieldValue.delete();
+    } else if (headerLogoBase64 != null) {
+      data['headerLogoBase64'] = headerLogoBase64;
+    }
+    if (data.isEmpty) return;
+    await _firestore.collection(_collection).doc(mosqueId).update(data);
+  }
 }

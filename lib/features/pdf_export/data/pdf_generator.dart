@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import '../../mosques/domain/entities/mosque.dart';
 import '../../report_form/domain/entities/circle_report.dart';
 import '../../report_form/domain/entities/student_record.dart';
 
@@ -62,14 +63,28 @@ class PdfGenerator {
   /// ترميزها من Base64. مرّري null إن لم يكن لهذا المسجد ختم بعد، وستظهر
   /// مساحة فارغة مكانه في التقرير.
   /// [supervisorName]: اسم مشرفة حلقات هذا المسجد تحديداً.
+  /// [rightHeaderText]: النص الأيمن لترويسة التقرير الخاص بهذا المسجد.
+  /// مرّري null إن لم يُخصِّص هذا المسجد ترويسته إطلاقاً، وسيُستخدم النص
+  /// الافتراضي الحالي ([Mosque.defaultRightHeaderText]) تلقائياً — أما نص
+  /// فارغ فيُعرَض كما هو (بدون أي نص) لأنه يعني حذفاً متعمَّداً من المسؤول.
+  /// [leftHeaderText]: نص أيسر اختياري للترويسة، و[headerLogoBytes]: شعار
+  /// اختياري يُرسم في يسار الترويسة. كلاهما null يعني عدم وجود أي منهما،
+  /// فتبقى الترويسة مطابقة تماماً لشكلها قبل هذه الميزة.
   Future<String> generate(
     CircleReport report, {
     Uint8List? stampBytes,
     String? supervisorName,
+    String? rightHeaderText,
+    String? leftHeaderText,
+    Uint8List? headerLogoBytes,
   }) async {
     final font     = await _loadFont('assets/fonts/Amiri-Regular.ttf');
     final fontBold = await _loadFont('assets/fonts/Amiri-Bold.ttf');
     final stampImage = stampBytes != null ? pw.MemoryImage(stampBytes) : null;
+    final headerLogoImage =
+        headerLogoBytes != null ? pw.MemoryImage(headerLogoBytes) : null;
+    final effectiveRightHeaderText =
+        rightHeaderText ?? Mosque.defaultRightHeaderText;
 
     final pdf = pw.Document(
       theme: pw.ThemeData.withFont(base: font, bold: fontBold),
@@ -87,6 +102,9 @@ class PdfGenerator {
           margin: pw.EdgeInsets.zero,
           build: (ctx) => _page(
             report, font, fontBold, stampImage, supervisorName,
+            rightHeaderText: effectiveRightHeaderText,
+            leftHeaderText: leftHeaderText,
+            headerLogoImage: headerLogoImage,
             start: start, end: end,
             page: p + 1, pages: pageCount,
           ),
@@ -106,6 +124,9 @@ class PdfGenerator {
     pw.Font bold,
     pw.MemoryImage? stampImage,
     String? supervisorName, {
+    required String rightHeaderText,
+    String? leftHeaderText,
+    pw.MemoryImage? headerLogoImage,
     required int start,
     required int end,
     required int page,
@@ -117,7 +138,7 @@ class PdfGenerator {
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: [
-          _orgHeader(bold),
+          _orgHeader(font, bold, rightHeaderText, leftHeaderText, headerLogoImage),
           pw.SizedBox(height: 4),
           _monthBanner(i.month, i.year, font, bold),
           _infoRow(
@@ -158,17 +179,73 @@ class PdfGenerator {
     );
   }
 
-  pw.Widget _orgHeader(pw.Font bold) {
-    return pw.Align(
-      alignment: pw.Alignment.centerRight,
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.end,
-        children: [
-          _rtl('مجمع آيات بينات لتعليم القرآن', bold, 11),
-          _rtl('الكريم وعلومه', bold, 11),
-          _rtl('شبوة- عتق', bold, 12),
-        ],
-      ),
+  /// ترويسة التقرير: نص أيمن (اسم المؤسسة) دائماً موجود، ونص أيسر + شعار
+  /// اختياريان يظهران فقط إن خصَّص المسجد أحدهما. عندما لا يُخصِّص المسجد
+  /// أي شيء (rightHeaderText يطابق [Mosque.defaultRightHeaderText]
+  /// تماماً، ولا نص أيسر ولا شعار)، تُرسَم الترويسة حرفياً بنفس الأسطر
+  /// وأحجام الخطوط التي كانت مكتوبة يدوياً هنا قبل هذه الميزة — فلا يظهر
+  /// أي فرق بصري إطلاقاً على أي مسجد لم يفتح شاشة الإعدادات من الأساس.
+  pw.Widget _orgHeader(
+    pw.Font font,
+    pw.Font bold,
+    String rightHeaderText,
+    String? leftHeaderText,
+    pw.MemoryImage? logoImage,
+  ) {
+    final isDefaultRightText = rightHeaderText == Mosque.defaultRightHeaderText;
+    final rightLines = rightHeaderText
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+    final leftLines = (leftHeaderText ?? '')
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+    final hasLeftContent = logoImage != null || leftLines.isNotEmpty;
+
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        if (hasLeftContent)
+          pw.Padding(
+            padding: const pw.EdgeInsets.only(left: 6),
+            child: pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                if (logoImage != null)
+                  pw.Container(
+                    width: 38,
+                    height: 38,
+                    child: pw.Image(logoImage, fit: pw.BoxFit.contain),
+                  ),
+                if (logoImage != null && leftLines.isNotEmpty)
+                  pw.SizedBox(width: 6),
+                if (leftLines.isNotEmpty)
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: leftLines.map((l) => _rtl(l, font, 8)).toList(),
+                  ),
+              ],
+            ),
+          ),
+        pw.Expanded(
+          child: pw.Align(
+            alignment: pw.Alignment.centerRight,
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              children: isDefaultRightText
+                  ? [
+                      _rtl('مجمع آيات بينات لتعليم القرآن', bold, 11),
+                      _rtl('الكريم وعلومه', bold, 11),
+                      _rtl('شبوة- عتق', bold, 12),
+                    ]
+                  : rightLines.map((l) => _rtl(l, bold, 11)).toList(),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

@@ -19,4 +19,17 @@ abstract class MosqueRepository {
     bool removeStamp = false,
     String? supervisorName,
   });
+
+  /// تحديث إعدادات ترويسة تقارير PDF الخاصة بهذا المسجد: النص الأيمن،
+  /// النص الأيسر، وشعار الترويسة (Base64).
+  /// تمرير null للنصوص يعني "بدون تغيير عليه" — وتمرير نص فارغ '' يعني
+  /// حذف القيمة عمداً (فلا يظهر شيء بدلاً عنها، وليس رجوعاً للافتراضي).
+  /// لحذف الشعار نهائياً استخدمي [removeHeaderLogo]: true.
+  Future<void> updateHeaderSettings(
+    String mosqueId, {
+    String? rightHeaderText,
+    String? leftHeaderText,
+    String? headerLogoBase64,
+    bool removeHeaderLogo = false,
+  });
 }
