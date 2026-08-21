@@ -98,9 +98,12 @@ class _StatisticalReportScreenState
       _circleFilter = null;
     }
 
+    // إن كانت هناك دار واحدة فقط، تُعرض كتسمية ثابتة بلا قائمة منسدلة
+    // (_buildSingleValueLabel بالأسفل) فلا تُستدعى setState لتعيين
+    // _schoolFilter إطلاقاً — نعتبرها مختارة تلقائياً هنا لتفادي ذلك.
     final selectedSchool = _schoolFilter != null
         ? _firstOrNull(visibleSchools.where((s) => s.id == _schoolFilter))
-        : null;
+        : (visibleSchools.length == 1 ? visibleSchools.first : null);
 
     final schoolsForCircles =
         selectedSchool != null ? [selectedSchool] : visibleSchools;
@@ -115,9 +118,11 @@ class _StatisticalReportScreenState
       _circleFilter = null;
     }
 
+    // نفس الملاحظة أعلاه: حلقة واحدة فقط تُعرض كتسمية ثابتة، فتُعتبر
+    // مختارة تلقائياً هنا بدل انتظار اختيار لن يحدث إطلاقاً.
     final selectedCircle = _circleFilter != null
         ? _firstOrNull(visibleCircles.where((c) => c.id == _circleFilter))
-        : null;
+        : (visibleCircles.length == 1 ? visibleCircles.first : null);
 
     final schoolNameFilter = selectedSchool?.name;
     final circleNameFilter = selectedCircle?.name;
