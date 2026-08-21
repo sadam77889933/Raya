@@ -71,117 +71,102 @@ class _StatisticalReportScreenState
     final isGlobalSupervisor = user.isSupervisor;
     final isMosqueSupervisor = user.isMosqueSupervisor;
 
-    final reportsAsync = ref.watch(allReportsStreamProvider);
     final mosques = ref.watch(activeMosquesProvider);
+
+    // تحسين أداء: حساب فلاتر المسجد/الدار/الحلقة لا يعتمد إطلاقاً على
+    // بيانات التقارير نفسها (يعتمد فقط على مزوّدات المساجد/الدور/الحلقات)،
+    // لذا يُحسَب أولاً هنا، قبل أي محاولة لجلب أي تقرير. بهذا لا نُحمّل أي
+    // تقرير إطلاقاً طالما لم تُختَر حلقة بعد (كانت الشاشة سابقاً تُحمّل كل
+    // تقارير كل الحلقات فقط لعرض رسالة "اختاري الحلقة").
+    final effectiveMosqueFilter =
+        isMosqueSupervisor ? user.mosqueId : _mosqueFilter;
+
+    List<School> visibleSchools = const [];
+    if (isMosqueSupervisor) {
+      if (user.mosqueId != null) {
+        visibleSchools =
+            ref.watch(activeSchoolsByMosqueProvider(user.mosqueId!));
+      }
+    } else if (effectiveMosqueFilter != null) {
+      visibleSchools =
+          ref.watch(activeSchoolsByMosqueProvider(effectiveMosqueFilter));
+    }
+
+    if (_schoolFilter != null &&
+        !visibleSchools.any((s) => s.id == _schoolFilter)) {
+      _schoolFilter = null;
+      _circleFilter = null;
+    }
+
+    final selectedSchool = _schoolFilter != null
+        ? _firstOrNull(visibleSchools.where((s) => s.id == _schoolFilter))
+        : null;
+
+    final schoolsForCircles =
+        selectedSchool != null ? [selectedSchool] : visibleSchools;
+    final visibleCircles = <TeachingCircle>[];
+    for (final school in schoolsForCircles) {
+      visibleCircles.addAll(
+          ref.watch(activeTeachingCirclesBySchoolProvider(school.id)));
+    }
+
+    if (_circleFilter != null &&
+        !visibleCircles.any((c) => c.id == _circleFilter)) {
+      _circleFilter = null;
+    }
+
+    final selectedCircle = _circleFilter != null
+        ? _firstOrNull(visibleCircles.where((c) => c.id == _circleFilter))
+        : null;
+
+    final schoolNameFilter = selectedSchool?.name;
+    final circleNameFilter = selectedCircle?.name;
+
+    final periodLabel = _fromMonth == _toMonth && _fromYear == _toYear
+        ? '$_fromMonth $_fromYear هـ'
+        : 'من $_fromMonth $_fromYear هـ إلى $_toMonth $_toYear هـ';
+
+    final mosqueName = effectiveMosqueFilter != null
+        ? _firstOrNull(
+            mosques.where((m) => m.id == effectiveMosqueFilter),
+          )?.name
+        : null;
 
     return Scaffold(
       appBar: AppBar(title: const Text('تقرير إحصائي لأداء الحلقة')),
-      body: reportsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, _) => Center(child: Text('حدث خطأ: $err')),
-        data: (allReports) {
-          final effectiveMosqueFilter =
-              isMosqueSupervisor ? user.mosqueId : _mosqueFilter;
-
-          List<School> visibleSchools = const [];
-          if (isMosqueSupervisor) {
-            if (user.mosqueId != null) {
-              visibleSchools =
-                  ref.watch(activeSchoolsByMosqueProvider(user.mosqueId!));
-            }
-          } else if (effectiveMosqueFilter != null) {
-            visibleSchools =
-                ref.watch(activeSchoolsByMosqueProvider(effectiveMosqueFilter));
-          }
-
-          if (_schoolFilter != null &&
-              !visibleSchools.any((s) => s.id == _schoolFilter)) {
-            _schoolFilter = null;
-            _circleFilter = null;
-          }
-
-          final selectedSchool = _schoolFilter != null
-              ? _firstOrNull(visibleSchools.where((s) => s.id == _schoolFilter))
-              : null;
-
-          final schoolsForCircles =
-              selectedSchool != null ? [selectedSchool] : visibleSchools;
-          final visibleCircles = <TeachingCircle>[];
-          for (final school in schoolsForCircles) {
-            visibleCircles.addAll(
-                ref.watch(activeTeachingCirclesBySchoolProvider(school.id)));
-          }
-
-          if (_circleFilter != null &&
-              !visibleCircles.any((c) => c.id == _circleFilter)) {
-            _circleFilter = null;
-          }
-
-          final selectedCircle = _circleFilter != null
-              ? _firstOrNull(visibleCircles.where((c) => c.id == _circleFilter))
-              : null;
-
-          final schoolNameFilter = selectedSchool?.name;
-          final circleNameFilter = selectedCircle?.name;
-
-          final periodLabel = _fromMonth == _toMonth && _fromYear == _toYear
-              ? '$_fromMonth $_fromYear هـ'
-              : 'من $_fromMonth $_fromYear هـ إلى $_toMonth $_toYear هـ';
-
-          final mosqueName = effectiveMosqueFilter != null
-              ? _firstOrNull(
-                  mosques.where((m) => m.id == effectiveMosqueFilter),
-                )?.name
-              : null;
-
-          final StatisticalReportResult result = selectedCircle != null
-              ? StatisticalReportAggregator.aggregate(
-                  allReports: allReports,
-                  fromMonth: _fromMonth,
-                  fromYear: _fromYear,
-                  toMonth: _toMonth,
-                  toYear: _toYear,
-                  mosqueIdFilter: effectiveMosqueFilter,
-                  schoolNameFilter: schoolNameFilter,
-                  circleNameFilter: circleNameFilter,
-                  teacherNameFilter: _teacherFilter,
-                )
-              : StatisticalReportResult.empty;
-
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _buildFilterCard(
-                isGlobalSupervisor: isGlobalSupervisor,
-                mosques: mosques,
-                visibleSchools: visibleSchools,
-                visibleCircles: visibleCircles,
-                effectiveMosqueFilter: effectiveMosqueFilter,
-              ),
-              const SizedBox(height: 16),
-              if (selectedCircle == null)
-                _EmptyState(
-                  message: visibleCircles.isEmpty
-                      ? 'اختاري المسجد ثم الدار لتظهر قائمة الحلقات'
-                      : 'اختاري الحلقة لعرض تقريرها الإحصائي',
-                )
-              else if (result.reportsCount == 0)
-                const _EmptyState(
-                  message: 'لا توجد تقارير شهرية لهذه الحلقة ضمن الفترة المختارة',
-                )
-              else
-                _ReportBody(
-                  result: result,
-                  circleId: selectedCircle.id,
-                  circleName: selectedCircle.name,
-                  periodLabel: periodLabel,
-                  mosqueName: mosqueName,
-                  schoolName: schoolNameFilter,
-                  teacherName: _teacherFilter,
-                ),
-            ],
-          );
-        },
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildFilterCard(
+            isGlobalSupervisor: isGlobalSupervisor,
+            mosques: mosques,
+            visibleSchools: visibleSchools,
+            visibleCircles: visibleCircles,
+            effectiveMosqueFilter: effectiveMosqueFilter,
+          ),
+          const SizedBox(height: 16),
+          if (selectedCircle == null)
+            _EmptyState(
+              message: visibleCircles.isEmpty
+                  ? 'اختاري المسجد ثم الدار لتظهر قائمة الحلقات'
+                  : 'اختاري الحلقة لعرض تقريرها الإحصائي',
+            )
+          else
+            _StatisticalReportData(
+              circleId: selectedCircle.id,
+              circleName: selectedCircle.name,
+              fromMonth: _fromMonth,
+              fromYear: _fromYear,
+              toMonth: _toMonth,
+              toYear: _toYear,
+              mosqueIdFilter: effectiveMosqueFilter,
+              schoolNameFilter: schoolNameFilter,
+              circleNameFilter: circleNameFilter,
+              teacherNameFilter: _teacherFilter,
+              periodLabel: periodLabel,
+              mosqueName: mosqueName,
+            ),
+        ],
       ),
     );
   }
@@ -402,6 +387,90 @@ class _StatisticalReportScreenState
 T? _firstOrNull<T>(Iterable<T> items) {
   final iterator = items.iterator;
   return iterator.moveNext() ? iterator.current : null;
+}
+
+/// يجلب تقارير الحلقة المختارة فقط ضمن الفترة المطلوبة (مُصفّاة من جهة
+/// السيرفر عبر [reportsByCircleAndPeriodProvider])، ثم يُجمّعها بنفس
+/// [StatisticalReportAggregator] المستخدم سابقاً — فقط مصدر البيانات تغيّر
+/// (حلقة واحدة ضمن فترة، بدل كل تقارير كل الحلقات)، لا منطق التجميع أو
+/// التصفية بالمسجد/الدار/المعلمة، الذي يبقى كما هو تماماً فوق النتيجة
+/// المُصغَّرة الآن.
+class _StatisticalReportData extends ConsumerWidget {
+  final String circleId;
+  final String circleName;
+  final String fromMonth;
+  final String fromYear;
+  final String toMonth;
+  final String toYear;
+  final String? mosqueIdFilter;
+  final String? schoolNameFilter;
+  final String? circleNameFilter;
+  final String? teacherNameFilter;
+  final String periodLabel;
+  final String? mosqueName;
+
+  const _StatisticalReportData({
+    super.key,
+    required this.circleId,
+    required this.circleName,
+    required this.fromMonth,
+    required this.fromYear,
+    required this.toMonth,
+    required this.toYear,
+    this.mosqueIdFilter,
+    this.schoolNameFilter,
+    this.circleNameFilter,
+    this.teacherNameFilter,
+    required this.periodLabel,
+    this.mosqueName,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fromKey = QuranConstants.hijriPeriodKey(fromMonth, fromYear);
+    final toKey = QuranConstants.hijriPeriodKey(toMonth, toYear);
+
+    final reportsAsync = ref.watch(
+      reportsByCircleAndPeriodProvider((circleId, fromKey, toKey)),
+    );
+
+    return reportsAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 40),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (err, _) => Center(child: Text('حدث خطأ: $err')),
+      data: (allReports) {
+        final result = StatisticalReportAggregator.aggregate(
+          allReports: allReports,
+          fromMonth: fromMonth,
+          fromYear: fromYear,
+          toMonth: toMonth,
+          toYear: toYear,
+          mosqueIdFilter: mosqueIdFilter,
+          schoolNameFilter: schoolNameFilter,
+          circleNameFilter: circleNameFilter,
+          teacherNameFilter: teacherNameFilter,
+        );
+
+        if (result.reportsCount == 0) {
+          return const _EmptyState(
+            message: 'لا توجد تقارير شهرية لهذه الحلقة ضمن الفترة المختارة',
+          );
+        }
+
+        return _ReportBody(
+          result: result,
+          circleId: circleId,
+          circleName: circleName,
+          periodLabel: periodLabel,
+          mosqueName: mosqueName,
+          schoolName: schoolNameFilter,
+          teacherName: teacherNameFilter,
+        );
+      },
+    );
+  }
 }
 
 /// جسم التقرير الكامل بعد اختيار حلقة فعلية: الملخص التنفيذي، مؤشرات

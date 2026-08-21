@@ -5,6 +5,7 @@ import '../../domain/repositories/auth_repository.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
 import '../../../mosques/presentation/providers/school_provider.dart';
 import '../../../mosques/presentation/providers/teaching_circle_provider.dart';
+import '../../../report_form/presentation/providers/all_reports_provider.dart';
 import '../../../roster/presentation/providers/roster_provider.dart';
 import 'teachers_provider.dart';
 
@@ -92,6 +93,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     _ref.invalidate(rosterProvider);
     _ref.invalidate(teachersStreamProvider);
     _ref.invalidate(teachersByMosqueProvider);
+    _ref.invalidate(reportsByCircleAndPeriodProvider);
   }
 
   void clearError() {
