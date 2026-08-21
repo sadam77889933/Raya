@@ -241,8 +241,11 @@ class PdfGenerator {
         pw.Expanded(
           child: leftBlock == null
               ? pw.SizedBox()
+              // إبعاد النص عن الشعار إلى الركن الأيسر تماماً — يقابل بشكل
+              // متماثل النص الأيمن الذي يقف عند الركن الأيمن (centerRight)،
+              // بدل أن يبقى ملاصقاً للشعار في المنتصف.
               : pw.Align(
-                  alignment: pw.Alignment.centerRight, child: leftBlock),
+                  alignment: pw.Alignment.centerLeft, child: leftBlock),
         ),
         if (logoImage != null)
           pw.Padding(
