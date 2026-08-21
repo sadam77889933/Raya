@@ -1,11 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hijri/hijri_calendar.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../domain/entities/scheduled_notification.dart';
 import 'notification_service.dart';
 
 class ScheduledNotificationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static const _collection = 'scheduled_notifications';
+  static const _lastCheckedPrefsKey = 'scheduled_notifications_last_checked_hijri_day';
   final NotificationService _notificationService = NotificationService();
 
   /// إنشاء رسالة مجدولة جديدة (تستخدمها المشرفة)
@@ -54,10 +56,32 @@ class ScheduledNotificationService {
   }
 
   /// يُستدعى عند فتح التطبيق — يفحص كل الرسائل المجدولة النشطة
-  /// ويُرسل ما حان وقته، مرة واحدة فقط لكل شهر هجري
+  /// ويُرسل ما حان وقته، مرة واحدة فقط لكل شهر هجري.
+  ///
+  /// تحسين أداء: هذا الفحص كان يقرأ كامل مجموعة `scheduled_notifications`
+  /// (`.get()` بلا فلترة) في كل مرة يُفتح التطبيق فيها، لكل مستخدم على
+  /// حدة (معلمة أو مشرفة) — أي أن N مستخدماً نشطاً يعني N قراءة كاملة
+  /// للمجموعة في نفس اليوم، مع أن نتيجة الفحص لا تتغيّر إلا مرة واحدة
+  /// يومياً بالفعل (لا يوجد سبب منطقي لتكراره). نُخزِّن هنا آخر يوم هجري
+  /// تم فيه الفحص فعلياً على هذا الجهاز (عبر shared_preferences، وهي
+  /// حزمة مضافة أصلاً في المشروع)، ونتخطى القراءة كاملة إن كان الفحص قد
+  /// تم اليوم بالفعل على هذا الجهاز — يقلّل التكرار الناتج عن إغلاق/فتح
+  /// التطبيق عدة مرات في نفس اليوم، وهو الجزء الذي يمكن حله من طرف
+  /// العميل بلا أي تغيير في البنية أو ترقية خطة Firebase. (التخلص الكامل
+  /// من تكرار القراءة بين مستخدمين مختلفين في نفس اليوم يحتاج معالجة من
+  /// طرف الخادم — Cloud Function مجدولة — وهذا يتطلب خطة Blaze، فتُرك
+  /// كخيار مستقبلي منفصل حسب ما اتفقنا عليه.)
   Future<void> checkAndSendDueNotifications() async {
     try {
       final today = HijriCalendar.now();
+      final todayKey =
+          '${today.hYear}-${today.hMonth.toString().padLeft(2, '0')}-${today.hDay.toString().padLeft(2, '0')}';
+
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getString(_lastCheckedPrefsKey) == todayKey) {
+        return; // فُحص هذا اليوم الهجري على هذا الجهاز بالفعل — لا حاجة لقراءة جديدة
+      }
+
       final snapshot = await _firestore.collection(_collection).get();
 
       for (final doc in snapshot.docs) {
@@ -81,6 +105,11 @@ class ScheduledNotificationService {
           'lastSentHijriMonth': currentHijriMonthKey,
         });
       }
+
+      // نُسجّل نجاح الفحص لهذا اليوم الهجري فقط بعد اكتماله فعلاً — إن
+      // فشل الفحص (استثناء أعلاه) لا نُسجّل شيئاً، فيُعاد المحاولة كاملة
+      // عند فتح التطبيق التالي بدل تفويت يوم كامل بصمت.
+      await prefs.setString(_lastCheckedPrefsKey, todayKey);
     } catch (_) {
       // فشل الفحص لا يجب أن يعطّل فتح التطبيق
     }

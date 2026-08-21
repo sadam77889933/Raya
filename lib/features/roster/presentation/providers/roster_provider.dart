@@ -85,7 +85,17 @@ class RosterNotifier extends StateNotifier<RosterState> {
   }
 }
 
+/// تحسين أداء: كان هذا المزوّد (`.family` بلا `autoDispose`) يُبقي دفق
+/// Firestore الحيّ لكل حلقة جرى فتح سجلّها في الجلسة مفتوحاً للأبد، حتى بعد
+/// إغلاق شاشة السجل. `autoDispose` + `ref.keepAlive()` بمؤقّت 60 ثانية
+/// يُغلق الدفق فعلياً بعد مغادرة الشاشة (مع فترة سماح قصيرة تمنع إعادة
+/// الجلب الفوري لو رجعت المستخدمة لنفس الحلقة بسرعة).
 final rosterProvider =
-    StateNotifierProvider.family<RosterNotifier, RosterState, String>(
-  (ref, circleId) => RosterNotifier(ref.read(rosterRepositoryProvider), circleId),
+    StateNotifierProvider.family.autoDispose<RosterNotifier, RosterState, String>(
+  (ref, circleId) {
+    final link = ref.keepAlive();
+    final timer = Timer(const Duration(seconds: 60), link.close);
+    ref.onDispose(timer.cancel);
+    return RosterNotifier(ref.read(rosterRepositoryProvider), circleId);
+  },
 );
