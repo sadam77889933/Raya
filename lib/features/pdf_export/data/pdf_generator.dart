@@ -268,8 +268,11 @@ class PdfGenerator {
           pw.Padding(
             padding: const pw.EdgeInsets.symmetric(horizontal: 8),
             child: pw.Container(
-              width: 42,
-              height: 42,
+              // كانت 42×42 فبدت الشعارات المرفوعة (خصوصاً التي تتضمن اسم
+              // المسجد أسفل الأيقونة) صغيرة جداً وغير واضحة. تكبيرها إلى
+              // 58×58 يحافظ على توازن الترويسة مع تحسين وضوح الشعار.
+              width: 58,
+              height: 58,
               child: pw.Image(logoImage, fit: pw.BoxFit.contain),
             ),
           )
