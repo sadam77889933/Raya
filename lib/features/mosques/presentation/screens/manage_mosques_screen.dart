@@ -561,6 +561,7 @@ class _CirclesTab extends ConsumerWidget {
       BuildContext context, WidgetRef ref, List<School> schools) async {
     final controller = TextEditingController();
     String? selectedSchoolId = schools.isNotEmpty ? schools.first.id : null;
+    String selectedCircleTime = TeachingCircle.defaultCircleTime;
 
     final result = await showDialog<Map<String, String>>(
       context: context,
@@ -607,6 +608,24 @@ class _CirclesTab extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(10)),
                 ),
               ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: selectedCircleTime,
+                decoration: InputDecoration(
+                  labelText: 'وقت الحلقة',
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                items: TeachingCircle.circleTimeOptions
+                    .map((t) => DropdownMenuItem(
+                          value: t,
+                          child: Text(t,
+                              style: const TextStyle(fontFamily: 'Tajawal')),
+                        ))
+                    .toList(),
+                onChanged: (val) =>
+                    setDialogState(() => selectedCircleTime = val!),
+              ),
             ],
           ),
           actionsAlignment: MainAxisAlignment.center,
@@ -623,6 +642,7 @@ class _CirclesTab extends ConsumerWidget {
                   Navigator.of(ctx).pop({
                     'name': controller.text.trim(),
                     'schoolId': selectedSchoolId!,
+                    'circleTime': selectedCircleTime,
                   });
                 }
               },
@@ -635,9 +655,11 @@ class _CirclesTab extends ConsumerWidget {
     );
 
     if (result != null) {
-      await ref
-          .read(teachingCircleRepositoryProvider)
-          .add(result['name']!, result['schoolId']!);
+      await ref.read(teachingCircleRepositoryProvider).add(
+            result['name']!,
+            result['schoolId']!,
+            circleTime: result['circleTime']!,
+          );
     }
   }
 
@@ -645,6 +667,7 @@ class _CirclesTab extends ConsumerWidget {
       TeachingCircle circle, List<School> schools) async {
     final controller = TextEditingController(text: circle.name);
     String? selectedSchoolId = circle.schoolId;
+    String selectedCircleTime = circle.circleTime;
 
     final result = await showDialog<Map<String, String>>(
       context: context,
@@ -688,6 +711,27 @@ class _CirclesTab extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(10)),
                 ),
               ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: TeachingCircle.circleTimeOptions
+                        .contains(selectedCircleTime)
+                    ? selectedCircleTime
+                    : TeachingCircle.defaultCircleTime,
+                decoration: InputDecoration(
+                  labelText: 'وقت الحلقة',
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                items: TeachingCircle.circleTimeOptions
+                    .map((t) => DropdownMenuItem(
+                          value: t,
+                          child: Text(t,
+                              style: const TextStyle(fontFamily: 'Tajawal')),
+                        ))
+                    .toList(),
+                onChanged: (val) =>
+                    setDialogState(() => selectedCircleTime = val!),
+              ),
             ],
           ),
           actionsAlignment: MainAxisAlignment.center,
@@ -704,6 +748,7 @@ class _CirclesTab extends ConsumerWidget {
                   Navigator.of(ctx).pop({
                     'name': controller.text.trim(),
                     'schoolId': selectedSchoolId!,
+                    'circleTime': selectedCircleTime,
                   });
                 }
               },
@@ -717,6 +762,7 @@ class _CirclesTab extends ConsumerWidget {
     if (result == null) return;
     final newName = result['name']!;
     final newSchoolId = result['schoolId']!;
+    final newCircleTime = result['circleTime']!;
     if (newName.isNotEmpty && newName != circle.name) {
       await ref
           .read(teachingCircleRepositoryProvider)
@@ -726,6 +772,11 @@ class _CirclesTab extends ConsumerWidget {
       await ref
           .read(teachingCircleRepositoryProvider)
           .updateSchoolId(circle.id, newSchoolId);
+    }
+    if (newCircleTime != circle.circleTime) {
+      await ref
+          .read(teachingCircleRepositoryProvider)
+          .updateCircleTime(circle.id, newCircleTime);
     }
   }
 

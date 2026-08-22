@@ -29,12 +29,17 @@ class TeachingCircleRepositoryImpl {
     });
   }
 
-  Future<void> add(String name, String schoolId) async {
+  Future<void> add(
+    String name,
+    String schoolId, {
+    String circleTime = TeachingCircle.defaultCircleTime,
+  }) async {
     await _firestore.collection(_collection).add({
       'name': name.trim(),
       'schoolId': schoolId,
       'isActive': true,
       'createdAt': DateTime.now().toIso8601String(),
+      'circleTime': circleTime,
     });
   }
 
@@ -43,6 +48,14 @@ class TeachingCircleRepositoryImpl {
         .collection(_collection)
         .doc(circleId)
         .update({'name': name.trim()});
+  }
+
+  /// تحديث وقت الحلقة اليومي (فجراً/صباحاً/ضحى/ظهراً/عصراً/مساءً/ليلاً).
+  Future<void> updateCircleTime(String circleId, String circleTime) async {
+    await _firestore
+        .collection(_collection)
+        .doc(circleId)
+        .update({'circleTime': circleTime});
   }
 
   /// إعادة ربط الحلقة بدار/مدرسة أخرى (تصحيح خطأ عند الإضافة مثلاً)

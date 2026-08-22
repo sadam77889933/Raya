@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
+import '../../../mosques/presentation/providers/teaching_circle_provider.dart';
 import '../../../pdf_export/data/pdf_generator.dart';
 import '../../domain/entities/report_summary.dart';
 import 'edit_report_screen.dart';
@@ -75,6 +76,12 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
         circleInfo: circleReport.circleInfo.copyWith(mosqueName: mosqueName),
       );
 
+      final circles = ref.read(teachingCirclesStreamProvider).value ?? [];
+      final circleTime = circles
+          .where((c) => c.id == _report.circleId)
+          .map((c) => c.circleTime)
+          .firstOrNull;
+
       final path = await PdfGenerator.instance.generate(
         updatedReport,
         stampBytes: stampBytes,
@@ -83,6 +90,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
         leftHeaderText: mosque?.leftHeaderText,
         headerLogoBytes: headerLogoBytes,
         monthlyBannerText: mosque?.monthlyBannerText,
+        circleTime: circleTime,
       );
 
       if (!mounted) return;

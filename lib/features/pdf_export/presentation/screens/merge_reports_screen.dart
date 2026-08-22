@@ -7,6 +7,7 @@ import 'package:hijri/hijri_calendar.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
+import '../../../mosques/presentation/providers/teaching_circle_provider.dart';
 import '../../../report_form/domain/entities/report_summary.dart';
 import '../../../report_form/presentation/providers/all_reports_provider.dart';
 import '../../data/pdf_generator.dart';
@@ -75,6 +76,7 @@ class _MergeReportsScreenState extends ConsumerState<MergeReportsScreen> {
       final allReports = ref.read(allReportsStreamProvider).value ?? [];
       final filteredReports = _filterByPeriod(allReports);
       final mosques = ref.read(activeMosquesProvider);
+      final circles = ref.read(teachingCirclesStreamProvider).value ?? [];
 
       final List<String> generatedFiles = [];
 
@@ -115,6 +117,11 @@ class _MergeReportsScreenState extends ConsumerState<MergeReportsScreen> {
             circleInfo:
                 circleReport.circleInfo.copyWith(mosqueName: mosqueName),
           );
+          final circleTime = circles
+              .where((c) => c.id == report.circleId)
+              .map((c) => c.circleTime)
+              .firstOrNull;
+
           final path = await PdfGenerator.instance.generate(
             updatedReport,
             stampBytes: stampBytes,
@@ -123,6 +130,7 @@ class _MergeReportsScreenState extends ConsumerState<MergeReportsScreen> {
             leftHeaderText: mosque?.leftHeaderText,
             headerLogoBytes: headerLogoBytes,
             monthlyBannerText: mosque?.monthlyBannerText,
+            circleTime: circleTime,
           );
           individualPaths.add(path);
         }

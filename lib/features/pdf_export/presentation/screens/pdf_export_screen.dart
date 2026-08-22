@@ -17,6 +17,7 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../report_form/presentation/providers/firestore_report_provider.dart';
 import '../../../notifications/presentation/providers/notification_provider.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
+import '../../../mosques/presentation/providers/teaching_circle_provider.dart';
 enum _PdfStatus { idle, generating, ready, error }
 enum UploadStatus { uploading, uploaded, failed }
 
@@ -79,6 +80,12 @@ class _PdfExportNotifier extends StateNotifier<_PdfExportState> {
         }
       }
 
+      final circles = _ref.read(teachingCirclesStreamProvider).value ?? [];
+      final circleTime = circles
+          .where((c) => c.id == report.circleInfo.circleId)
+          .map((c) => c.circleTime)
+          .firstOrNull;
+
       final path = await PdfGenerator.instance.generate(
         report,
         stampBytes: stampBytes,
@@ -87,6 +94,7 @@ class _PdfExportNotifier extends StateNotifier<_PdfExportState> {
         leftHeaderText: mosque?.leftHeaderText,
         headerLogoBytes: headerLogoBytes,
         monthlyBannerText: mosque?.monthlyBannerText,
+        circleTime: circleTime,
       );
       state = _PdfExportState(status: _PdfStatus.ready, pdfPath: path);
 

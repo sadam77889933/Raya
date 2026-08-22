@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../../mosques/domain/entities/mosque.dart';
+import '../../mosques/domain/entities/teaching_circle.dart';
 import '../../report_form/domain/entities/circle_report.dart';
 import '../../report_form/domain/entities/student_record.dart';
 
@@ -73,6 +74,9 @@ class PdfGenerator {
   /// [monthlyBannerText]: نص شريط عنوان التقرير الشهري أسفل الترويسة،
   /// بدون عبارة "لشهر: ..." التي تُضاف دائماً تلقائياً في نهايته. مرّري
   /// null إن لم يُخصَّص، وسيُستخدم [Mosque.defaultMonthlyBannerText].
+  /// [circleTime]: وقت الحلقة اليومي الظاهر في صف عدد الطالبات. مرّري
+  /// null إن لم يُحدَّد لهذه الحلقة (حلقات قديمة مثلاً)، وسيُستخدم
+  /// [TeachingCircle.defaultCircleTime] ("عصراً").
   Future<String> generate(
     CircleReport report, {
     Uint8List? stampBytes,
@@ -81,6 +85,7 @@ class PdfGenerator {
     String? leftHeaderText,
     Uint8List? headerLogoBytes,
     String? monthlyBannerText,
+    String? circleTime,
   }) async {
     final font     = await _loadFont('assets/fonts/Amiri-Regular.ttf');
     final fontBold = await _loadFont('assets/fonts/Amiri-Bold.ttf');
@@ -91,6 +96,8 @@ class PdfGenerator {
         rightHeaderText ?? Mosque.defaultRightHeaderText;
     final effectiveMonthlyBannerText =
         monthlyBannerText ?? Mosque.defaultMonthlyBannerText;
+    final effectiveCircleTime =
+        circleTime ?? TeachingCircle.defaultCircleTime;
 
     final pdf = pw.Document(
       theme: pw.ThemeData.withFont(base: font, bold: fontBold),
@@ -112,6 +119,7 @@ class PdfGenerator {
             leftHeaderText: leftHeaderText,
             headerLogoImage: headerLogoImage,
             monthlyBannerText: effectiveMonthlyBannerText,
+            circleTime: effectiveCircleTime,
             start: start, end: end,
             page: p + 1, pages: pageCount,
           ),
@@ -135,6 +143,7 @@ class PdfGenerator {
     String? leftHeaderText,
     pw.MemoryImage? headerLogoImage,
     required String monthlyBannerText,
+    required String circleTime,
     required int start,
     required int end,
     required int page,
@@ -159,7 +168,7 @@ class PdfGenerator {
             rightLabel: 'اسم الحلقة: ',      rightValue: i.circleName,
             font: font, bold: bold,
           ),
-          _countRow(i.studentsCount, font, bold),
+          _countRow(i.studentsCount, circleTime, font, bold),
           pw.SizedBox(height: 5),
           pw.Stack(
             children: [
@@ -338,7 +347,8 @@ child: pw.Row(
     );
   }
 
-  pw.Widget _countRow(int count, pw.Font font, pw.Font bold) {
+  pw.Widget _countRow(
+      int count, String circleTime, pw.Font font, pw.Font bold) {
     return pw.Container(
       decoration: pw.BoxDecoration(
         border: pw.Border(
@@ -357,7 +367,7 @@ child: pw.Row(
                 style: pw.TextStyle(font: bold, fontSize: 9)),
             pw.TextSpan(text: '( $count )',
                 style: pw.TextStyle(font: bold, fontSize: 9)),
-            pw.TextSpan(text: '   وقت الحلقة: عصراً',
+            pw.TextSpan(text: '   وقت الحلقة: $circleTime',
                 style: pw.TextStyle(font: font, fontSize: 9)),
           ]),
         ),
