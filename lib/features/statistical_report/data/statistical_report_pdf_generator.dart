@@ -170,13 +170,6 @@ class StatisticalReportPdfGenerator {
       children: [
         pw.Center(
           child: pw.Text(
-            'مجمع آيات بينات لتعليم القرآن الكريم وعلومه',
-            style: pw.TextStyle(font: boldFont, fontSize: 10, color: _textGray),
-          ),
-        ),
-        pw.SizedBox(height: 6),
-        pw.Center(
-          child: pw.Text(
             'تقرير إحصائي لأداء الحلقة',
             style: pw.TextStyle(font: boldFont, fontSize: 19, color: _green),
           ),
