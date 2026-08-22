@@ -433,10 +433,26 @@ class _ManageTeachersScreenState extends ConsumerState<ManageTeachersScreen> {
               ),
               ElevatedButton(
                 onPressed: () async {
+                  // معرّفات حلقات محذوفة نهائياً قد تبقى عالقة داخل
+                  // selectedCircleIds (مثلاً إن كانت مُسندة للمعلمة قبل
+                  // حذف حلقتها) — لأن هذه الحلقات لم تعد تظهر كخيارات
+                  // قابلة لإلغاء التحديد أصلاً. نستبعدها هنا دائماً عند
+                  // الحفظ حتى لا تبقى "مربوطة" بشكل دائم لا يمكن فكّه.
+                  // إن لم تكن قائمة الحلقات قد حُمِّلت بعد (حالة نادرة)،
+                  // نحفظ التحديد كما هو تفادياً لحذف روابط صحيحة بالخطأ.
+                  final circlesSnapshot =
+                      ref.read(teachingCirclesStreamProvider);
+                  final validCircleIds = circlesSnapshot.hasValue
+                      ? selectedCircleIds
+                          .where((id) => circlesSnapshot.value!
+                              .any((c) => c.id == id))
+                          .toList()
+                      : selectedCircleIds.toList();
+
                   await ref.read(authRepositoryProvider).updateTeacherAssignments(
                         teacher.uid,
                         schoolIds: selectedSchoolIds.toList(),
-                        circleIds: selectedCircleIds.toList(),
+                        circleIds: validCircleIds,
                       );
                   if (ctx.mounted) Navigator.of(ctx).pop();
                 },
