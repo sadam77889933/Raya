@@ -682,8 +682,15 @@ class _CirclesTab extends ConsumerWidget {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // "schools" هنا هي الدور النشطة فقط (تُمرَّر من الشاشة
+              // الرئيسية). إن كانت دار الحلقة الحالية قد عُطِّلت لاحقاً،
+              // فلن تظهر ضمن الخيارات — نتحقق من وجودها فعلياً قبل تمرير
+              // قيمتها للقائمة المنسدلة تفادياً لانهيار Flutter الشهير
+              // (قيمة لا تطابق أي عنصر ضمن items).
               DropdownButtonFormField<String>(
-                value: selectedSchoolId,
+                value: schools.any((s) => s.id == selectedSchoolId)
+                    ? selectedSchoolId
+                    : null,
                 decoration: InputDecoration(
                   labelText: 'الدار / المدرسة التابعة لها *',
                   border: OutlineInputBorder(
@@ -790,6 +797,11 @@ class _CirclesTab extends ConsumerWidget {
         : ref.watch(schoolsStreamProvider);
     final schools = schoolsAsync.value ?? [];
     final schoolIds = schools.map((s) => s.id).toSet();
+    // عند إضافة/تعديل حلقة، لا يجوز اختيار دار معطَّلة كدار تابعة لها —
+    // القائمتان (schools الكاملة) تبقيان كما هما لأغراض أخرى (عرض اسم
+    // الدار لحلقة موجودة، وتحديد الحلقات الظاهرة) حتى لو كانت الدار
+    // معطَّلة الآن.
+    final activeSchools = schools.where((s) => s.isActive).toList();
 
     String schoolNameFor(String schoolId) => schools
             .where((s) => s.id == schoolId)
@@ -799,9 +811,9 @@ class _CirclesTab extends ConsumerWidget {
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: schools.isEmpty
+        onPressed: activeSchools.isEmpty
             ? null
-            : () => _showAddDialog(context, ref, schools),
+            : () => _showAddDialog(context, ref, activeSchools),
         icon: const Icon(Icons.add_rounded),
         label: const Text('إضافة حلقة',
             style: TextStyle(fontFamily: 'Tajawal')),
@@ -858,7 +870,7 @@ class _CirclesTab extends ConsumerWidget {
                       icon: Icon(Icons.edit_outlined,
                           size: 18, color: AppTheme.primaryGreen),
                       onPressed: () =>
-                          _showEditDialog(context, ref, circle, schools),
+                          _showEditDialog(context, ref, circle, activeSchools),
                     ),
                     Switch(
                       value: circle.isActive,
