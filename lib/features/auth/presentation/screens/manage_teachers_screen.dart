@@ -287,6 +287,7 @@ class _ManageTeachersScreenState extends ConsumerState<ManageTeachersScreen> {
                 builder: (context, ref, _) {
                   final schoolsAsync = ref.watch(schoolsByMosqueProvider(mosqueId));
                   final circlesAsync = ref.watch(teachingCirclesStreamProvider);
+                  final teachersAsync = ref.watch(teachersStreamProvider);
 
                   return schoolsAsync.when(
                     loading: () => const Padding(
@@ -299,10 +300,22 @@ class _ManageTeachersScreenState extends ConsumerState<ManageTeachersScreen> {
                       final activeSchools =
                           schools.where((s) => s.isActive).toList();
                       final allCircles = circlesAsync.value ?? [];
+
+                      // حلقات مربوطة فعلاً بمعلمات أخريات (غير هذه
+                      // المعلمة) — تُستبعد من الخيارات حتى لا تُربَط نفس
+                      // الحلقة بأكثر من معلمة واحدة في آن واحد. حلقات هذه
+                      // المعلمة نفسها تبقى ظاهرة بالطبع لتتمكن من تعديلها.
+                      final allTeachers = teachersAsync.value ?? [];
+                      final circlesTakenByOthers = allTeachers
+                          .where((t) => t.uid != teacher.uid)
+                          .expand((t) => t.assignedCircleIds)
+                          .toSet();
+
                       final circlesForSelectedSchools = allCircles
                           .where((c) =>
                               c.isActive &&
-                              selectedSchoolIds.contains(c.schoolId))
+                              selectedSchoolIds.contains(c.schoolId) &&
+                              !circlesTakenByOthers.contains(c.id))
                           .toList();
 
                       return SingleChildScrollView(
