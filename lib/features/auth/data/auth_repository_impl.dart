@@ -85,6 +85,7 @@ class AuthRepositoryImpl implements AuthRepository {
         mosqueId: mosqueId,
         isActive: true,
         createdAt: DateTime.now(),
+        email: email.trim(),
       );
 
       await _firestore

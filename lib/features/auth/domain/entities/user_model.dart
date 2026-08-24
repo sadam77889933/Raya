@@ -13,6 +13,7 @@ class UserModel extends Equatable {
   final DateTime createdAt;
   final List<String> assignedSchoolIds; // الدور/المدارس التي تُدرّس بها المعلمة
   final List<String> assignedCircleIds; // الحلقات التي تُدرّس بها المعلمة
+  final String email; // بريد حساب المعلمة في Firebase Auth، يُحفَظ هنا لتتمكن المشرفة من عرضه ونسخه لاحقاً
 
   const UserModel({
     required this.uid,
@@ -23,6 +24,7 @@ class UserModel extends Equatable {
     required this.createdAt,
     this.assignedSchoolIds = const [],
     this.assignedCircleIds = const [],
+    this.email = '',
   });
 
   bool get isTeacher => role == UserRole.teacher;
@@ -36,6 +38,7 @@ class UserModel extends Equatable {
         'createdAt': createdAt.toIso8601String(),
         'assignedSchoolIds': assignedSchoolIds,
         'assignedCircleIds': assignedCircleIds,
+        'email': email,
       };
 
   factory UserModel.fromJson(String uid, Map<String, dynamic> json) {
@@ -65,6 +68,9 @@ class UserModel extends Equatable {
               ?.map((e) => e as String)
               .toList() ??
           const [],
+      // بعض الحسابات القديمة (قبل إضافة هذا الحقل) لن يوجد فيها email —
+      // نُرجع نص فارغاً بدل رمي استثناء حتى لا تنهار الشاشة.
+      email: json['email'] as String? ?? '',
     );
   }
 
@@ -75,6 +81,7 @@ class UserModel extends Equatable {
     bool? isActive,
     List<String>? assignedSchoolIds,
     List<String>? assignedCircleIds,
+    String? email,
   }) {
     return UserModel(
       uid: uid,
@@ -85,6 +92,7 @@ class UserModel extends Equatable {
       createdAt: createdAt,
       assignedSchoolIds: assignedSchoolIds ?? this.assignedSchoolIds,
       assignedCircleIds: assignedCircleIds ?? this.assignedCircleIds,
+      email: email ?? this.email,
     );
   }
 
@@ -98,5 +106,6 @@ class UserModel extends Equatable {
         createdAt,
         assignedSchoolIds,
         assignedCircleIds,
+        email,
       ];
 }

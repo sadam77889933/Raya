@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../mosques/domain/entities/mosque.dart';
@@ -638,6 +639,22 @@ class _TeacherCard extends StatelessWidget {
   /// دار فقط بدون حلقة لا يكفي لتتمكن من العمل).
   bool get _isLinked => teacher.assignedCircleIds.isNotEmpty;
 
+  void _copyEmail(BuildContext context, String email) {
+    Clipboard.setData(ClipboardData(text: email));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.white, size: 18),
+            SizedBox(width: 8),
+            Text('تم نسخ الإيميل',
+                style: TextStyle(fontFamily: 'Tajawal', fontSize: 14)),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isActive = teacher.isActive;
@@ -715,6 +732,39 @@ class _TeacherCard extends StatelessWidget {
                       ),
                     ],
                   ),
+                  // البريد الإلكتروني قابل للنسخ (يظهر فقط إن كان محفوظاً
+                  // فعلاً — الحسابات القديمة قبل إضافة هذا الحقل لن يظهر
+                  // لها شيء بدل نص فارغ مكسور).
+                  if (teacher.email.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        Icon(Icons.email_outlined,
+                            size: 11, color: Colors.grey.shade400),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            teacher.email,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Tajawal',
+                              fontSize: 11,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ),
+                        InkWell(
+                          borderRadius: BorderRadius.circular(6),
+                          onTap: () => _copyEmail(context, teacher.email),
+                          child: Padding(
+                            padding: const EdgeInsets.all(3),
+                            child: Icon(Icons.copy_rounded,
+                                size: 13, color: AppTheme.primaryGreen),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
