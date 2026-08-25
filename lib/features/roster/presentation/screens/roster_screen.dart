@@ -138,24 +138,35 @@ class RosterScreen extends ConsumerWidget {
                 color: Colors.white, size: 18),
           ),
           const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('الحلقة',
-                  style: TextStyle(
-                      fontFamily: 'Tajawal',
-                      fontSize: 11,
-                      color: Colors.grey.shade600)),
-              Text(
-                '$circleName · $schoolName',
-                style: const TextStyle(
-                  fontFamily: 'Tajawal',
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.primaryGreen,
+          // Expanded ضرورية هنا: بدونها كان العمود يحاول يتمدد بعرض
+          // النص الكامل (اسم الحلقة + اسم الدار) بلا أي حد أعلى، فإذا
+          // كان الاسمان طويلين (كما في "رحمات القرآن · خديجة بنت خويلد
+          // رضي الله عنها") يتجاوز عرض الصف المتاح ويظهر شريط Flutter
+          // الأحمر/الأسود التحذيري (RenderFlex overflow). الآن العمود
+          // يأخذ ما تبقّى من عرض الصف فقط، والنص الطويل يُقصَّر بثلاث
+          // نقاط بدل أن يفيض.
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('الحلقة',
+                    style: TextStyle(
+                        fontFamily: 'Tajawal',
+                        fontSize: 11,
+                        color: Colors.grey.shade600)),
+                Text(
+                  '$circleName · $schoolName',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Tajawal',
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryGreen,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
