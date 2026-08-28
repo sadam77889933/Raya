@@ -14,6 +14,8 @@ import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../../../notifications/presentation/screens/manage_scheduled_notifications_screen.dart';
 import '../../../report_form/presentation/screens/attendance_report_screen.dart';
 import '../../../statistical_report/presentation/screens/statistical_report_screen.dart';
+import '../../../student_transfer/presentation/screens/transfer_history_screen.dart';
+import '../../../student_transfer/presentation/screens/transfer_student_screen.dart';
 class MosqueSupervisorDashboardScreen extends ConsumerWidget {
   const MosqueSupervisorDashboardScreen({super.key});
 
@@ -217,6 +219,31 @@ class MosqueSupervisorDashboardScreen extends ConsumerWidget {
                                 MosqueBrandingScreen(mosque: mosque),
                           ),
                         ),
+              ),
+              const SizedBox(height: 14),
+
+              _DashboardCard(
+                icon: Icons.compare_arrows_rounded,
+                title: 'نقل طالبة بين الحلقات',
+                subtitle: 'مع الحفاظ الكامل على تقاريرها السابقة',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => TransferStudentScreen(lockedMosqueId: mosqueId),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              _DashboardCard(
+                icon: Icons.history_rounded,
+                title: 'سجل انتقالات الطالبات',
+                subtitle: 'من نُقلت، من أين، إلى أين، ومتى',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        TransferHistoryScreen(restrictToMosqueId: mosqueId),
+                  ),
+                ),
               ),
               const SizedBox(height: 14),
             ],

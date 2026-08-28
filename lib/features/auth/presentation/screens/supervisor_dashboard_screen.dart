@@ -12,6 +12,8 @@ import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../../../notifications/presentation/screens/manage_scheduled_notifications_screen.dart';
 import '../../../report_form/presentation/screens/attendance_report_screen.dart';
 import '../../../statistical_report/presentation/screens/statistical_report_screen.dart';
+import '../../../student_transfer/presentation/screens/transfer_history_screen.dart';
+import '../../../student_transfer/presentation/screens/transfer_student_screen.dart';
 
 class SupervisorDashboardScreen extends ConsumerWidget {
   const SupervisorDashboardScreen({super.key});
@@ -167,6 +169,28 @@ class SupervisorDashboardScreen extends ConsumerWidget {
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => const StatisticalReportScreen(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _DashboardCard(
+              icon: Icons.compare_arrows_rounded,
+              title: 'نقل طالبة بين الحلقات',
+              subtitle: 'حتى بين مسجدين مختلفين، مع الحفاظ على تقاريرها السابقة',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const TransferStudentScreen(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _DashboardCard(
+              icon: Icons.history_rounded,
+              title: 'سجل انتقالات الطالبات',
+              subtitle: 'كل عمليات النقل في كل المساجد',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const TransferHistoryScreen(),
                 ),
               ),
             ),
