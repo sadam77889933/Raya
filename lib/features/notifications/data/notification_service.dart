@@ -182,6 +182,13 @@ class NotificationService {
     required String mosqueId,
     required String uid,
   }) {
+    // ملاحظة حرجة: نُصفّي هنا في Dart بعد الجلب (بلا استعلام Firestore
+    // إضافي، فلا قراءات زائدة) لاستبعاد أي مستند `recipientUid` فيه محدَّد
+    // لشخص آخر غيري. سبب وجود هذا الشرط: إشعار نقل طالبة موجَّه شخصياً
+    // لمعلمة بعينها (`recipientUid`) لا يزال يحمل `targetMosqueId` الحقيقي
+    // لمسجدها (لغرض توثيقي)، فبدون هذا الاستبعاد كان سيُطابق استعلام
+    // "إشعارات مسجدي" لكل معلمات نفس المسجد، وليس فقط للمعلمة المقصودة —
+    // هذا بالضبط ما كان يجعل الإشعار "يصل لكل المعلمات" بدل معلمة واحدة.
     final ownMosqueStream = _firestore
         .collection(_collection)
         .where('audienceRole', isEqualTo: 'teacher')
@@ -189,6 +196,7 @@ class NotificationService {
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => AppNotification.fromJson(doc.id, doc.data()))
+            .where((n) => n.recipientUid == null || n.recipientUid == uid)
             .toList());
 
     final broadcastStream = _firestore
@@ -203,6 +211,7 @@ class NotificationService {
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => AppNotification.fromJson(doc.id, doc.data()))
+            .where((n) => n.recipientUid == null || n.recipientUid == uid)
             .toList());
 
     final personalStream = _firestore
