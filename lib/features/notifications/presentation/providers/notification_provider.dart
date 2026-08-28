@@ -23,12 +23,14 @@ final mosqueSupervisorNotificationsProvider =
       .watchSupervisorNotifications(restrictToMosqueId: mosqueId);
 });
 
-/// إشعارات المعلمة (رسائل توجيهية لمسجدها)
+/// إشعارات المعلمة (رسائل توجيهية لمسجدها + بث عام + إشعارات نقل طالبة
+/// موجَّهة لها شخصياً بغض النظر عن مسجدها الحالي)
 final teacherNotificationsProvider =
     StreamProvider.family<List<AppNotification>, String>((ref, mosqueId) {
+  final uid = ref.watch(authProvider).user?.uid ?? '';
   return ref
       .watch(notificationServiceProvider)
-      .watchTeacherNotifications(mosqueId: mosqueId);
+      .watchTeacherNotifications(mosqueId: mosqueId, uid: uid);
 });
 
 /// عدد الإشعارات غير المقروءة (للمشرفة العامة)

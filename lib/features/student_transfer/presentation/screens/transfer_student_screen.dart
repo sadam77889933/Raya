@@ -7,11 +7,13 @@ import 'package:hijri/hijri_calendar.dart';
 import '../../../../core/constants/quran_constants.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../auth/presentation/providers/teachers_provider.dart';
 import '../../../mosques/domain/entities/school.dart';
 import '../../../mosques/domain/entities/teaching_circle.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
 import '../../../mosques/presentation/providers/school_provider.dart';
 import '../../../mosques/presentation/providers/teaching_circle_provider.dart';
+import '../../../notifications/presentation/providers/notification_provider.dart';
 import '../../../roster/domain/entities/roster_student.dart';
 import '../../../roster/presentation/providers/roster_provider.dart';
 import '../providers/student_transfer_provider.dart';
@@ -260,6 +262,18 @@ class _TransferStudentScreenState extends ConsumerState<TransferStudentScreen> {
             reason: _reasonController.text.trim(),
           );
 
+      // إشعارات النقل: خطوة "أفضل جهد" منفصلة تماماً عن معاملة النقل نفسها
+      // أعلاه — نجاح النقل لا يجوز أبداً أن يتوقف على نجاح إرسال الإشعار.
+      // انظر توثيق _sendTransferNotifications للتفاصيل.
+      await _sendTransferNotifications(
+        studentName: studentName,
+        fromMosqueName: fromMosqueName,
+        fromCircleName: fromCircleName,
+        toMosqueName: toMosqueName,
+        toCircleName: toCircleName,
+        performedByName: user?.name ?? '',
+      );
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -325,6 +339,54 @@ class _TransferStudentScreenState extends ConsumerState<TransferStudentScreen> {
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  /// يرسل إشعارات النقل الثلاثة (معلمة المصدر، معلمة الوجهة، المشرف العام)
+  /// بعد نجاح النقل فعلياً. عمداً بدون أي `throw` يخرج من هذه الدالة —
+  /// فشل الإشعار (مثلاً: خطأ شبكة عابر) يجب ألا يُظهر عملية النقل الناجحة
+  /// فعلياً وكأنها فشلت، تماماً كما لا يُفشِل notifyReportCreated رفعَ
+  /// التقرير في شاشة التصدير.
+  ///
+  /// تحديد معلمة كل حلقة: TeachingCircle لا يحمل معرّف معلمة مباشرة، فيُبحث
+  /// عنها ضمن قائمة كل المعلمات (assignedCircleIds تحمل معرّفات حلقاتها) —
+  /// نفس الأسلوب المُتَّبع فعلاً في شاشة إدارة المعلمات. إن لم توجد معلمة
+  /// مرتبطة بالحلقة حالياً، يُتخطَّى إشعارها فقط دون التأثير على البقية.
+  Future<void> _sendTransferNotifications({
+    required String studentName,
+    required String fromMosqueName,
+    required String fromCircleName,
+    required String toMosqueName,
+    required String toCircleName,
+    required String performedByName,
+  }) async {
+    try {
+      final teachers = await ref.read(teachersStreamProvider.future);
+      final fromTeacherUid = teachers
+          .where((t) => t.assignedCircleIds.contains(_sourceCircleId))
+          .firstOrNull
+          ?.uid;
+      final toTeacherUid = teachers
+          .where((t) => t.assignedCircleIds.contains(_destCircleId))
+          .firstOrNull
+          ?.uid;
+
+      await ref.read(notificationServiceProvider).notifyStudentTransfer(
+            studentName: studentName,
+            performedByName: performedByName,
+            fromMosqueId: _sourceMosqueId ?? '',
+            fromMosqueName: fromMosqueName,
+            fromCircleName: fromCircleName,
+            toMosqueId: _destMosqueId ?? '',
+            toMosqueName: toMosqueName,
+            toCircleName: toCircleName,
+            transferHijriMonth: _transferMonth,
+            transferHijriYear: _transferYear.trim(),
+            fromTeacherUid: fromTeacherUid,
+            toTeacherUid: toTeacherUid,
+          );
+    } catch (_) {
+      // أفضل جهد فقط — النقل نفسه نجح بالفعل قبل الوصول لهذه الخطوة.
     }
   }
 

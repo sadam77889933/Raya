@@ -25,6 +25,89 @@ class NotificationService {
     });
   }
 
+  /// إشعارات نقل طالبة بين حلقتين — تُكتب معاً بدفعة واحدة (batch) لتفادي
+  /// عدة رحلات شبكة منفصلة، لكن كتابتها ليست جزءاً من معاملة النقل الذرّية
+  /// نفسها (`StudentTransferRepositoryImpl.transferStudent`)؛ استدعاؤها من
+  /// الشاشة بعد نجاح النقل، ضمن try/catch مستقل خاص بها — فشل الإشعار لا
+  /// يجوز أن يُظهر النقل نفسه كفاشل ولا أن يعيد أي شيء، بنفس مبدأ
+  /// [notifyReportCreated] عند رفع تقرير.
+  ///
+  /// التوجيه دقيق لمعلمتين تحديداً (وليس بثاً لعموم معلمات المسجد):
+  /// - [fromTeacherUid]: معلمة الحلقة السابقة (تُتجاهَل إن كانت null، أي لا
+  ///   توجد معلمة مرتبطة بالحلقة حالياً).
+  /// - [toTeacherUid]: معلمة الحلقة الجديدة (تُتجاهَل بنفس الشرط، وأيضاً إن
+  ///   كانت نفس معلمة المصدر فلا نُكرِّر لها نفس الإشعار مرتين).
+  /// والمشرف العام حصراً (بدون أي مشرفة مسجد) عبر `targetMosqueId: null` —
+  /// انظر التوثيق في [watchSupervisorNotifications] لماذا هذا يصل فعلاً
+  /// للمشرف العام فقط.
+  Future<void> notifyStudentTransfer({
+    required String studentName,
+    required String performedByName,
+    required String fromMosqueId,
+    required String fromMosqueName,
+    required String fromCircleName,
+    required String toMosqueId,
+    required String toMosqueName,
+    required String toCircleName,
+    required String transferHijriMonth,
+    required String transferHijriYear,
+    String? fromTeacherUid,
+    String? toTeacherUid,
+  }) async {
+    final batch = _firestore.batch();
+    final whenText = '$transferHijriMonth ${transferHijriYear}هـ';
+    final now = DateTime.now().toIso8601String();
+
+    if (fromTeacherUid != null && fromTeacherUid.isNotEmpty) {
+      final ref = _firestore.collection(_collection).doc();
+      batch.set(ref, {
+        'type': 'student_transfer',
+        'audienceRole': 'teacher',
+        'targetMosqueId': fromMosqueId,
+        'recipientUid': fromTeacherUid,
+        'title': 'انتقال طالبة من حلقتك',
+        'body':
+            'انتقلت الطالبة "$studentName" من حلقتك "$fromCircleName" إلى حلقة "$toCircleName" – $toMosqueName، ابتداءً من $whenText',
+        'senderName': performedByName,
+        'createdAt': now,
+        'readBy': <String>[],
+      });
+    }
+
+    if (toTeacherUid != null &&
+        toTeacherUid.isNotEmpty &&
+        toTeacherUid != fromTeacherUid) {
+      final ref = _firestore.collection(_collection).doc();
+      batch.set(ref, {
+        'type': 'student_transfer',
+        'audienceRole': 'teacher',
+        'targetMosqueId': toMosqueId,
+        'recipientUid': toTeacherUid,
+        'title': 'انضمام طالبة إلى حلقتك',
+        'body':
+            'انضمت إليك الطالبة "$studentName" من حلقة "$fromCircleName" – $fromMosqueName، ابتداءً من $whenText',
+        'senderName': performedByName,
+        'createdAt': now,
+        'readBy': <String>[],
+      });
+    }
+
+    final supervisorRef = _firestore.collection(_collection).doc();
+    batch.set(supervisorRef, {
+      'type': 'student_transfer',
+      'audienceRole': 'supervisor',
+      'targetMosqueId': null,
+      'title': 'نقل طالبة بين الحلقات',
+      'body':
+          'نقلت $performedByName الطالبة "$studentName" من "$fromCircleName – $fromMosqueName" إلى "$toCircleName – $toMosqueName" ابتداءً من $whenText',
+      'senderName': performedByName,
+      'createdAt': now,
+      'readBy': <String>[],
+    });
+
+    await batch.commit();
+  }
+
   /// رسالة يدوية من مشرفة لمعلمات (مسجد معيّن أو الكل)
   Future<void> sendCustomMessage({
     required String title,
@@ -84,15 +167,20 @@ class NotificationService {
     });
   }
 
-  /// إشعارات المعلمات (رسائل توجيهية) — لمسجد معيّن أو للكل.
+  /// إشعارات المعلمة — رسائل توجيهية لمسجدها + بث عام + إشعارات نقل طالبة
+  /// موجَّهة لها شخصياً (عبر `recipientUid`، بغض النظر عن مسجدها الحالي —
+  /// مهم لحالة نقل طالبة إليها من مسجد آخر).
   ///
   /// ملاحظة أداء: هذا النوع يحتمل بثاً عاماً (`targetMosqueId == null`)،
   /// لذلك لا يمكن تضييقه باستعلام `where` واحد فقط. بدل تحميل إشعارات
-  /// كل المساجد ثم التصفية في Dart (كما كان سابقاً)، نُشغّل استعلامَين
-  /// مُصغَّرين فقط (مسجدي + البث العام) ونُدمج نتيجتيهما — كل استعلام
-  /// يبقى Stream حيّ (`snapshots()`) فلا نفقد التحديث اللحظي.
+  /// كل المساجد ثم التصفية في Dart (كما كان سابقاً)، نُشغّل ثلاثة
+  /// استعلامات مُصغَّرة فقط (مسجدي + البث العام + الموجَّه لي شخصياً)
+  /// ونُدمج نتائجها — كل استعلام يبقى Stream حيّ (`snapshots()`) فلا نفقد
+  /// التحديث اللحظي، وكلاهما بشرطَي مساواة فقط بلا `orderBy` مركّب فيتفادى
+  /// أي فهرس إضافي (الترتيب يتم في الذاكرة بعد الدمج).
   Stream<List<AppNotification>> watchTeacherNotifications({
     required String mosqueId,
+    required String uid,
   }) {
     final ownMosqueStream = _firestore
         .collection(_collection)
@@ -117,12 +205,30 @@ class NotificationService {
             .map((doc) => AppNotification.fromJson(doc.id, doc.data()))
             .toList());
 
-    return _mergeNotificationLists(ownMosqueStream, broadcastStream);
+    final personalStream = _firestore
+        .collection(_collection)
+        .where('audienceRole', isEqualTo: 'teacher')
+        .where('recipientUid', isEqualTo: uid)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => AppNotification.fromJson(doc.id, doc.data()))
+            .toList());
+
+    return _mergeNotificationLists(
+      _mergeNotificationLists(ownMosqueStream, broadcastStream),
+      personalStream,
+    );
   }
 
   /// يدمج قائمتَي إشعارات حيّتين (Stream) في قائمة واحدة مُرتَّبة، مع
   /// إعادة الإصدار عند تحديث أي من المصدرَين — بدون أي اعتماد على حزمة
   /// خارجية (لا rxdart ولا async ككائن Stream مساعد)، فقط dart:async.
+  ///
+  /// يُزيل أيضاً أي تكرار بمعرّف المستند نفسه (`id`) — ضروري الآن لأن
+  /// [watchTeacherNotifications] تدمج 3 مصادر قد تتقاطع فعلياً: إشعار نقل
+  /// طالبة موجَّه شخصياً (`recipientUid`) لمعلمة، مع `targetMosqueId` يساوي
+  /// مسجدها نفسه، يُطابق شرط `ownMosqueStream` أيضاً — فبدون هذا الدمج
+  /// كان سيظهر مكرَّراً مرتين في قائمتها.
   Stream<List<AppNotification>> _mergeNotificationLists(
     Stream<List<AppNotification>> a,
     Stream<List<AppNotification>> b,
@@ -137,7 +243,11 @@ class NotificationService {
       final la = latestA;
       final lb = latestB;
       if (la == null || lb == null) return;
-      final combined = [...la, ...lb]
+      final byId = <String, AppNotification>{};
+      for (final n in [...la, ...lb]) {
+        byId[n.id] = n;
+      }
+      final combined = byId.values.toList()
         ..sort((x, y) => y.createdAt.compareTo(x.createdAt));
       controller.add(combined);
     }

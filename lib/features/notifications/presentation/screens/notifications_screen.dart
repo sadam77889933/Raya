@@ -126,9 +126,36 @@ class _NotificationCard extends StatelessWidget {
     return 'منذ ${diff.inDays} يوم';
   }
 
+  IconData get _icon {
+    switch (notification.type) {
+      case 'report_created':
+        return Icons.description_rounded;
+      case 'student_transfer':
+        return Icons.compare_arrows_rounded;
+      default:
+        return Icons.campaign_rounded;
+    }
+  }
+
+  Color get _iconBgColor {
+    switch (notification.type) {
+      case 'report_created':
+        return AppTheme.primaryGreen;
+      case 'student_transfer':
+        return AppTheme.goldAccent;
+      default:
+        return AppTheme.lightGreen;
+    }
+  }
+
+  Color get _iconColor =>
+      notification.type == 'custom_message' ? AppTheme.primaryGreen : Colors.white;
+
   @override
   Widget build(BuildContext context) {
-    final isReportType = notification.type == 'report_created';
+    // "من: ..." يُعرض لكل الأنواع ما عدا إشعار رفع التقرير التلقائي، الذي
+    // لا يحمل مُرسِلاً بالمعنى نفسه (اسم المعلمة موجود أصلاً داخل نص الرسالة).
+    final showSender = notification.type != 'report_created';
 
     return InkWell(
       onTap: onTap,
@@ -166,18 +193,10 @@ class _NotificationCard extends StatelessWidget {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: isReportType
-                        ? AppTheme.primaryGreen
-                        : AppTheme.lightGreen,
+                    color: _iconBgColor,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(
-                    isReportType
-                        ? Icons.description_rounded
-                        : Icons.campaign_rounded,
-                    size: 17,
-                    color: isReportType ? Colors.white : AppTheme.primaryGreen,
-                  ),
+                  child: Icon(_icon, size: 17, color: _iconColor),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -203,7 +222,7 @@ class _NotificationCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        !isReportType
+                        showSender
                             ? '${_timeAgo(notification.createdAt)} · من: ${notification.senderName}'
                             : _timeAgo(notification.createdAt),
                         style: TextStyle(
