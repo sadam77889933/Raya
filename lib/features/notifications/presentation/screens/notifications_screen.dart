@@ -40,49 +40,56 @@ class NotificationsScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => Center(child: Text('حدث خطأ: $err')),
         data: (notifications) {
-          if (notifications.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.notifications_none_rounded,
-                      size: 56, color: Colors.grey.shade300),
-                  const SizedBox(height: 12),
-                  Text(
-                    'لا توجد إشعارات حالياً',
-                    style: TextStyle(
-                        fontFamily: 'Tajawal', color: Colors.grey.shade400),
-                  ),
-                ],
-              ),
-            );
-          }
-
+          // ملاحظة إصلاح: كان زر "إرسال رسالة للمعلمات" محشوراً داخل نفس
+          // الفرع الذي يُبنى فقط عندما تكون القائمة غير فارغة — فإذا لم
+          // تصل مشرفة المسجد بعد أي إشعار (مثلاً: مسجد جديد، أو لم تُرفَع
+          // تقارير بعد)، كان يختفي `return Center(...)` المبكر الشاشة
+          // بالكامل بلا أي زر إرسال، رغم أن صلاحيتها بالإرسال لا علاقة لها
+          // بوجود إشعارات سابقة من عدمه. الإصلاح: زر الإرسال يُعرض دائماً
+          // (إن كانت canCompose) بغضّ النظر عن حالة القائمة، وحالة "لا توجد
+          // إشعارات" أصبحت مجرد محتوى بديل داخل المساحة القابلة للتمدد.
           return Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
                 Expanded(
-                  child: ListView.separated(
-                    itemCount: notifications.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final notif = notifications[index];
-                      final isUnread = !notif.isReadBy(user.uid);
+                  child: notifications.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.notifications_none_rounded,
+                                  size: 56, color: Colors.grey.shade300),
+                              const SizedBox(height: 12),
+                              Text(
+                                'لا توجد إشعارات حالياً',
+                                style: TextStyle(
+                                    fontFamily: 'Tajawal',
+                                    color: Colors.grey.shade400),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: notifications.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 10),
+                          itemBuilder: (context, index) {
+                            final notif = notifications[index];
+                            final isUnread = !notif.isReadBy(user.uid);
 
-                      return _NotificationCard(
-                        notification: notif,
-                        isUnread: isUnread,
-                        onTap: () {
-                          if (isUnread) {
-                            ref
-                                .read(notificationServiceProvider)
-                                .markAsRead(notif.id, user.uid);
-                          }
-                        },
-                      );
-                    },
-                  ),
+                            return _NotificationCard(
+                              notification: notif,
+                              isUnread: isUnread,
+                              onTap: () {
+                                if (isUnread) {
+                                  ref
+                                      .read(notificationServiceProvider)
+                                      .markAsRead(notif.id, user.uid);
+                                }
+                              },
+                            );
+                          },
+                        ),
                 ),
                 if (canCompose) ...[
                   const SizedBox(height: 12),
