@@ -14,6 +14,7 @@ import '../../../report_form/presentation/screens/attendance_report_screen.dart'
 import '../../../statistical_report/presentation/screens/statistical_report_screen.dart';
 import '../../../student_transfer/presentation/screens/transfer_history_screen.dart';
 import '../../../student_transfer/presentation/screens/transfer_student_screen.dart';
+import '../../../roster_report/presentation/screens/roster_report_screen.dart';
 
 class SupervisorDashboardScreen extends ConsumerWidget {
   const SupervisorDashboardScreen({super.key});
@@ -191,6 +192,17 @@ class SupervisorDashboardScreen extends ConsumerWidget {
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => const TransferHistoryScreen(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _DashboardCard(
+              icon: Icons.list_alt_rounded,
+              title: 'قائمة أسماء الطالبات',
+              subtitle: 'كشف بأسماء الطالبات حسب المسجد والدار والحلقة، قابل للتصدير PDF',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const RosterReportScreen(),
                 ),
               ),
             ),
