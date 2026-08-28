@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -277,6 +278,32 @@ class _TransferStudentScreenState extends ConsumerState<TransferStudentScreen> {
         ),
       );
       Navigator.of(context).pop();
+    } on FirebaseException catch (e) {
+      // نميّز رفض الصلاحيات عن بقية الأخطاء بدل رسالة "تأكدي من الإنترنت"
+      // المضلِّلة في هذه الحالة تحديداً — يساعد هذا على تشخيص المشكلة الحقيقية
+      // (مثلاً: قواعد أمان Firestore لا تسمح بعد بالكتابة في مجموعة النقل
+      // الجديدة) بدل الإيحاء بأنها مشكلة اتصال بالإنترنت.
+      if (!mounted) return;
+      final message = e.code == 'permission-denied'
+          ? 'ليس لديكِ صلاحية لتنفيذ عملية النقل. تواصلي مع مطوّر التطبيق.'
+          : 'تعذّر تنفيذ النقل (${e.code}). تأكدي من الاتصال بالإنترنت وحاولي مرة أخرى';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade600,
+          content: Row(
+            children: [
+              const Icon(Icons.error_outline_rounded, color: Colors.white, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(fontFamily: 'Tajawal', fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
