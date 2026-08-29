@@ -17,6 +17,7 @@ import '../../../notifications/presentation/screens/notifications_screen.dart';
 import '../../../report_form/presentation/screens/attendance_report_screen.dart';
 import '../../../roster/presentation/screens/roster_screen.dart';
 import '../../../roster/presentation/screens/select_roster_circle_screen.dart';
+import '../../../summer_center/presentation/screens/my_tests_screen.dart';
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -203,6 +204,14 @@ class HomeScreen extends ConsumerWidget {
           ),
           icon: const Icon(Icons.bar_chart_rounded, size: 22),
           label: const Text('تقرير الحضور والغياب'),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const MyTestsScreen()),
+          ),
+          icon: const Icon(Icons.quiz_outlined, size: 22),
+          label: const Text('اختباراتي (المركز الصيفي)'),
         ),
       ],
     );

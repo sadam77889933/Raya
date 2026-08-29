@@ -17,6 +17,7 @@ import '../../../statistical_report/presentation/screens/statistical_report_scre
 import '../../../student_transfer/presentation/screens/transfer_history_screen.dart';
 import '../../../student_transfer/presentation/screens/transfer_student_screen.dart';
 import '../../../roster_report/presentation/screens/roster_report_screen.dart';
+import '../../../summer_center/presentation/screens/summer_center_screen.dart';
 class MosqueSupervisorDashboardScreen extends ConsumerWidget {
   const MosqueSupervisorDashboardScreen({super.key});
 
@@ -255,6 +256,18 @@ class MosqueSupervisorDashboardScreen extends ConsumerWidget {
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => const RosterReportScreen(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              _DashboardCard(
+                icon: Icons.wb_sunny_rounded,
+                title: 'المركز الصيفي',
+                subtitle: 'مستويات ومواد واختبارات المركز الصيفي — مستقل عن نظام الحلقات',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const SummerCenterScreen(),
                   ),
                 ),
               ),
