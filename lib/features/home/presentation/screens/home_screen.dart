@@ -24,7 +24,6 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final size = MediaQuery.sizeOf(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -80,45 +79,55 @@ class HomeScreen extends ConsumerWidget {
         ],
       ),
       body: SafeArea(
-        child: SizedBox(
-          height: size.height - MediaQuery.of(context).padding.top,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              children: [
-                Builder(
-                  builder: (context) {
-                    final teacherName = ref.watch(authProvider).user?.name;
-                    if (teacherName == null || teacherName.isEmpty) {
-                      return const SizedBox.shrink();
-                    }
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: TeacherWelcomeBanner(name: teacherName),
-                    );
-                  },
-                ),
-                const Spacer(flex: 2),
-                _buildHeader(context, theme, ref),
-                const Spacer(flex: 3),
-                _buildActionButtons(context, ref),
-                const Spacer(flex: 1),
-                _buildFooter(theme),
-                
-                const SizedBox(height: 10),
-                Text(
-                  'برمجة: صدام البريكي (أبو ود)',
-                  style: TextStyle(
-                    fontFamily: 'Tajawal',
-                    fontSize: 14,
-                    color: Colors.grey.shade400,
+        // نستخدم LayoutBuilder + SingleChildScrollView + ConstrainedBox(minHeight)
+        // + IntrinsicHeight بدل SizedBox بارتفاع الشاشة كاملاً: هذا يحافظ على
+        // توزيع Spacer للمساحة على الشاشات الكبيرة تماماً كما كان، لكنه يسمح
+        // بالتمرير بدل الفيضان (overflow) على الشاشات الصغيرة أو عند إضافة
+        // أزرار جديدة مستقبلاً (مثل زر "اختباراتي") ترفع الارتفاع الكلي
+        // للمحتوى فوق ارتفاع الشاشة المتاح.
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    children: [
+                      Builder(
+                        builder: (context) {
+                          final teacherName = ref.watch(authProvider).user?.name;
+                          if (teacherName == null || teacherName.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: TeacherWelcomeBanner(name: teacherName),
+                          );
+                        },
+                      ),
+                      const Spacer(flex: 2),
+                      _buildHeader(context, theme, ref),
+                      const Spacer(flex: 3),
+                      _buildActionButtons(context, ref),
+                      const Spacer(flex: 1),
+                      _buildFooter(theme),
+                      const SizedBox(height: 10),
+                      Text(
+                        'برمجة: صدام البريكي (أبو ود)',
+                        style: TextStyle(
+                          fontFamily: 'Tajawal',
+                          fontSize: 14,
+                          color: Colors.grey.shade400,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 24),
-                const SizedBox(height: 24),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
