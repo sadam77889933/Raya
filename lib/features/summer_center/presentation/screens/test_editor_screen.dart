@@ -206,6 +206,11 @@ class TestEditorScreen extends ConsumerWidget {
     final questionsAsync = ref.watch(summerQuestionsProvider(testId));
 
     return Scaffold(
+      // بلا تصغير للجسم عند ظهور لوحة المفاتيح: حقل النص الوحيد في هذه
+      // الشاشة هو حقل عنوان الاختبار داخل حوار منبثق مستقل (له تصغيره
+      // الخاص)، وليس داخل جسم الشاشة نفسه — فتصغير الجسم هنا كان يسبب
+      // فيضاناً بسيطاً في الأسفل بمجرد ظهور لوحة المفاتيح لذلك الحوار.
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: const Text('إنشاء اختبار'),
         actions: [

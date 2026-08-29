@@ -36,64 +36,71 @@ IconData iconForQuestionType(String type) {
 Future<String?> showQuestionTypeChooser(BuildContext context) {
   return showModalBottomSheet<String>(
     context: context,
+    // مع isScrollControlled: تُتاح الورقة كامل ارتفاع الشاشة عند الحاجة،
+    // وبداخلها SingleChildScrollView + SafeArea يضمنان تمرير المحتوى
+    // بدل فيضانه على الشاشات الأصغر أو عند ظهور فتحة سفلية إضافية
+    // (زر التنقّل بالإيماءات) بدل قصّ آخر صف من الأنواع.
+    isScrollControlled: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
     ),
     builder: (ctx) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(20, 10, 20, 28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 38,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 14),
-              decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(4)),
-            ),
-            const Text('اختاري نوع السؤال',
-                style: TextStyle(fontFamily: 'Tajawal', fontSize: 15.5, fontWeight: FontWeight.w800, color: AppTheme.primaryGreen)),
-            const SizedBox(height: 4),
-            Text('لكل نوع حقوله الخاصة وشكله المناسب عند الطباعة',
-                style: TextStyle(fontFamily: 'Tajawal', fontSize: 11, color: Colors.grey.shade500)),
-            const SizedBox(height: 16),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 3,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              childAspectRatio: 0.95,
-              children: SummerQuestionType.all.map((type) {
-                return InkWell(
-                  borderRadius: BorderRadius.circular(14),
-                  onTap: () => Navigator.of(ctx).pop(type),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFAFAFA),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFECECEC), width: 1.4),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(iconForQuestionType(type), size: 22, color: AppTheme.primaryGreen),
-                        const SizedBox(height: 7),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: Text(
-                            SummerQuestionType.label(type),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(fontFamily: 'Tajawal', fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF333333)),
+      return SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 38,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(4)),
+              ),
+              const Text('اختاري نوع السؤال',
+                  style: TextStyle(fontFamily: 'Tajawal', fontSize: 15.5, fontWeight: FontWeight.w800, color: AppTheme.primaryGreen)),
+              const SizedBox(height: 4),
+              Text('لكل نوع حقوله الخاصة وشكله المناسب عند الطباعة',
+                  style: TextStyle(fontFamily: 'Tajawal', fontSize: 11, color: Colors.grey.shade500)),
+              const SizedBox(height: 16),
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 3,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 0.95,
+                children: SummerQuestionType.all.map((type) {
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () => Navigator.of(ctx).pop(type),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFAFAFA),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFECECEC), width: 1.4),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(iconForQuestionType(type), size: 22, color: AppTheme.primaryGreen),
+                          const SizedBox(height: 7),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: Text(
+                              SummerQuestionType.label(type),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontFamily: 'Tajawal', fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF333333)),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
         ),
       );
     },
