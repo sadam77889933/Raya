@@ -308,26 +308,30 @@ class SummerTestPdfGenerator {
     String? answerBox,
     required pw.Font font,
   }) {
+    // القوس (عند وجوده) يُدمَج داخل نفس السلسلة النصية لعنوان السؤال (سلسلة
+    // واحدة، مسافة عادية داخلها) بدل أن يكون TextSpan منفصلاً يبدأ بمسافة —
+    // حزمة pdf تحذف المسافة البادئة لأي TextSpan جديد عند التفاف الأسطر،
+    // فكانت النتيجة التصاق القوس بنهاية الجملة بلا أي فراغ بينهما.
+    final mainText = answerBox == null ? '$number. $text' : '$number. $text  $answerBox';
     return pw.RichText(
       textDirection: pw.TextDirection.rtl,
       text: pw.TextSpan(children: [
-        pw.TextSpan(text: '$number. $text', style: pw.TextStyle(font: boldFont, fontSize: 12.5)),
-        // القوس (عند وجوده) بوزن خط عادي غير عريض — بنفس أسلوب صندوق
-        // صح/خطأ القديم (تسمية عريضة، قوس عادي) — لكنه الآن جزء من نفس
-        // فقرة RichText فيتدفّق مع النص بدل أن يكون عنصراً منفصلاً.
-        if (answerBox != null) pw.TextSpan(text: '  $answerBox', style: pw.TextStyle(font: font, fontSize: 13)),
-        if (hint != null) pw.TextSpan(text: '  $hint', style: pw.TextStyle(font: font, fontSize: 9.5, color: PdfColors.grey600)),
+        pw.TextSpan(text: hint == null ? mainText : '$mainText  ', style: pw.TextStyle(font: boldFont, fontSize: 12.5)),
+        if (hint != null) pw.TextSpan(text: hint, style: pw.TextStyle(font: font, fontSize: 9.5, color: PdfColors.grey600)),
       ]),
     );
   }
 
-  /// ترويسة المسجد — منقولة حرفياً بنفس تصميم `_orgHeader` في
-  /// `pdf_generator.dart` (تقرير الحلقة الشهري): نص أيمن دائماً موجود
-  /// (افتراضي أو مخصَّص)، ونص أيسر + شعار اختياريان يظهران فقط إن خصَّص
-  /// المسجد أحدهما، والشعار يتوسّط تماماً بين عمودين متساويي العرض عند
-  /// وجود أي منهما. لا حاجة لأي شاشة إعداد جديدة — نفس حقول ترويسة
-  /// التقرير الشهري (`Mosque.rightHeaderText`/`leftHeaderText`/
-  /// `headerLogoBase64`) تُستخدَم هنا تلقائياً.
+  /// ترويسة المسجد — نفس حقول ترويسة التقرير الشهري تماماً
+  /// (`Mosque.rightHeaderText`/`leftHeaderText`/`headerLogoBase64`)، لكن
+  /// بمحاذاة مبنية على `mainAxisAlignment` مباشرة على مستوى الصفّ نفسه
+  /// (`spaceBetween`) بدل تركيب Expanded+Align. جُرِّب Expanded+Align أولاً
+  /// (نفس بنية `_orgHeader` في `pdf_generator.dart`) لكن التصدير الفعلي
+  /// أظهر النصّين قريبين من الشعار ولا يصلان لحافة عرض الترويسة الحقيقية؛
+  /// بينما `mainAxisAlignment.spaceBetween` مُثبَت عملياً في نفس هذا الملف
+  /// (تذييل الصفحة أعلاه) وملفات أخرى (`pdf_generator.dart`._footer،
+  /// `roster_report_pdf_generator.dart`) لدفع العناصر الطرفية فعلياً إلى
+  /// حافتي الصفّ، فاعتُمد هنا بدلاً منه.
   static pw.Widget _mosqueHeader(
     pw.Font font,
     pw.Font boldFont,
@@ -367,7 +371,12 @@ class SummerTestPdfGenerator {
     );
 
     if (!hasLeftContent) {
-      return pw.Align(alignment: pw.Alignment.centerRight, child: rightBlock);
+      // نص أيمن فقط: صفّ بعنصر واحد يُدفَع لأقصى يمينه عبر
+      // mainAxisAlignment مباشرة (لا Align) ليصل فعلياً لحافة الترويسة.
+      return pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.end,
+        children: [rightBlock],
+      );
     }
 
     final leftBlock = leftLines.isEmpty
@@ -378,23 +387,12 @@ class SummerTestPdfGenerator {
           );
 
     return pw.Row(
-      crossAxisAlignment: pw.CrossAxisAlignment.center,
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
       children: [
-        pw.Expanded(
-          child: leftBlock == null
-              ? pw.SizedBox()
-              : pw.Align(alignment: pw.Alignment.centerLeft, child: leftBlock),
-        ),
-        if (logoImage != null)
-          pw.Padding(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 8),
-            child: pw.Image(logoImage, height: 42, fit: pw.BoxFit.contain),
-          )
-        else
-          pw.SizedBox(width: 8),
-        pw.Expanded(
-          child: pw.Align(alignment: pw.Alignment.centerRight, child: rightBlock),
-        ),
+        leftBlock ?? pw.SizedBox(),
+        if (logoImage != null) pw.Image(logoImage, height: 42, fit: pw.BoxFit.contain),
+        rightBlock,
       ],
     );
   }
