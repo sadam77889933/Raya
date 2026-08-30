@@ -55,6 +55,14 @@ class SummerTestPdfGenerator {
     doc.addPage(
       pw.MultiPage(
         textDirection: pw.TextDirection.rtl,
+        // هامش أضيق (نصف بوصة ≈ 36pt) بدل الهامش الافتراضي الأكبر لحزمة pdf
+        // (نحو 2سم) — بلا هذا التضييق تبقى ترويسة المسجد (نص يمين/يسار)
+        // بعيدة عن الزوايا الحقيقية للصفحة رغم أنها بالفعل تمتد لحافة
+        // منطقة المحتوى؛ نفس فلسفة الهامش شبه المعدوم المعتمَدة في
+        // pdf_generator.dart لتقرير الحلقة الشهري (margin: EdgeInsets.zero
+        // + حشوة يدوية صغيرة)، لكن بقيمة أكبر قليلاً هنا لأنها ورقة تُطبَع
+        // وتُوزَّع فعلياً (تحتاج هامشاً آمناً للطباعة).
+        margin: const pw.EdgeInsets.all(36),
         theme: pw.ThemeData.withFont(base: font, bold: boldFont),
         header: (context) => context.pageNumber == 1
             ? pw.Column(
@@ -182,22 +190,17 @@ class SummerTestPdfGenerator {
         );
 
       case SummerQuestionType.trueFalse:
-        return pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            _qLine(number, '${q.questionText}.', boldFont, hint: '(ضعي علامة على الإجابة الصحيحة)', font: font),
-            pw.SizedBox(height: 4),
-            pw.Padding(
-              padding: const pw.EdgeInsets.only(right: 20),
-              child: pw.Row(
-                children: [
-                  _tfBox('خطأ', font, boldFont),
-                  pw.SizedBox(width: 24),
-                  _tfBox('صح', font, boldFont),
-                ],
-              ),
-            ),
-          ],
+        // قوس واحد فقط يلتصق بنهاية جملة السؤال ضمن نفس فقرة النص (لا صفّ
+        // منفصل تحته) — فإن طال السؤال وانتقل لسطر جديد يبقى القوس ملتصقاً
+        // بآخر كلمة في آخر سطر تلقائياً بحكم تدفق النص الواحد، بدل صندوقين
+        // منفصلين لكلمتي "صح"/"خطأ" كما كان سابقاً.
+        return _qLine(
+          number,
+          '${q.questionText}.',
+          boldFont,
+          answerBox: '(        )',
+          hint: '(اكتبي داخل القوس: صح أو خطأ)',
+          font: font,
         );
 
       case SummerQuestionType.essay:
@@ -297,11 +300,22 @@ class SummerTestPdfGenerator {
     }
   }
 
-  static pw.Widget _qLine(int number, String text, pw.Font boldFont, {String? hint, required pw.Font font}) {
+  static pw.Widget _qLine(
+    int number,
+    String text,
+    pw.Font boldFont, {
+    String? hint,
+    String? answerBox,
+    required pw.Font font,
+  }) {
     return pw.RichText(
       textDirection: pw.TextDirection.rtl,
       text: pw.TextSpan(children: [
         pw.TextSpan(text: '$number. $text', style: pw.TextStyle(font: boldFont, fontSize: 12.5)),
+        // القوس (عند وجوده) بوزن خط عادي غير عريض — بنفس أسلوب صندوق
+        // صح/خطأ القديم (تسمية عريضة، قوس عادي) — لكنه الآن جزء من نفس
+        // فقرة RichText فيتدفّق مع النص بدل أن يكون عنصراً منفصلاً.
+        if (answerBox != null) pw.TextSpan(text: '  $answerBox', style: pw.TextStyle(font: font, fontSize: 13)),
         if (hint != null) pw.TextSpan(text: '  $hint', style: pw.TextStyle(font: font, fontSize: 9.5, color: PdfColors.grey600)),
       ]),
     );
@@ -381,20 +395,6 @@ class SummerTestPdfGenerator {
         pw.Expanded(
           child: pw.Align(alignment: pw.Alignment.centerRight, child: rightBlock),
         ),
-      ],
-    );
-  }
-
-  /// كلمة الخيار (صح/خطأ) يليها قوس فارغ تضع الطالبة داخله علامتها (✕ أو
-  /// أي علامة أخرى) — بلا أي صندوق أو حدود، بديلاً عن الصندوق المُحاط
-  /// بالكلمة نفسها الذي كان مستخدَماً سابقاً.
-  static pw.Widget _tfBox(String label, pw.Font font, pw.Font boldFont) {
-    return pw.Row(
-      mainAxisSize: pw.MainAxisSize.min,
-      children: [
-        pw.Text(label, style: pw.TextStyle(font: boldFont, fontSize: 11.5)),
-        pw.SizedBox(width: 6),
-        pw.Text('(        )', style: pw.TextStyle(font: font, fontSize: 13)),
       ],
     );
   }

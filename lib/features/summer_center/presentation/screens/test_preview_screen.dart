@@ -212,22 +212,10 @@ class _PreviewQuestion extends StatelessWidget {
         );
 
       case SummerQuestionType.trueFalse:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _qLine('$index. ${question.questionText}.'),
-            Padding(
-              padding: const EdgeInsets.only(right: 14, top: 4),
-              child: Row(
-                children: [
-                  _tfBox('صح'),
-                  const SizedBox(width: 20),
-                  _tfBox('خطأ'),
-                ],
-              ),
-            ),
-          ],
-        );
+        // قوس واحد فقط يلتصق بنهاية جملة السؤال (بلا كلمتي "صح"/"خطأ" وبلا
+        // صفّ منفصل تحته) — نفس تصميم PDF المُصدَّر تماماً؛ يتدفّق مع باقي
+        // النص فيبقى بنفس السطر ما أمكن، وينتقل مع آخر كلمة إن طال السؤال.
+        return _qLine('$index. ${question.questionText}. (        )');
 
       case SummerQuestionType.essay:
       case SummerQuestionType.mention:
@@ -317,18 +305,5 @@ class _PreviewQuestion extends StatelessWidget {
 
   Widget _qLine(String text) {
     return Text(text, style: const TextStyle(fontFamily: 'Tajawal', fontSize: 12.5, fontWeight: FontWeight.w700));
-  }
-
-  // كلمة الخيار يليها قوس فارغ (تماماً كما في ملف PDF المُصدَّر) بدل صندوق
-  // محاط بالكلمة — بلا أي حدود.
-  Widget _tfBox(String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(label, style: const TextStyle(fontFamily: 'Tajawal', fontSize: 12, fontWeight: FontWeight.w700)),
-        const SizedBox(width: 6),
-        const Text('(        )', style: TextStyle(fontFamily: 'Tajawal', fontSize: 13)),
-      ],
-    );
   }
 }
