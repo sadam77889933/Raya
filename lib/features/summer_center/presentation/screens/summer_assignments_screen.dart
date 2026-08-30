@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/domain/entities/user_model.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../auth/presentation/providers/teachers_provider.dart';
+import '../../../notifications/presentation/providers/notification_provider.dart';
 import '../../domain/entities/summer_assignment.dart';
 import '../../domain/entities/summer_center.dart';
 import '../../domain/entities/summer_level.dart';
@@ -279,6 +281,29 @@ class _AssignTeacherSheetState extends ConsumerState<_AssignTeacherSheet> {
           }).toList(),
           existingKeys: _initialKeys,
         );
+
+        // إشعار المعلمة بالمستوى/المادة الجديدة المُسندة إليها — فشل
+        // الإشعار لا يجب أن يمنع نجاح الإسناد نفسه (نفس مبدأ
+        // notifyReportCreated). كل الأزواج المُضافة في هذه الجلسة تُجمَع
+        // في إشعار واحد بدل إشعار مستقل لكل زوج.
+        try {
+          final levels = ref.read(activeSummerLevelsByCenterProvider(widget.center.id));
+          final subjects = ref.read(activeSummerSubjectsByCenterProvider(widget.center.id));
+          final supervisorName = ref.read(authProvider).user?.name ?? 'المشرفة';
+          final labels = toAdd.map((k) {
+            final parts = k.split('|');
+            final levelName = levels.where((l) => l.id == parts[0]).map((l) => l.name).firstOrNull ?? '';
+            final subjectName = subjects.where((s) => s.id == parts[1]).map((s) => s.name).firstOrNull ?? '';
+            return '$levelName - $subjectName';
+          }).toList();
+          await ref.read(notificationServiceProvider).notifySummerAssignmentCreated(
+                teacherUid: _teacherId!,
+                teacherName: _teacherName!,
+                supervisorName: supervisorName,
+                mosqueId: widget.center.mosqueId,
+                levelSubjectLabels: labels,
+              );
+        } catch (_) {}
       }
       for (final key in toRemove) {
         final id = existingIds[key];

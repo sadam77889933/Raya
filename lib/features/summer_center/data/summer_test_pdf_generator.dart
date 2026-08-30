@@ -1,11 +1,13 @@
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import '../../mosques/domain/entities/mosque.dart';
 import '../domain/entities/summer_question_type.dart';
 import '../domain/entities/summer_test.dart';
 import '../domain/entities/summer_test_question.dart';
@@ -28,11 +30,22 @@ class SummerTestPdfGenerator {
     required String mosqueName,
     required String levelName,
     required String subjectName,
+    // ترويسة المسجد — نفس حقول تقرير الحلقة الشهري تماماً (`pdf_generator`):
+    // null = المسجد لم يخصِّص شيئاً فيُستخدم نص/شكل افتراضي، بينما نص فارغ
+    // '' يعني حذفاً متعمَّداً من المسؤول فيظهر فارغاً بلا أي نص.
+    String? rightHeaderText,
+    String? leftHeaderText,
+    Uint8List? headerLogoBytes,
   }) async {
     final regularData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
     final boldData = await rootBundle.load('assets/fonts/Amiri-Bold.ttf');
     final font = pw.Font.ttf(regularData);
     final boldFont = pw.Font.ttf(boldData);
+
+    final headerLogoImage =
+        headerLogoBytes != null ? pw.MemoryImage(headerLogoBytes) : null;
+    final effectiveRightHeaderText =
+        rightHeaderText ?? Mosque.defaultRightHeaderText;
 
     final dateLabel = '${test.hijriMonth} ${test.hijriYear}هـ';
     final random = Random();
@@ -47,6 +60,8 @@ class SummerTestPdfGenerator {
             ? pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                 children: [
+                  _mosqueHeader(font, boldFont, effectiveRightHeaderText, leftHeaderText, headerLogoImage),
+                  pw.SizedBox(height: 10),
                   pw.Center(
                     child: pw.Text('${test.title} — مادة $subjectName',
                         style: pw.TextStyle(font: boldFont, fontSize: 15)),
@@ -176,9 +191,9 @@ class SummerTestPdfGenerator {
               padding: const pw.EdgeInsets.only(right: 20),
               child: pw.Row(
                 children: [
-                  _tfBox('خطأ', font),
-                  pw.SizedBox(width: 18),
-                  _tfBox('صح', font),
+                  _tfBox('خطأ', font, boldFont),
+                  pw.SizedBox(width: 24),
+                  _tfBox('صح', font, boldFont),
                 ],
               ),
             ),
@@ -292,11 +307,95 @@ class SummerTestPdfGenerator {
     );
   }
 
-  static pw.Widget _tfBox(String label, pw.Font font) {
-    return pw.Container(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-      decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey700, width: 0.9), borderRadius: pw.BorderRadius.circular(3)),
-      child: pw.Text(label, style: pw.TextStyle(font: font, fontSize: 11)),
+  /// ترويسة المسجد — منقولة حرفياً بنفس تصميم `_orgHeader` في
+  /// `pdf_generator.dart` (تقرير الحلقة الشهري): نص أيمن دائماً موجود
+  /// (افتراضي أو مخصَّص)، ونص أيسر + شعار اختياريان يظهران فقط إن خصَّص
+  /// المسجد أحدهما، والشعار يتوسّط تماماً بين عمودين متساويي العرض عند
+  /// وجود أي منهما. لا حاجة لأي شاشة إعداد جديدة — نفس حقول ترويسة
+  /// التقرير الشهري (`Mosque.rightHeaderText`/`leftHeaderText`/
+  /// `headerLogoBase64`) تُستخدَم هنا تلقائياً.
+  static pw.Widget _mosqueHeader(
+    pw.Font font,
+    pw.Font boldFont,
+    String rightHeaderText,
+    String? leftHeaderText,
+    pw.MemoryImage? logoImage,
+  ) {
+    final isDefaultRightText = rightHeaderText == Mosque.defaultRightHeaderText;
+    final rightLines = rightHeaderText
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+    final leftLines = (leftHeaderText ?? '')
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+    final hasLeftContent = logoImage != null || leftLines.isNotEmpty;
+
+    pw.Widget rtlLine(String text, double fontSize) => pw.Text(
+          text,
+          textDirection: pw.TextDirection.rtl,
+          style: pw.TextStyle(font: boldFont, fontSize: fontSize),
+          textAlign: pw.TextAlign.right,
+        );
+
+    final rightBlock = pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.end,
+      children: isDefaultRightText
+          ? [
+              rtlLine('مجمع آيات بينات لتعليم القرآن', 11),
+              rtlLine('الكريم وعلومه', 11),
+              rtlLine('شبوة- عتق', 12),
+            ]
+          : rightLines.map((l) => rtlLine(l, 11)).toList(),
+    );
+
+    if (!hasLeftContent) {
+      return pw.Align(alignment: pw.Alignment.centerRight, child: rightBlock);
+    }
+
+    final leftBlock = leftLines.isEmpty
+        ? null
+        : pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.end,
+            children: leftLines.map((l) => rtlLine(l, 11)).toList(),
+          );
+
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.center,
+      children: [
+        pw.Expanded(
+          child: leftBlock == null
+              ? pw.SizedBox()
+              : pw.Align(alignment: pw.Alignment.centerLeft, child: leftBlock),
+        ),
+        if (logoImage != null)
+          pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 8),
+            child: pw.Image(logoImage, height: 42, fit: pw.BoxFit.contain),
+          )
+        else
+          pw.SizedBox(width: 8),
+        pw.Expanded(
+          child: pw.Align(alignment: pw.Alignment.centerRight, child: rightBlock),
+        ),
+      ],
+    );
+  }
+
+  /// كلمة الخيار (صح/خطأ) يليها قوس فارغ تضع الطالبة داخله علامتها (✕ أو
+  /// أي علامة أخرى) — بلا أي صندوق أو حدود، بديلاً عن الصندوق المُحاط
+  /// بالكلمة نفسها الذي كان مستخدَماً سابقاً.
+  static pw.Widget _tfBox(String label, pw.Font font, pw.Font boldFont) {
+    return pw.Row(
+      mainAxisSize: pw.MainAxisSize.min,
+      children: [
+        pw.Text(label, style: pw.TextStyle(font: boldFont, fontSize: 11.5)),
+        pw.SizedBox(width: 6),
+        pw.Text('(        )', style: pw.TextStyle(font: font, fontSize: 13)),
+      ],
     );
   }
 

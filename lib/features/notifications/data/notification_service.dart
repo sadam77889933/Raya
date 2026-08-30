@@ -285,4 +285,84 @@ class NotificationService {
       'readBy': FieldValue.arrayUnion([uid]),
     });
   }
+
+  // ---------------------------------------------------------------------
+  // المركز الصيفي (الاختبارات) — ثلاثة إشعارات مستقلة تماماً عن نظام
+  // الحلقات/التقارير، بنفس نمط [notifyReportCreated]/[notifyStudentTransfer]
+  // أعلاه حرفياً: مجموعة Firestore نفسها، ونفس مبدأ "فشل الإشعار لا يوقف
+  // العملية الأصلية" يُطبَّق من نقطة الاستدعاء (try/catch مستقل هناك).
+  // ---------------------------------------------------------------------
+
+  /// إشعار تلقائي عند إنشاء معلمة اختباراً جديداً في المركز الصيفي — يصل
+  /// لمشرفات مسجدها (بنفس أسلوب [notifyReportCreated] عند رفع تقرير).
+  Future<void> notifySummerTestCreated({
+    required String teacherName,
+    required String levelName,
+    required String subjectName,
+    required String mosqueId,
+  }) async {
+    await _firestore.collection(_collection).add({
+      'type': 'summer_test_created',
+      'audienceRole': 'supervisor',
+      'targetMosqueId': mosqueId,
+      'title': 'اختبار جديد (المركز الصيفي)',
+      'body':
+          'أنشأت $teacherName اختباراً جديداً في مادة "$subjectName" – مستوى "$levelName"',
+      'senderName': teacherName,
+      'createdAt': DateTime.now().toIso8601String(),
+      'readBy': <String>[],
+    });
+  }
+
+  /// إشعار شخصي للمعلمة عند إسناد المشرفة لها مستوى/مادة جديدة في المركز
+  /// الصيفي. [levelSubjectLabels] كل عنصر بصيغة "المستوى - المادة" — تُجمع
+  /// كل الأزواج المُسنَدة دفعة واحدة (من شاشة الإسناد) في إشعار واحد بدل
+  /// تكرار إشعار مستقل لكل زوج.
+  Future<void> notifySummerAssignmentCreated({
+    required String teacherUid,
+    required String teacherName,
+    required String supervisorName,
+    required String mosqueId,
+    required List<String> levelSubjectLabels,
+  }) async {
+    if (levelSubjectLabels.isEmpty) return;
+    await _firestore.collection(_collection).add({
+      'type': 'summer_assignment_created',
+      'audienceRole': 'teacher',
+      'targetMosqueId': mosqueId,
+      'recipientUid': teacherUid,
+      'title': 'إسناد جديد (المركز الصيفي)',
+      'body': 'أسندتك $supervisorName إلى: ${levelSubjectLabels.join('، ')}',
+      'senderName': supervisorName,
+      'createdAt': DateTime.now().toIso8601String(),
+      'readBy': <String>[],
+    });
+  }
+
+  /// إشعار شخصي للمعلمة عند تعديل أو حذف المشرفة لسؤال داخل أحد اختباراتها
+  /// — [action] إما 'edited' أو 'deleted' فقط، ويحدَّد بنفس الشرط المستخدَم
+  /// أصلاً لتسجيل auditLog (فقط عندما تكون الفاعلة مشرفة، لا المعلمة نفسها).
+  Future<void> notifySummerTestReviewed({
+    required String teacherUid,
+    required String testTitle,
+    required String supervisorName,
+    required String mosqueId,
+    required String action,
+  }) async {
+    final isDelete = action == 'deleted';
+    final safeTitle = testTitle.trim().isEmpty ? 'بلا عنوان' : testTitle.trim();
+    await _firestore.collection(_collection).add({
+      'type': 'summer_test_reviewed',
+      'audienceRole': 'teacher',
+      'targetMosqueId': mosqueId,
+      'recipientUid': teacherUid,
+      'title': isDelete ? 'حذف سؤال من اختبارك' : 'تعديل من المشرفة على اختبارك',
+      'body': isDelete
+          ? 'حذفت $supervisorName سؤالاً من اختبار "$safeTitle"'
+          : 'عدّلت $supervisorName سؤالاً في اختبار "$safeTitle"',
+      'senderName': supervisorName,
+      'createdAt': DateTime.now().toIso8601String(),
+      'readBy': <String>[],
+    });
+  }
 }

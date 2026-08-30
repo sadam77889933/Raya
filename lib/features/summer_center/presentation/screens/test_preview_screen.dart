@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -38,14 +40,27 @@ class TestPreviewScreen extends ConsumerWidget {
     if (test == null) return null;
     try {
       final mosques = ref.read(activeMosquesProvider);
-      final mosqueName = mosques.where((m) => m.id == center.mosqueId).map((m) => m.name).firstOrNull ?? '';
+      final mosque = mosques.where((m) => m.id == center.mosqueId).firstOrNull;
+
+      Uint8List? headerLogoBytes;
+      if (mosque?.headerLogoBase64 != null && mosque!.headerLogoBase64!.isNotEmpty) {
+        try {
+          headerLogoBytes = base64Decode(mosque.headerLogoBase64!);
+        } catch (_) {
+          // شعار تالف أو غير صالح: نتجاهله ونترك مكانه فارغاً
+        }
+      }
+
       return await SummerTestPdfGenerator.generate(
         test: test,
         questions: questions,
         centerName: center.name,
-        mosqueName: mosqueName,
+        mosqueName: mosque?.name ?? '',
         levelName: level.name,
         subjectName: subject.name,
+        rightHeaderText: mosque?.rightHeaderText,
+        leftHeaderText: mosque?.leftHeaderText,
+        headerLogoBytes: headerLogoBytes,
       );
     } catch (e) {
       if (context.mounted) {
@@ -200,13 +215,13 @@ class _PreviewQuestion extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _qLine('$index. ${question.questionText}. (   )'),
+            _qLine('$index. ${question.questionText}.'),
             Padding(
               padding: const EdgeInsets.only(right: 14, top: 4),
               child: Row(
                 children: [
                   _tfBox('صح'),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 20),
                   _tfBox('خطأ'),
                 ],
               ),
@@ -304,11 +319,16 @@ class _PreviewQuestion extends StatelessWidget {
     return Text(text, style: const TextStyle(fontFamily: 'Tajawal', fontSize: 12.5, fontWeight: FontWeight.w700));
   }
 
+  // كلمة الخيار يليها قوس فارغ (تماماً كما في ملف PDF المُصدَّر) بدل صندوق
+  // محاط بالكلمة — بلا أي حدود.
   Widget _tfBox(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-      decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade600), borderRadius: BorderRadius.circular(4)),
-      child: Text(label, style: const TextStyle(fontFamily: 'Tajawal', fontSize: 11)),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label, style: const TextStyle(fontFamily: 'Tajawal', fontSize: 12, fontWeight: FontWeight.w700)),
+        const SizedBox(width: 6),
+        const Text('(        )', style: TextStyle(fontFamily: 'Tajawal', fontSize: 13)),
+      ],
     );
   }
 }

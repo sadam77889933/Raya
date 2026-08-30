@@ -1,13 +1,18 @@
-/// إشعار داخل التطبيق — ثلاثة أنواع:
+/// إشعار داخل التطبيق:
 /// 1. تلقائي: معلمة رفعت تقريراً (تراه المشرفات)
 /// 2. رسالة يدوية: مشرفة تُرسل تذكيراً للمعلمات
 /// 3. نقل طالبة: يصل حصراً لمعلمة الحلقة السابقة، ومعلمة الحلقة الجديدة
 ///    (عبر [recipientUid])، وللمشرف العام (عبر audienceRole+targetMosqueId
 ///    فقط بلا recipientUid، لأن المشرف العام ليس "مستخدماً واحداً" بمعنى
 ///    مطالبة كل مشرف عام مستقبلي برؤية نفس الإشعار).
+/// 4. المركز الصيفي (مستقلة تماماً عن نظام الحلقات): 'summer_test_created'
+///    (معلمة أنشأت اختباراً → تصل للمشرفات)، 'summer_assignment_created'
+///    (مشرفة أسندت مستوى/مادة → تصل شخصياً لتلك المعلمة عبر recipientUid)،
+///    و'summer_test_reviewed' (مشرفة عدّلت/حذفت سؤالاً في اختبار معلمة →
+///    تصل شخصياً لصاحبة الاختبار عبر recipientUid).
 class AppNotification {
   final String id;
-  final String type; // 'report_created' | 'custom_message' | 'student_transfer'
+  final String type; // 'report_created' | 'custom_message' | 'student_transfer' | 'summer_test_created' | 'summer_assignment_created' | 'summer_test_reviewed'
   final String audienceRole; // 'supervisor' | 'teacher'
   final String? targetMosqueId; // null = يشمل كل المساجد
   final String? recipientUid; // null = موجَّه بحسب audienceRole+targetMosqueId فقط، وليس لمستخدم واحد بعينه

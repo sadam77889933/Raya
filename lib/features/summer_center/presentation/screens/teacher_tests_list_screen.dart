@@ -8,6 +8,7 @@ import '../../domain/entities/summer_center.dart';
 import '../../domain/entities/summer_level.dart';
 import '../../domain/entities/summer_subject.dart';
 import '../../domain/entities/summer_test.dart';
+import '../../../notifications/presentation/providers/notification_provider.dart';
 import '../providers/summer_center_provider.dart';
 import '../providers/summer_test_provider.dart';
 import 'test_editor_screen.dart';
@@ -47,6 +48,18 @@ class TeacherTestsListScreen extends ConsumerWidget {
       hijriMonth: hijriMonth,
       hijriYear: hijriYear,
     );
+
+    // إشعار تلقائي لمشرفات المسجد — فشل الإشعار لا يجب أن يمنع فتح شاشة
+    // الاختبار الجديد الذي أُنشئ فعلاً (نفس مبدأ notifyReportCreated).
+    try {
+      await ref.read(notificationServiceProvider).notifySummerTestCreated(
+            teacherName: teacherName,
+            levelName: level.name,
+            subjectName: subject.name,
+            mosqueId: center.mosqueId,
+          );
+    } catch (_) {}
+
     if (!context.mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(

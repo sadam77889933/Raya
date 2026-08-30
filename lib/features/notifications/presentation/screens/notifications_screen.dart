@@ -139,6 +139,12 @@ class _NotificationCard extends StatelessWidget {
         return Icons.description_rounded;
       case 'student_transfer':
         return Icons.compare_arrows_rounded;
+      case 'summer_test_created':
+        return Icons.quiz_rounded;
+      case 'summer_assignment_created':
+        return Icons.assignment_ind_rounded;
+      case 'summer_test_reviewed':
+        return Icons.rate_review_rounded;
       default:
         return Icons.campaign_rounded;
     }
@@ -150,6 +156,10 @@ class _NotificationCard extends StatelessWidget {
         return AppTheme.primaryGreen;
       case 'student_transfer':
         return AppTheme.goldAccent;
+      case 'summer_test_created':
+      case 'summer_assignment_created':
+      case 'summer_test_reviewed':
+        return AppTheme.goldAccent;
       default:
         return AppTheme.lightGreen;
     }
@@ -160,9 +170,11 @@ class _NotificationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // "من: ..." يُعرض لكل الأنواع ما عدا إشعار رفع التقرير التلقائي، الذي
-    // لا يحمل مُرسِلاً بالمعنى نفسه (اسم المعلمة موجود أصلاً داخل نص الرسالة).
-    final showSender = notification.type != 'report_created';
+    // "من: ..." يُعرض لكل الأنواع ما عدا الإشعارات التلقائية التي يكون
+    // اسم الفاعلة مذكوراً أصلاً داخل نص الرسالة نفسه (رفع تقرير، أو إنشاء
+    // اختبار في المركز الصيفي).
+    final showSender = notification.type != 'report_created' &&
+        notification.type != 'summer_test_created';
 
     return InkWell(
       onTap: onTap,

@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +16,7 @@ import '../../domain/entities/summer_subject.dart';
 import '../../domain/entities/summer_test.dart';
 import '../../domain/entities/summer_test_question.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
+import '../../../notifications/presentation/providers/notification_provider.dart';
 import '../providers/summer_center_provider.dart';
 import '../providers/summer_test_provider.dart';
 import '../widgets/question_editor_sheet.dart';
@@ -68,9 +71,26 @@ class TestEditorScreen extends ConsumerWidget {
     await showQuestionEditorSheet(context, testId: testId, order: nextOrder);
   }
 
+  /// إشعار شخصي للمعلمة عند تعديل/حذف المشرفة سؤالاً في اختبارها — فقط
+  /// عندما تكون الفاعلة مشرفة ([isSupervisorView])، بنفس الشرط المستخدَم
+  /// أصلاً لتسجيل auditLog. فشل الإشعار لا يجب أن يمنع نجاح العملية نفسها.
+  Future<void> _notifyReviewIfSupervisor(WidgetRef ref, SummerTest test, String action) async {
+    if (!isSupervisorView) return;
+    try {
+      await ref.read(notificationServiceProvider).notifySummerTestReviewed(
+            teacherUid: test.teacherId,
+            testTitle: test.title,
+            supervisorName: currentName,
+            mosqueId: center.mosqueId,
+            action: action,
+          );
+    } catch (_) {}
+  }
+
   Future<void> _showQuestionMenu(
     BuildContext context,
     WidgetRef ref,
+    SummerTest test,
     List<SummerTestQuestion> questions,
     int index,
   ) async {
@@ -117,13 +137,14 @@ class TestEditorScreen extends ConsumerWidget {
 
     switch (action) {
       case 'edit':
-        await showQuestionEditorSheet(
+        final saved = await showQuestionEditorSheet(
           context,
           testId: testId,
           existing: question,
           auditedByUid: isSupervisorView ? currentUid : null,
           auditedByName: isSupervisorView ? currentName : null,
         );
+        if (saved) await _notifyReviewIfSupervisor(ref, test, 'edited');
         break;
       case 'up':
         final prev = questions[index - 1];
@@ -163,6 +184,7 @@ class TestEditorScreen extends ConsumerWidget {
             byUid: currentUid,
             byName: currentName,
           );
+          await _notifyReviewIfSupervisor(ref, test, 'deleted');
         }
         break;
     }
@@ -171,14 +193,30 @@ class TestEditorScreen extends ConsumerWidget {
   Future<String?> _generatePdf(BuildContext context, WidgetRef ref, SummerTest test, List<SummerTestQuestion> questions) async {
     try {
       final mosques = ref.read(activeMosquesProvider);
-      final mosqueName = mosques.where((m) => m.id == center.mosqueId).map((m) => m.name).firstOrNull ?? '';
+      final mosque = mosques.where((m) => m.id == center.mosqueId).firstOrNull;
+
+      // نفس ترويسة تقرير الحلقة الشهري تماماً — شعار المسجد اختياري
+      // (يُتجاهَل بصمت إن كان تالفاً بدل تعطيل تصدير الاختبار كله)، بنفس
+      // أسلوب pdf_export_screen.dart حرفياً.
+      Uint8List? headerLogoBytes;
+      if (mosque?.headerLogoBase64 != null && mosque!.headerLogoBase64!.isNotEmpty) {
+        try {
+          headerLogoBytes = base64Decode(mosque.headerLogoBase64!);
+        } catch (_) {
+          // شعار تالف أو غير صالح: نتجاهله ونترك مكانه فارغاً
+        }
+      }
+
       return await SummerTestPdfGenerator.generate(
         test: test,
         questions: questions,
         centerName: center.name,
-        mosqueName: mosqueName,
+        mosqueName: mosque?.name ?? '',
         levelName: level.name,
         subjectName: subject.name,
+        rightHeaderText: mosque?.rightHeaderText,
+        leftHeaderText: mosque?.leftHeaderText,
+        headerLogoBytes: headerLogoBytes,
       );
     } catch (e) {
       if (context.mounted) {
@@ -311,7 +349,7 @@ class TestEditorScreen extends ConsumerWidget {
                               itemBuilder: (context, i) => _QuestionCard(
                                 index: i,
                                 question: questions[i],
-                                onMenu: () => _showQuestionMenu(context, ref, questions, i),
+                                onMenu: () => _showQuestionMenu(context, ref, test, questions, i),
                               ),
                             ),
                     ),
