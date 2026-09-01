@@ -348,9 +348,12 @@ class NotificationService {
     required String supervisorName,
     required String mosqueId,
     required String action,
+    required String levelName,
+    required String subjectName,
   }) async {
     final isDelete = action == 'deleted';
     final safeTitle = testTitle.trim().isEmpty ? 'بلا عنوان' : testTitle.trim();
+    final location = 'مادة "$subjectName" – مستوى "$levelName"';
     await _firestore.collection(_collection).add({
       'type': 'summer_test_reviewed',
       'audienceRole': 'teacher',
@@ -358,8 +361,8 @@ class NotificationService {
       'recipientUid': teacherUid,
       'title': isDelete ? 'حذف سؤال من اختبارك' : 'تعديل من المشرفة على اختبارك',
       'body': isDelete
-          ? 'حذفت $supervisorName سؤالاً من اختبار "$safeTitle"'
-          : 'عدّلت $supervisorName سؤالاً في اختبار "$safeTitle"',
+          ? 'حذفت $supervisorName سؤالاً من اختبار "$safeTitle" ($location)'
+          : 'عدّلت $supervisorName سؤالاً في اختبار "$safeTitle" ($location)',
       'senderName': supervisorName,
       'createdAt': DateTime.now().toIso8601String(),
       'readBy': <String>[],

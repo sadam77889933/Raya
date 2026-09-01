@@ -83,6 +83,8 @@ class TestEditorScreen extends ConsumerWidget {
             supervisorName: currentName,
             mosqueId: center.mosqueId,
             action: action,
+            levelName: level.name,
+            subjectName: subject.name,
           );
     } catch (_) {}
   }
