@@ -18,6 +18,7 @@ import '../../../student_transfer/presentation/screens/transfer_history_screen.d
 import '../../../student_transfer/presentation/screens/transfer_student_screen.dart';
 import '../../../roster_report/presentation/screens/roster_report_screen.dart';
 import '../../../summer_center/presentation/screens/summer_center_screen.dart';
+import '../../../certificates/presentation/screens/certificates_home_screen.dart';
 class MosqueSupervisorDashboardScreen extends ConsumerWidget {
   const MosqueSupervisorDashboardScreen({super.key});
 
@@ -272,7 +273,18 @@ class MosqueSupervisorDashboardScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 14),
-            ],
+
+              _DashboardCard(
+                icon: Icons.workspace_premium_rounded,
+                title: 'الشهادات',
+                subtitle: 'إصدار شهادات شكر وتقدير لطالبات مسجدك دفعة واحدة',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const CertificatesHomeScreen(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
               _DashboardCard(
                 icon: Icons.calendar_month_rounded,
                 title: 'الرسائل المجدولة',
@@ -284,6 +296,7 @@ class MosqueSupervisorDashboardScreen extends ConsumerWidget {
                   ),
                 ),
               ),
+            ],
             const SizedBox(height: 30),
             Center(
               child: Text(

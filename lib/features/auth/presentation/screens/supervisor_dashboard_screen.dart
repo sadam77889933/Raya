@@ -16,6 +16,7 @@ import '../../../student_transfer/presentation/screens/transfer_history_screen.d
 import '../../../student_transfer/presentation/screens/transfer_student_screen.dart';
 import '../../../roster_report/presentation/screens/roster_report_screen.dart';
 import '../../../summer_center/presentation/screens/summer_center_screen.dart';
+import '../../../certificates/presentation/screens/certificates_home_screen.dart';
 
 class SupervisorDashboardScreen extends ConsumerWidget {
   const SupervisorDashboardScreen({super.key});
@@ -215,6 +216,17 @@ class SupervisorDashboardScreen extends ConsumerWidget {
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => const SummerCenterScreen(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _DashboardCard(
+              icon: Icons.workspace_premium_rounded,
+              title: 'الشهادات',
+              subtitle: 'إصدار شهادات شكر وتقدير لطالبات أي مسجد دفعة واحدة',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const CertificatesHomeScreen(),
                 ),
               ),
             ),
