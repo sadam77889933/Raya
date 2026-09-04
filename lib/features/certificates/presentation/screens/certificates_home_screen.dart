@@ -17,6 +17,7 @@ import '../../domain/entities/certificate_batch.dart';
 import '../../domain/entities/certificate_render_data.dart';
 import '../providers/certificate_history_provider.dart';
 import '../providers/certificate_recipients_provider.dart';
+import '../providers/certificate_template_layout_provider.dart';
 import '../widgets/certificate_batch_history_tile.dart';
 import 'certificate_wizard_screen.dart';
 import 'manage_certificate_templates_screen.dart';
@@ -118,10 +119,16 @@ class _CertificatesHomeScreenState extends ConsumerState<CertificatesHomeScreen>
           .where((m) => m.id == batch.mosqueId)
           .firstOrNull;
 
+      // نفس التخطيط المخصَّص المستخدَم عند الإنشاء الأول (إن وُجد) — حتى
+      // تُطابق إعادة المشاركة الشكل الحالي الفعلي للقالب لهذا المسجد.
+      final customLayout = await ref.read(certificateTemplateLayoutProvider(
+              (mosqueId: batch.mosqueId, templateId: template.id))
+          .future);
       final bytes = await CertificatePdfGenerator.generate(
         template: template,
         recipients: recipients,
         mosqueStampBase64: mosque?.stampBase64,
+        customLayout: customLayout,
       );
 
       if (!mounted) return;

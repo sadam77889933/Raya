@@ -24,6 +24,7 @@ import '../../domain/entities/certificate_render_data.dart';
 import '../../domain/entities/certificate_template.dart';
 import '../providers/certificate_history_provider.dart';
 import '../providers/certificate_recipients_provider.dart';
+import '../providers/certificate_template_layout_provider.dart';
 import '../providers/certificate_wizard_provider.dart';
 import '../widgets/certificate_template_card.dart';
 
@@ -445,7 +446,7 @@ class _CertificateWizardScreenState
         .firstOrNull;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadPreview(template, recipients[index], mosque);
+      _loadPreview(template, recipients[index], mosque, mosqueId);
     });
 
     return Column(
@@ -503,14 +504,21 @@ class _CertificateWizardScreenState
   }
 
   Future<void> _loadPreview(CertificateTemplateDefinition template,
-      CertificateRenderData recipient, Mosque? mosque) async {
+      CertificateRenderData recipient, Mosque? mosque, String mosqueId) async {
     if (_previewBytes != null || _isLoadingPreview) return;
     setState(() => _isLoadingPreview = true);
     try {
+      // معاينة WYSIWYG حقيقية: نجلب تخطيط المسجد المخصَّص لهذا القالب
+      // (إن وُجد — "المرحلة الثانية" من محرر مواضع الحقول) فتُظهر
+      // المعاينة بالضبط ما سيصدر فعلاً، لا المواضع الافتراضية دوماً.
+      final customLayout = await ref.read(certificateTemplateLayoutProvider(
+              (mosqueId: mosqueId, templateId: template.id))
+          .future);
       final bytes = await CertificatePdfGenerator.generate(
         template: template,
         recipients: [recipient],
         mosqueStampBase64: mosque?.stampBase64,
+        customLayout: customLayout,
       );
       if (!mounted) return;
       setState(() {
@@ -656,10 +664,16 @@ class _CertificateWizardScreenState
         contextLabel = circleNames.length == 1 ? circleNames.first : null;
       }
 
+      // نفس التخطيط المخصَّص المستخدَم في المعاينة (إن وُجد) — حتى تُطابق
+      // الشهادة الفعلية المُصدَرة ما ظهر للمشرفة في خطوة المعاينة تماماً.
+      final customLayout = await ref.read(certificateTemplateLayoutProvider(
+              (mosqueId: mosqueId, templateId: template.id))
+          .future);
       final bytes = await CertificatePdfGenerator.generate(
         template: template,
         recipients: recipients,
         mosqueStampBase64: mosque?.stampBase64,
+        customLayout: customLayout,
       );
 
       await ref.read(certificateRepositoryProvider).create(

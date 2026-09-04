@@ -7,7 +7,55 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../domain/entities/certificate_render_data.dart';
 import '../domain/entities/certificate_template.dart';
+import '../domain/entities/certificate_template_layout.dart';
 import 'templates/certificate_generic_template_renderer.dart';
+
+/// يدمج تخطيط مسجد مخصَّص (إن وُجد — "المرحلة الثانية"، القسم ١٣ من
+/// تصميم الميزة) فوق المواضع الثابتة للقالب الأساسي: يستبدل فقط `dx/dy`
+/// لكل حقل (يبقى الخط/اللون/الحجم من القالب الأساسي كما هو — لم تُضَف
+/// خاصية تخصيص الخط بعد)، ويُسقِط أي حقل مُعطَّل الإظهار تماماً من
+/// القائمة النهائية. القالب الأساسي نفسه لا يتغيّر أبداً؛ هذا الدمج
+/// يحدث فقط لحظة التوليد، محلياً في هذه الدالة.
+List<CertificateFieldPosition> _mergeFieldPositions(
+  List<CertificateFieldPosition> baseFields,
+  CertificateTemplateLayout? customLayout,
+) {
+  if (customLayout == null) return baseFields;
+  final merged = <CertificateFieldPosition>[];
+  for (final f in baseFields) {
+    final override = customLayout.layoutFor(f.field);
+    if (override == null) {
+      merged.add(f);
+      continue;
+    }
+    if (!override.visible) continue;
+    merged.add(CertificateFieldPosition(
+      field: f.field,
+      dx: override.dx,
+      dy: override.dy,
+      fontSize: f.fontSize,
+      color: f.color,
+      bold: f.bold,
+      maxWidthRatio: f.maxWidthRatio,
+    ));
+  }
+  return merged;
+}
+
+CertificateStampPosition? _mergeStampPosition(
+  CertificateStampPosition? baseStamp,
+  CertificateTemplateLayout? customLayout,
+) {
+  if (baseStamp == null) return null;
+  final override = customLayout?.stamp;
+  if (override == null) return baseStamp;
+  if (!override.visible) return null;
+  return CertificateStampPosition(
+    dx: override.dx,
+    dy: override.dy,
+    widthRatio: baseStamp.widthRatio,
+  );
+}
 
 /// يولّد ملف PDF متعدد الصفحات (صفحة واحدة لكل مستفيد) من قالب شهادة
 /// واحد — توليد Bytes مباشرة (بلا `dart:io File`) كبقية مولّدات الميزة
@@ -18,6 +66,7 @@ class CertificatePdfGenerator {
     required CertificateTemplateDefinition template,
     required List<CertificateRenderData> recipients,
     String? mosqueStampBase64,
+    CertificateTemplateLayout? customLayout,
   }) async {
     final regularData =
         await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
@@ -47,6 +96,11 @@ class CertificatePdfGenerator {
     final pageWidth = pageFormat.height; // landscape: العرض = ارتفاع A4
     final pageHeight = pageFormat.width; // landscape: الارتفاع = عرض A4
 
+    final effectiveFields =
+        _mergeFieldPositions(template.fixedFields, customLayout);
+    final effectiveStamp =
+        _mergeStampPosition(template.stampPosition, customLayout);
+
     final doc = pw.Document();
 
     for (final recipient in recipients) {
@@ -56,11 +110,11 @@ class CertificatePdfGenerator {
           margin: pw.EdgeInsets.zero,
           build: (context) => buildGenericCertificatePage(
             backgroundImage: bgImage,
-            fields: template.fixedFields,
+            fields: effectiveFields,
             recipient: recipient,
             font: font,
             boldFont: boldFont,
-            stampPosition: template.stampPosition,
+            stampPosition: effectiveStamp,
             stampImage: stampImage,
             pageWidth: pageWidth,
             pageHeight: pageHeight,
