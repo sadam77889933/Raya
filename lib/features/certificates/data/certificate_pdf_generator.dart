@@ -117,6 +117,7 @@ class CertificatePdfGenerator {
             boldFonts: boldFonts,
             stampPosition: effectiveStamp,
             stampImage: stampImage,
+            eraseRegions: customLayout?.eraseRegions ?? const [],
             customTexts: customLayout?.customTexts ?? const [],
             pageWidth: pageWidth,
             pageHeight: pageHeight,

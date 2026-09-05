@@ -7,11 +7,13 @@ import '../../domain/entities/certificate_template.dart';
 import '../../domain/entities/certificate_template_layout.dart';
 
 /// محرِّك رسم واحد مُشترَك لكل القوالب الأساسية دون استثناء: يرسم صورة
-/// الخلفية كاملة الصفحة، ثم يضع فوقها نص كل حقل في [fields] بموضعه
-/// المحسوب (بخطه المخصَّص من [regularFonts]/[boldFonts] — القسم ١٣ من
-/// تصميم الميزة)، ثم أي عناصر نص حرّ في [customTexts] (لا حقل بيانات
-/// مرتبط بها، نص وموضع حرّان بالكامل)، ثم يرسم صورة الختم (إن وُجدت) فوق
-/// موضعها.
+/// الخلفية كاملة الصفحة، ثم يغطي أي مناطق في [eraseRegions] بمستطيل
+/// مصمت (أداة "مسح نص من القالب" العامة — يُخفي نصاً مطبوعاً ضمن صورة
+/// الخلفية نفسها دون تعديل ملف الصورة الأصلي)، ثم يضع فوقها نص كل حقل في
+/// [fields] بموضعه المحسوب (بخطه المخصَّص من [regularFonts]/[boldFonts]
+/// — القسم ١٣ من تصميم الميزة)، ثم أي عناصر نص حرّ في [customTexts] (لا
+/// حقل بيانات مرتبط بها، نص وموضع حرّان بالكامل)، ثم يرسم صورة الختم (إن
+/// وُجدت) فوق موضعها.
 ///
 /// لا حاجة لملف رسم منفصل لكل قالب — فقط بيانات مواضع + صورة، بالضبط كما
 /// هو موثَّق في تصميم الميزة (القسم ٣-أ).
@@ -23,6 +25,7 @@ pw.Widget buildGenericCertificatePage({
   required Map<CertificateFontFamily, pw.Font> boldFonts,
   CertificateStampPosition? stampPosition,
   pw.MemoryImage? stampImage,
+  List<CertificateEraseRegion> eraseRegions = const [],
   List<CertificateCustomTextElement> customTexts = const [],
   required double pageWidth,
   required double pageHeight,
@@ -38,6 +41,25 @@ pw.Widget buildGenericCertificatePage({
       ),
     ),
   ];
+
+  // مناطق تغطية النص المطبوع ضمن صورة الخلفية — تُرسَم مباشرة فوق الخلفية
+  // وقبل أي حقل/نص آخر، حتى تبقى الحقول والنصوص الحرة مرئية فوقها لو
+  // وُضعت عمداً في نفس المكان.
+  for (final r in eraseRegions) {
+    final boxWidth = r.width * pageWidth;
+    final boxHeight = r.height * pageHeight;
+    children.add(
+      pw.Positioned(
+        left: (r.dx * pageWidth) - (boxWidth / 2),
+        top: (r.dy * pageHeight) - (boxHeight / 2),
+        child: pw.Container(
+          width: boxWidth,
+          height: boxHeight,
+          color: PdfColor.fromInt(r.colorValue),
+        ),
+      ),
+    );
+  }
 
   for (final f in fields) {
     final value = _resolveFieldValue(f.field, recipient);

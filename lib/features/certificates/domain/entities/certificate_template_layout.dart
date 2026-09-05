@@ -223,6 +223,80 @@ class CertificateCustomTextElement extends Equatable {
       [id, text, dx, dy, fontFamily, fontColorValue, fontSize];
 }
 
+/// منطقة تغطية مستطيلة فوق صورة خلفية القالب — أداة "مسح نص من القالب"
+/// العامة: تُخفي أي نص مطبوع ضمن صورة الخلفية نفسها (لا حقل بيانات ولا
+/// نص حرّ، بل جزء من الصورة) عبر رسم مستطيل مصمت بلون يطابق الخلفية
+/// المحيطة فوقه وقت العرض/التصدير فقط — بلا أي تعديل فعلي على ملف صورة
+/// القالب الأساسي نفسه، الذي يبقى مشتركاً وسليماً لكل المساجد الأخرى.
+/// كل مسجد يملك قائمته الخاصة من مناطق التغطية ضمن مستنده هو فقط.
+class CertificateEraseRegion extends Equatable {
+  final String id;
+
+  /// مركز المنطقة أفقياً/رأسياً — نسبة 0.0-1.0 من أبعاد الشهادة، بنفس
+  /// فكرة dx/dy في كل العناصر الأخرى.
+  final double dx;
+  final double dy;
+
+  /// عرض/ارتفاع المنطقة كنسبة 0.0-1.0 من أبعاد الشهادة (لا بالبكسل
+  /// المطلق)، فتحافظ على نفس الحجم النسبي عند التصدير لأي حجم صفحة.
+  final double width;
+  final double height;
+
+  /// لون التغطية كقيمة ARGB (`Color.value`) — أبيض افتراضياً (أكثر لون
+  /// شائع لخلفيات الشهادات)، يُعدَّل عادة عبر القطّارة لمطابقة الخلفية
+  /// الفعلية المحيطة بالنص المراد إخفاؤه.
+  final int colorValue;
+
+  const CertificateEraseRegion({
+    required this.id,
+    required this.dx,
+    required this.dy,
+    this.width = 0.2,
+    this.height = 0.06,
+    this.colorValue = 0xFFFFFFFF,
+  });
+
+  CertificateEraseRegion copyWith({
+    double? dx,
+    double? dy,
+    double? width,
+    double? height,
+    int? colorValue,
+  }) {
+    return CertificateEraseRegion(
+      id: id,
+      dx: dx ?? this.dx,
+      dy: dy ?? this.dy,
+      width: width ?? this.width,
+      height: height ?? this.height,
+      colorValue: colorValue ?? this.colorValue,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'dx': dx,
+        'dy': dy,
+        'width': width,
+        'height': height,
+        'colorValue': colorValue,
+      };
+
+  factory CertificateEraseRegion.fromJson(Map<String, dynamic> json) {
+    return CertificateEraseRegion(
+      id: json['id'] as String? ?? '',
+      dx: _numOr(json['dx'], 0.5),
+      dy: _numOr(json['dy'], 0.5),
+      width: _numOr(json['width'], 0.2),
+      height: _numOr(json['height'], 0.06),
+      colorValue: (json['colorValue'] as num?)?.toInt() ?? 0xFFFFFFFF,
+    );
+  }
+
+  @override
+  List<Object?> get props => [id, dx, dy, width, height, colorValue];
+}
+
 /// تخطيط مخصَّص كامل لقالب أساسي واحد، خاص بمسجد واحد — مستند Firestore
 /// واحد في مجموعة `certificate_templates` (القسم ١٣ من تصميم الميزة)،
 /// بمعرّف حتمي `<mosqueId>_<baseTemplateId>` (قراءة/كتابة مباشرة بلا
@@ -237,6 +311,11 @@ class CertificateTemplateLayout extends Equatable {
   final List<CertificateFieldLayout> fields;
   final CertificateStampLayout? stamp;
 
+  /// مناطق تغطية النص المطبوع ضمن صورة الخلفية نفسها — قائمة مفتوحة،
+  /// افتراضياً فارغة، تُرسَم فوق الخلفية مباشرة وقبل كل الحقول/النصوص
+  /// الأخرى (أداة "مسح نص من القالب" العامة).
+  final List<CertificateEraseRegion> eraseRegions;
+
   /// عناصر النص الحرّ المضافة يدوياً فوق هذا القالب لهذا المسجد — قائمة
   /// مفتوحة، افتراضياً فارغة (لا وجود لها في القالب الأساسي إطلاقاً).
   final List<CertificateCustomTextElement> customTexts;
@@ -248,6 +327,7 @@ class CertificateTemplateLayout extends Equatable {
     required this.baseTemplateId,
     required this.fields,
     this.stamp,
+    this.eraseRegions = const [],
     this.customTexts = const [],
     required this.updatedAt,
     required this.updatedByUid,
@@ -267,6 +347,7 @@ class CertificateTemplateLayout extends Equatable {
         'baseTemplateId': baseTemplateId,
         'fields': fields.map((f) => f.toJson()).toList(),
         if (stamp != null) 'stamp': stamp!.toJson(),
+        'eraseRegions': eraseRegions.map((r) => r.toJson()).toList(),
         'customTexts': customTexts.map((t) => t.toJson()).toList(),
         'updatedAt': updatedAt.toIso8601String(),
         'updatedByUid': updatedByUid,
@@ -279,6 +360,8 @@ class CertificateTemplateLayout extends Equatable {
       fields: _parseList(
           json['fields'], (e) => CertificateFieldLayout.fromJson(e)),
       stamp: _parseStamp(json['stamp']),
+      eraseRegions: _parseList(
+          json['eraseRegions'], (e) => CertificateEraseRegion.fromJson(e)),
       customTexts: _parseList(json['customTexts'],
           (e) => CertificateCustomTextElement.fromJson(e)),
       updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
@@ -321,6 +404,7 @@ class CertificateTemplateLayout extends Equatable {
         baseTemplateId,
         fields,
         stamp,
+        eraseRegions,
         customTexts,
         updatedAt,
         updatedByUid

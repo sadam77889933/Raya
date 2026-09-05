@@ -51,6 +51,12 @@ const double _minCustomFontSize = 10;
 const double _maxCustomFontSize = 72;
 const double _customFontSizeStep = 2;
 
+/// حدود عرض/ارتفاع منطقة تغطية النص — نسبة من أبعاد الشهادة (وليست
+/// بالبكسل المطلق)، بنفس منطق dx/dy لبقية العناصر.
+const double _minEraseSize = 0.02;
+const double _maxEraseSize = 0.95;
+const double _eraseSizeStep = 0.01;
+
 /// محرر مواضع حقول قالب أساسي واحد — الدفعة الثانية من "المرحلة الثانية"
 /// (القسم ١٣ من تصميم الميزة): **سحب حرّ + إظهار/إخفاء + تخصيص الخط**
 /// (النوع من خمسة خطوط مُجمَّعة، اللون بحرية كاملة — يدوياً عبر لوحة
@@ -119,6 +125,18 @@ class _CertificateTemplateEditorScreenState
   /// [CertificateField] مقابلة.
   String? _eyedropperCustomTextId;
 
+  /// مناطق تغطية النص المطبوع ضمن صورة الخلفية نفسها — أداة "مسح نص من
+  /// القالب" العامة (القسم ١٣). كل منطقة مستطيل مصمت مستقل تماماً (موضع
+  /// + حجم + لون خاص به)، بلا أي علاقة بحقول الشهادة أو النصوص الحرة.
+  late List<CertificateEraseRegion> _eraseRegions;
+
+  /// منطقة التغطية المفتوحة حالياً في لوحة تخصيصها — بنفس منطق
+  /// [_selectedField]/[_selectedCustomTextId] (لوحة واحدة كحد أقصى).
+  String? _selectedEraseRegionId;
+
+  /// منطقة التغطية التي تُطلَب قطّارة لون لها حالياً.
+  String? _eyedropperEraseRegionId;
+
   /// يبني حالة البداية من التخطيط المخصَّص المحفوظ (إن وُجد)، وإلا من
   /// المواضع الثابتة في القالب الأساسي نفسها — بحيث تبدأ المشرفة دائماً
   /// من الشكل الحالي الفعلي للشهادة، لا من نقطة صفر.
@@ -133,6 +151,8 @@ class _CertificateTemplateEditorScreenState
         ? null
         : (saved?.stamp ??
             CertificateStampLayout(dx: basePosition.dx, dy: basePosition.dy));
+
+    _eraseRegions = List.of(saved?.eraseRegions ?? const []);
 
     _customTexts = List.of(saved?.customTexts ?? const []);
     for (final controller in _customTextControllers.values) {
@@ -161,8 +181,10 @@ class _CertificateTemplateEditorScreenState
       _customTextControllers[id] = TextEditingController(text: element.text);
       _selectedCustomTextId = id;
       _selectedField = null;
+      _selectedEraseRegionId = null;
       _eyedropperTarget = null;
       _eyedropperCustomTextId = null;
+      _eyedropperEraseRegionId = null;
     });
   }
 
@@ -184,6 +206,39 @@ class _CertificateTemplateEditorScreenState
       _customTextControllers.remove(id)?.dispose();
       if (_selectedCustomTextId == id) _selectedCustomTextId = null;
       if (_eyedropperCustomTextId == id) _eyedropperCustomTextId = null;
+    });
+  }
+
+  void _addEraseRegion() {
+    final id = const Uuid().v4();
+    final region = CertificateEraseRegion(id: id, dx: 0.5, dy: 0.5);
+    setState(() {
+      _eraseRegions = [..._eraseRegions, region];
+      _selectedEraseRegionId = id;
+      _selectedField = null;
+      _selectedCustomTextId = null;
+      _eyedropperTarget = null;
+      _eyedropperCustomTextId = null;
+      _eyedropperEraseRegionId = null;
+    });
+  }
+
+  void _updateEraseRegion(
+    String id,
+    CertificateEraseRegion Function(CertificateEraseRegion current) update,
+  ) {
+    setState(() {
+      _eraseRegions = [
+        for (final r in _eraseRegions) r.id == id ? update(r) : r,
+      ];
+    });
+  }
+
+  void _removeEraseRegion(String id) {
+    setState(() {
+      _eraseRegions = _eraseRegions.where((r) => r.id != id).toList();
+      if (_selectedEraseRegionId == id) _selectedEraseRegionId = null;
+      if (_eyedropperEraseRegionId == id) _eyedropperEraseRegionId = null;
     });
   }
 
@@ -209,8 +264,10 @@ class _CertificateTemplateEditorScreenState
       _seedFrom(null);
       _selectedField = null;
       _selectedCustomTextId = null;
+      _selectedEraseRegionId = null;
       _eyedropperTarget = null;
       _eyedropperCustomTextId = null;
+      _eyedropperEraseRegionId = null;
     });
   }
 
@@ -300,6 +357,7 @@ class _CertificateTemplateEditorScreenState
       _loadingEyedropper = false;
       _eyedropperTarget = field;
       _eyedropperCustomTextId = null;
+      _eyedropperEraseRegionId = null;
     });
   }
 
@@ -312,12 +370,27 @@ class _CertificateTemplateEditorScreenState
       _loadingEyedropper = false;
       _eyedropperCustomTextId = id;
       _eyedropperTarget = null;
+      _eyedropperEraseRegionId = null;
+    });
+  }
+
+  /// نفس فكرة [_startEyedropper] تماماً، لكن لمنطقة تغطية بمعرّفها — تُستخدَم
+  /// عادة لالتقاط لون الخلفية النظيفة المجاورة للنص المراد إخفاؤه.
+  Future<void> _startEyedropperForEraseRegion(String id) async {
+    final loaded = await _ensureBgPixelsLoaded();
+    if (!loaded || !mounted) return;
+    setState(() {
+      _loadingEyedropper = false;
+      _eyedropperEraseRegionId = id;
+      _eyedropperTarget = null;
+      _eyedropperCustomTextId = null;
     });
   }
 
   void _cancelEyedropper() => setState(() {
         _eyedropperTarget = null;
         _eyedropperCustomTextId = null;
+        _eyedropperEraseRegionId = null;
       });
 
   /// تحوِّل نقطة الضغط على مساحة عرض الشهادة (بأبعاد [boxWidth]×[boxHeight])
@@ -327,7 +400,11 @@ class _CertificateTemplateEditorScreenState
   void _pickColorAt(Offset localPosition, double boxWidth, double boxHeight) {
     final field = _eyedropperTarget;
     final customTextId = _eyedropperCustomTextId;
-    if ((field == null && customTextId == null) || _bgPixels == null) return;
+    final eraseRegionId = _eyedropperEraseRegionId;
+    if ((field == null && customTextId == null && eraseRegionId == null) ||
+        _bgPixels == null) {
+      return;
+    }
     final px = ((localPosition.dx / boxWidth) * _bgPixelWidth!)
         .round()
         .clamp(0, _bgPixelWidth! - 1);
@@ -346,10 +423,14 @@ class _CertificateTemplateEditorScreenState
     } else if (customTextId != null) {
       _updateCustomText(
           customTextId, (c) => c.copyWith(fontColorValue: color.value));
+    } else if (eraseRegionId != null) {
+      _updateEraseRegion(
+          eraseRegionId, (c) => c.copyWith(colorValue: color.value));
     }
     setState(() {
       _eyedropperTarget = null;
       _eyedropperCustomTextId = null;
+      _eyedropperEraseRegionId = null;
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -366,7 +447,7 @@ class _CertificateTemplateEditorScreenState
               ),
             ),
             const SizedBox(width: 8),
-            const Text('تم التقاط اللون وتطبيقه على الحقل',
+            const Text('تم التقاط اللون وتطبيقه',
                 style: TextStyle(fontFamily: 'Tajawal')),
           ],
         ),
@@ -385,6 +466,7 @@ class _CertificateTemplateEditorScreenState
         baseTemplateId: widget.template.id,
         fields: _fieldLayouts.values.toList(),
         stamp: _stampLayout,
+        eraseRegions: _eraseRegions,
         customTexts: _customTexts,
         updatedAt: DateTime.now(),
         updatedByUid: user.uid,
@@ -456,6 +538,55 @@ class _CertificateTemplateEditorScreenState
     );
   }
 
+  /// مستطيل منطقة تغطية واحدة على القماشة — يُرسَم بحجمه ولونه الحقيقيين
+  /// (لا شريحة رمزية كـ[_buildDragChip]) حتى تُطابق المعاينة هنا الناتج
+  /// النهائي في PDF تماماً، قابل للسحب لأي موضع وللتحديد بالضغط لفتح لوحة
+  /// تعديل العرض/الارتفاع/اللون أسفل الشاشة.
+  Widget _buildEraseRegionBox({
+    required CertificateEraseRegion region,
+    required double width,
+    required double height,
+  }) {
+    final boxWidth = region.width * width;
+    final boxHeight = region.height * height;
+    final isSelected = _selectedEraseRegionId == region.id;
+    return Positioned(
+      left: (region.dx * width) - (boxWidth / 2),
+      top: (region.dy * height) - (boxHeight / 2),
+      child: GestureDetector(
+        onTap: () => setState(() {
+          _selectedEraseRegionId = isSelected ? null : region.id;
+          _selectedField = null;
+          _selectedCustomTextId = null;
+          _eyedropperTarget = null;
+          _eyedropperCustomTextId = null;
+          _eyedropperEraseRegionId = null;
+        }),
+        onPanUpdate: (details) => setState(() {
+          final dx =
+              (region.dx + details.delta.dx / width).clamp(0.0, 1.0);
+          final dy =
+              (region.dy + details.delta.dy / height).clamp(0.0, 1.0);
+          _eraseRegions = [
+            for (final r in _eraseRegions)
+              r.id == region.id ? r.copyWith(dx: dx, dy: dy) : r,
+          ];
+        }),
+        child: Container(
+          width: boxWidth,
+          height: boxHeight,
+          decoration: BoxDecoration(
+            color: Color(region.colorValue),
+            border: Border.all(
+              color: isSelected ? AppTheme.goldAccent : Colors.black26,
+              width: isSelected ? 2.5 : 1,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final layoutAsync = ref.watch(certificateTemplateLayoutProvider(
@@ -480,6 +611,11 @@ class _CertificateTemplateEditorScreenState
       appBar: AppBar(
         title: Text(widget.template.displayName),
         actions: [
+          IconButton(
+            tooltip: 'إضافة منطقة تغطية (مسح نص من القالب)',
+            icon: const Icon(Icons.format_color_fill_rounded),
+            onPressed: _isSaving ? null : _addEraseRegion,
+          ),
           IconButton(
             tooltip: 'إضافة نص',
             icon: const Icon(Icons.add_box_rounded),
@@ -523,6 +659,12 @@ class _CertificateTemplateEditorScreenState
                             fit: BoxFit.fill,
                           ),
                         ),
+                        for (final region in _eraseRegions)
+                          _buildEraseRegionBox(
+                            region: region,
+                            width: width,
+                            height: height,
+                          ),
                         for (final layout in _fieldLayouts.values)
                           if (layout.visible)
                             _buildDragChip(
@@ -538,8 +680,10 @@ class _CertificateTemplateEditorScreenState
                                         ? null
                                         : layout.field;
                                 _selectedCustomTextId = null;
+                                _selectedEraseRegionId = null;
                                 _eyedropperTarget = null;
                                 _eyedropperCustomTextId = null;
+                                _eyedropperEraseRegionId = null;
                               }),
                               onDrag: (delta) => setState(() {
                                 final dx = (layout.dx + delta.dx / width)
@@ -579,8 +723,10 @@ class _CertificateTemplateEditorScreenState
                               _selectedCustomTextId =
                                   _selectedCustomTextId == t.id ? null : t.id;
                               _selectedField = null;
+                              _selectedEraseRegionId = null;
                               _eyedropperTarget = null;
                               _eyedropperCustomTextId = null;
+                              _eyedropperEraseRegionId = null;
                             }),
                             onDrag: (delta) => setState(() {
                               final dx =
@@ -596,7 +742,8 @@ class _CertificateTemplateEditorScreenState
                             }),
                           ),
                         if (_eyedropperTarget != null ||
-                            _eyedropperCustomTextId != null) ...[
+                            _eyedropperCustomTextId != null ||
+                            _eyedropperEraseRegionId != null) ...[
                           Positioned.fill(
                             child: GestureDetector(
                               behavior: HitTestBehavior.opaque,
@@ -680,6 +827,23 @@ class _CertificateTemplateEditorScreenState
                     }),
                     onReset: _resetStamp,
                   ),
+                if (_eraseRegions.isNotEmpty) ...[
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        'مناطق تغطية نص القالب',
+                        style: TextStyle(
+                            fontFamily: 'Tajawal',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.grey),
+                      ),
+                    ),
+                  ),
+                  for (final r in _eraseRegions) _buildEraseRegionRow(r),
+                ],
                 if (_customTexts.isNotEmpty) ...[
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8),
@@ -729,8 +893,10 @@ class _CertificateTemplateEditorScreenState
           onTap: () => setState(() {
             _selectedField = isSelected ? null : layout.field;
             _selectedCustomTextId = null;
+            _selectedEraseRegionId = null;
             _eyedropperTarget = null;
             _eyedropperCustomTextId = null;
+            _eyedropperEraseRegionId = null;
           }),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
@@ -918,14 +1084,15 @@ class _CertificateTemplateEditorScreenState
     required String valueLabel,
     required VoidCallback onDecrement,
     required VoidCallback onIncrement,
+    String label = 'الحجم',
   }) {
     return Row(
       children: [
-        const SizedBox(
+        SizedBox(
           width: 52,
-          child: Text('الحجم',
-              style:
-                  TextStyle(fontFamily: 'Tajawal', fontSize: 12, color: Colors.grey)),
+          child: Text(label,
+              style: const TextStyle(
+                  fontFamily: 'Tajawal', fontSize: 12, color: Colors.grey)),
         ),
         IconButton(
           tooltip: 'تصغير',
@@ -1116,8 +1283,10 @@ class _CertificateTemplateEditorScreenState
                 onPressed: () => setState(() {
                   _selectedCustomTextId = isSelected ? null : t.id;
                   _selectedField = null;
+                  _selectedEraseRegionId = null;
                   _eyedropperTarget = null;
                   _eyedropperCustomTextId = null;
+                  _eyedropperEraseRegionId = null;
                 }),
               ),
             ],
@@ -1126,6 +1295,117 @@ class _CertificateTemplateEditorScreenState
         if (isSelected) _buildCustomTextFontPanel(t),
         const Divider(height: 1),
       ],
+    );
+  }
+
+  /// صف منطقة تغطية واحدة في القائمة: حذف + تسمية مرقّمة + طيّ لوحة تعديل
+  /// العرض/الارتفاع/اللون. لا يوجد حقل نص ولا مفتاح إظهار/إخفاء هنا — منطقة
+  /// التغطية مجرد مستطيل مصمت، وحذفها هو ما يُعيد إظهار النص الأصلي خلفها.
+  Widget _buildEraseRegionRow(CertificateEraseRegion region) {
+    final isSelected = _selectedEraseRegionId == region.id;
+    final index = _eraseRegions.indexOf(region) + 1;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              IconButton(
+                tooltip: 'حذف',
+                icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                color: Colors.red.shade300,
+                onPressed: () => _removeEraseRegion(region.id),
+              ),
+              Expanded(
+                child: Text('منطقة تغطية $index',
+                    style:
+                        const TextStyle(fontFamily: 'Tajawal', fontSize: 14)),
+              ),
+              IconButton(
+                icon: Icon(
+                  isSelected
+                      ? Icons.expand_less_rounded
+                      : Icons.expand_more_rounded,
+                  size: 18,
+                  color: Colors.grey.shade400,
+                ),
+                onPressed: () => setState(() {
+                  _selectedEraseRegionId = isSelected ? null : region.id;
+                  _selectedField = null;
+                  _selectedCustomTextId = null;
+                  _eyedropperTarget = null;
+                  _eyedropperCustomTextId = null;
+                  _eyedropperEraseRegionId = null;
+                }),
+              ),
+            ],
+          ),
+        ),
+        if (isSelected) _buildEraseRegionPanel(region),
+        const Divider(height: 1),
+      ],
+    );
+  }
+
+  /// لوحة تعديل منطقة تغطية واحدة: عرض/ارتفاع (بأزرار −/+ نسبة من أبعاد
+  /// الشهادة) + نفس صف اللون المشترك المستخدَم للخط في اللوحات الأخرى —
+  /// عادة عبر القطّارة لالتقاط لون الخلفية النظيفة المجاورة للنص بدقة.
+  Widget _buildEraseRegionPanel(CertificateEraseRegion region) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryGreen.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _fontSizeStepperRow(
+            label: 'العرض',
+            valueLabel: '${(region.width * 100).round()}%',
+            onDecrement: () => _updateEraseRegion(
+              region.id,
+              (c) => c.copyWith(
+                  width: (c.width - _eraseSizeStep)
+                      .clamp(_minEraseSize, _maxEraseSize)),
+            ),
+            onIncrement: () => _updateEraseRegion(
+              region.id,
+              (c) => c.copyWith(
+                  width: (c.width + _eraseSizeStep)
+                      .clamp(_minEraseSize, _maxEraseSize)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          _fontSizeStepperRow(
+            label: 'الارتفاع',
+            valueLabel: '${(region.height * 100).round()}%',
+            onDecrement: () => _updateEraseRegion(
+              region.id,
+              (c) => c.copyWith(
+                  height: (c.height - _eraseSizeStep)
+                      .clamp(_minEraseSize, _maxEraseSize)),
+            ),
+            onIncrement: () => _updateEraseRegion(
+              region.id,
+              (c) => c.copyWith(
+                  height: (c.height + _eraseSizeStep)
+                      .clamp(_minEraseSize, _maxEraseSize)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          _colorRow(
+            currentColorValue: region.colorValue,
+            onColorSelected: (value) => _updateEraseRegion(
+                region.id, (c) => c.copyWith(colorValue: value)),
+            onClear: () => _updateEraseRegion(
+                region.id, (c) => c.copyWith(colorValue: 0xFFFFFFFF)),
+            onEyedropperTap: () => _startEyedropperForEraseRegion(region.id),
+          ),
+        ],
+      ),
     );
   }
 
