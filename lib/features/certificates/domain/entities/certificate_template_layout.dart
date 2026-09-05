@@ -3,6 +3,17 @@ import 'package:equatable/equatable.dart';
 import 'certificate_font_family.dart';
 import 'certificate_template.dart';
 
+/// قراءة رقم عشري بأمان من JSON محتمل التلف — قيمة مفقودة أو من نوع غير
+/// متوقَّع (بدل الانهيار بـ`TypeError` عند `as num` المباشر) تُعيد
+/// [fallback] بدل رمي استثناء يُسقِط التخطيط المخصَّص بأكمله. هذا تحديداً
+/// ما تسبَّب سابقاً بشاشة معاينة تدور بلا توقف لمسجد له مستند تخطيط
+/// تالف/قديم (حقل `dx`/`dy` مفقود)، بينما تعمل المعاينة بلا مشكلة لمسجد
+/// آخر بمستند سليم لنفس القالب تماماً.
+double _numOr(dynamic value, double fallback) {
+  if (value is num) return value.toDouble();
+  return fallback;
+}
+
 /// تخطيط مخصَّص لحقل واحد داخل قالب أساسي — يطغى على الموضع الثابت
 /// (`CertificateFieldPosition.dx/dy`) لمسجد بعينه فقط، بلا المساس بالقالب
 /// الأساسي نفسه أو بأي مسجد آخر. يغطي الآن أيضاً تخصيص الخط (النوع
@@ -77,8 +88,8 @@ class CertificateFieldLayout extends Equatable {
         orElse: () => CertificateField.recipientName,
       ),
       visible: json['visible'] as bool? ?? true,
-      dx: (json['dx'] as num).toDouble(),
-      dy: (json['dy'] as num).toDouble(),
+      dx: _numOr(json['dx'], 0.5),
+      dy: _numOr(json['dy'], 0.5),
       fontFamily: CertificateFontFamily.values.firstWhere(
         (f) => f.name == json['fontFamily'],
         orElse: () => CertificateFontFamily.amiri,
@@ -120,8 +131,8 @@ class CertificateStampLayout extends Equatable {
   factory CertificateStampLayout.fromJson(Map<String, dynamic> json) {
     return CertificateStampLayout(
       visible: json['visible'] as bool? ?? true,
-      dx: (json['dx'] as num).toDouble(),
-      dy: (json['dy'] as num).toDouble(),
+      dx: _numOr(json['dx'], 0.5),
+      dy: _numOr(json['dy'], 0.5),
     );
   }
 
@@ -196,8 +207,8 @@ class CertificateCustomTextElement extends Equatable {
     return CertificateCustomTextElement(
       id: json['id'] as String? ?? '',
       text: json['text'] as String? ?? '',
-      dx: (json['dx'] as num).toDouble(),
-      dy: (json['dy'] as num).toDouble(),
+      dx: _numOr(json['dx'], 0.5),
+      dy: _numOr(json['dy'], 0.5),
       fontFamily: CertificateFontFamily.values.firstWhere(
         (f) => f.name == json['fontFamily'],
         orElse: () => CertificateFontFamily.amiri,
@@ -265,20 +276,43 @@ class CertificateTemplateLayout extends Equatable {
     return CertificateTemplateLayout(
       mosqueId: json['mosqueId'] as String? ?? '',
       baseTemplateId: json['baseTemplateId'] as String? ?? '',
-      fields: (json['fields'] as List<dynamic>? ?? const [])
-          .map((e) => CertificateFieldLayout.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      stamp: json['stamp'] != null
-          ? CertificateStampLayout.fromJson(json['stamp'] as Map<String, dynamic>)
-          : null,
-      customTexts: (json['customTexts'] as List<dynamic>? ?? const [])
-          .map((e) =>
-              CertificateCustomTextElement.fromJson(e as Map<String, dynamic>))
-          .toList(),
+      fields: _parseList(
+          json['fields'], (e) => CertificateFieldLayout.fromJson(e)),
+      stamp: _parseStamp(json['stamp']),
+      customTexts: _parseList(json['customTexts'],
+          (e) => CertificateCustomTextElement.fromJson(e)),
       updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
           DateTime.now(),
       updatedByUid: json['updatedByUid'] as String? ?? '',
     );
+  }
+
+  /// يحوِّل قائمة JSON خام إلى كائنات مُحلَّلة، متجاهلاً أي عنصر واحد
+  /// تالف بدل أن يُسقِط الاستثناء القائمة كاملة — مستند تخطيط بحقل واحد
+  /// فاسد (بيانات قديمة/تحرير يدوي خاطئ) لا يجب أن يُعطِّل بقية الحقول
+  /// السليمة، ولا يجب أن يترك شاشة المعاينة عالقة على استثناء صامت.
+  static List<T> _parseList<T>(
+      dynamic raw, T Function(Map<String, dynamic>) parseOne) {
+    if (raw is! List) return const [];
+    final result = <T>[];
+    for (final e in raw) {
+      if (e is! Map<String, dynamic>) continue;
+      try {
+        result.add(parseOne(e));
+      } catch (_) {
+        // عنصر تالف واحد — يُتجاهَل بدل إسقاط بقية القائمة السليمة.
+      }
+    }
+    return result;
+  }
+
+  static CertificateStampLayout? _parseStamp(dynamic raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    try {
+      return CertificateStampLayout.fromJson(raw);
+    } catch (_) {
+      return null;
+    }
   }
 
   @override

@@ -52,6 +52,12 @@ class _CertificateWizardScreenState
   Uint8List? _previewBytes;
   bool _isLoadingPreview = false;
 
+  /// رسالة الخطأ إن فشل توليد المعاينة — منفصلة تماماً عن حالة التحميل
+  /// حتى لا تبقى الشاشة عالقة على مؤشر تحميل دائم بلا أي تفسير عند فشل
+  /// فعلي (مثل مستند تخطيط مخصَّص تالف لمسجد بعينه)، ولمنع إعادة المحاولة
+  /// التلقائية بلا نهاية على نفس الخطأ في كل إطار عرض جديد.
+  String? _previewError;
+
   @override
   Widget build(BuildContext context) {
     final wizard = ref.watch(certificateWizardProvider);
@@ -458,20 +464,48 @@ class _CertificateWizardScreenState
                 fontFamily: 'Tajawal', fontSize: 13, fontWeight: FontWeight.w700)),
         const SizedBox(height: 10),
         Expanded(
-          child: _isLoadingPreview || _previewBytes == null
-              ? const Center(child: CircularProgressIndicator())
-              : ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: PdfPreview(
-                    build: (_) async => _previewBytes!,
-                    canChangeOrientation: false,
-                    canChangePageFormat: false,
-                    canDebug: false,
-                    allowPrinting: false,
-                    allowSharing: false,
-                    useActions: false,
+          child: _previewError != null
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.error_outline_rounded,
+                          size: 40, color: Colors.redAccent),
+                      const SizedBox(height: 10),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Text(
+                          'تعذّرت معاينة هذه الشهادة: $_previewError',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              fontFamily: 'Tajawal', fontSize: 12.5),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: () =>
+                            setState(() => _previewError = null),
+                        icon: const Icon(Icons.refresh_rounded, size: 18),
+                        label: const Text('إعادة المحاولة',
+                            style: TextStyle(fontFamily: 'Tajawal')),
+                      ),
+                    ],
                   ),
-                ),
+                )
+              : _isLoadingPreview || _previewBytes == null
+                  ? const Center(child: CircularProgressIndicator())
+                  : ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: PdfPreview(
+                        build: (_) async => _previewBytes!,
+                        canChangeOrientation: false,
+                        canChangePageFormat: false,
+                        canDebug: false,
+                        allowPrinting: false,
+                        allowSharing: false,
+                        useActions: false,
+                      ),
+                    ),
         ),
         const SizedBox(height: 10),
         Row(
@@ -481,7 +515,10 @@ class _CertificateWizardScreenState
               onPressed: index > 0
                   ? () {
                       notifier.setPreviewIndex(index - 1);
-                      setState(() => _previewBytes = null);
+                      setState(() {
+                        _previewBytes = null;
+                        _previewError = null;
+                      });
                     }
                   : null,
               icon: const Icon(Icons.arrow_forward_ios_rounded, size: 18),
@@ -492,7 +529,10 @@ class _CertificateWizardScreenState
               onPressed: index < recipients.length - 1
                   ? () {
                       notifier.setPreviewIndex(index + 1);
-                      setState(() => _previewBytes = null);
+                      setState(() {
+                        _previewBytes = null;
+                        _previewError = null;
+                      });
                     }
                   : null,
               icon: const Icon(Icons.arrow_back_ios_rounded, size: 18),
@@ -505,8 +545,18 @@ class _CertificateWizardScreenState
 
   Future<void> _loadPreview(CertificateTemplateDefinition template,
       CertificateRenderData recipient, Mosque? mosque, String mosqueId) async {
-    if (_previewBytes != null || _isLoadingPreview) return;
-    setState(() => _isLoadingPreview = true);
+    // شرط `_previewError != null` ضروري لمنع إعادة محاولة تلقائية بلا
+    // نهاية: هذه الدالة تُستدعى من `addPostFrameCallback` في كل مرة
+    // تُعاد فيها بناء خطوة المعاينة، فبدون هذا الشرط يتكرر نفس الفشل في
+    // كل إطار (وهو بالضبط ما كان يظهر كمعاينة "تدور بلا توقف" عند فشل
+    // صامت لم تكن تعرضه الواجهة أصلاً).
+    if (_previewBytes != null || _isLoadingPreview || _previewError != null) {
+      return;
+    }
+    setState(() {
+      _isLoadingPreview = true;
+      _previewError = null;
+    });
     try {
       // معاينة WYSIWYG حقيقية: نجلب تخطيط المسجد المخصَّص لهذا القالب
       // (إن وُجد — "المرحلة الثانية" من محرر مواضع الحقول) فتُظهر
@@ -525,9 +575,12 @@ class _CertificateWizardScreenState
         _previewBytes = bytes;
         _isLoadingPreview = false;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      setState(() => _isLoadingPreview = false);
+      setState(() {
+        _isLoadingPreview = false;
+        _previewError = e.toString();
+      });
     }
   }
 
