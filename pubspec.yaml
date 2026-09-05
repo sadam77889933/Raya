@@ -27,6 +27,7 @@ dependencies:
   syncfusion_flutter_pdf: ^28.1.33
   flutter_secure_storage: ^11.0.0
   image_picker: ^1.1.2
+  flutter_colorpicker: ^1.1.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -49,3 +50,21 @@ flutter:
           weight: 700
         - asset: assets/fonts/Tajawal-ExtraBold.ttf
           weight: 800
+    - family: Amiri
+      fonts:
+        - asset: assets/fonts/Amiri-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Amiri-Bold.ttf
+          weight: 700
+    - family: Mirza
+      fonts:
+        - asset: assets/fonts/Mirza-Regular.ttf
+          weight: 400
+    - family: Katibeh
+      fonts:
+        - asset: assets/fonts/Katibeh-Regular.ttf
+          weight: 400
+    - family: Lalezar
+      fonts:
+        - asset: assets/fonts/Lalezar-Regular.ttf
+          weight: 400

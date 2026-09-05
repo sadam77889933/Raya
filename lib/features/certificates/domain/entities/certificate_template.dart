@@ -1,6 +1,7 @@
 import 'package:pdf/pdf.dart';
 
 import 'certificate_batch.dart';
+import 'certificate_font_family.dart';
 
 /// حقل نصي ديناميكي يمكن أن يظهر داخل قالب شهادة.
 ///
@@ -34,6 +35,11 @@ class CertificateFieldPosition {
   final PdfColor color;
   final bool bold;
 
+  /// نوع الخط — افتراضياً `Amiri` ليطابق تماماً سلوك كل القوالب الأساسية
+  /// الحالية قبل إضافة تخصيص الخط (القسم ١٣)؛ لا حاجة لتعديل أي تعريف
+  /// قالب موجود عند إضافة هذا الحقل بفضل القيمة الافتراضية.
+  final CertificateFontFamily fontFamily;
+
   /// نسبة أقصى عرض لصندوق النص (من عرض صورة الخلفية) المُتمركِز حول
   /// [dx] — يُستخدَم لتوسيط النص أفقياً حول نقطة الموضع بدل قياس عرض
   /// النص الفعلي (حزمة pdf لا تُتيح ذلك مسبقاً قبل الرسم).
@@ -46,6 +52,7 @@ class CertificateFieldPosition {
     required this.fontSize,
     this.color = PdfColors.black,
     this.bold = false,
+    this.fontFamily = CertificateFontFamily.amiri,
     this.maxWidthRatio = 0.35,
   });
 }

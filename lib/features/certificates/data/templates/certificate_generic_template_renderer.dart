@@ -1,12 +1,17 @@
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import '../../domain/entities/certificate_font_family.dart';
 import '../../domain/entities/certificate_render_data.dart';
 import '../../domain/entities/certificate_template.dart';
+import '../../domain/entities/certificate_template_layout.dart';
 
 /// محرِّك رسم واحد مُشترَك لكل القوالب الأساسية دون استثناء: يرسم صورة
 /// الخلفية كاملة الصفحة، ثم يضع فوقها نص كل حقل في [fields] بموضعه
-/// المحسوب، ثم يرسم صورة الختم (إن وُجدت) فوق موضعها.
+/// المحسوب (بخطه المخصَّص من [regularFonts]/[boldFonts] — القسم ١٣ من
+/// تصميم الميزة)، ثم أي عناصر نص حرّ في [customTexts] (لا حقل بيانات
+/// مرتبط بها، نص وموضع حرّان بالكامل)، ثم يرسم صورة الختم (إن وُجدت) فوق
+/// موضعها.
 ///
 /// لا حاجة لملف رسم منفصل لكل قالب — فقط بيانات مواضع + صورة، بالضبط كما
 /// هو موثَّق في تصميم الميزة (القسم ٣-أ).
@@ -14,10 +19,11 @@ pw.Widget buildGenericCertificatePage({
   required pw.MemoryImage backgroundImage,
   required List<CertificateFieldPosition> fields,
   required CertificateRenderData recipient,
-  required pw.Font font,
-  required pw.Font boldFont,
+  required Map<CertificateFontFamily, pw.Font> regularFonts,
+  required Map<CertificateFontFamily, pw.Font> boldFonts,
   CertificateStampPosition? stampPosition,
   pw.MemoryImage? stampImage,
+  List<CertificateCustomTextElement> customTexts = const [],
   required double pageWidth,
   required double pageHeight,
 }) {
@@ -54,6 +60,13 @@ pw.Widget buildGenericCertificatePage({
     final needsRightAlign = f.field == CertificateField.schoolName ||
         f.field == CertificateField.mosqueName;
 
+    // الخطوط الزخرفية الثلاثة الجديدة (Mirza / Katibeh / Lalezar)
+    // خطوط عرض بوزن واحد فقط، فلا نسخة عريضة لها — إن طُلب وزن عريض لخط
+    // لا يملكه، نرتدّ تلقائياً لنسخته العادية بدل رمي خطأ أو رسم بخط آخر.
+    final resolvedFont = (f.bold ? boldFonts[f.fontFamily] : null) ??
+        regularFonts[f.fontFamily] ??
+        regularFonts[CertificateFontFamily.amiri]!;
+
     final textWidget = pw.FittedBox(
       fit: pw.BoxFit.scaleDown,
       child: pw.Text(
@@ -63,7 +76,7 @@ pw.Widget buildGenericCertificatePage({
         maxLines: 1,
         overflow: pw.TextOverflow.clip,
         style: pw.TextStyle(
-          font: f.bold ? boldFont : font,
+          font: resolvedFont,
           fontSize: f.fontSize,
           color: f.color,
         ),
@@ -83,6 +96,52 @@ pw.Widget buildGenericCertificatePage({
                   child: textWidget,
                 )
               : pw.Center(child: textWidget),
+        ),
+      ),
+    );
+  }
+
+  // عناصر النص الحرّ: بلا حقل بيانات مرتبط، فتُرسَم بمحاذاة وسط بسيطة
+  // دائماً (بخلاف بعض الحقول الثابتة أعلاه التي تحتاج محاذاة يمين خاصة)،
+  // بنفس منطق FittedBox+scaleDown كشبكة أمان ضد فيضان نص طويل جداً.
+  const customTextMaxWidthRatio = 0.6;
+  for (final t in customTexts) {
+    if (t.text.trim().isEmpty) continue;
+
+    final boxWidth = customTextMaxWidthRatio * pageWidth;
+    final boxHeight = t.fontSize * 1.8;
+    final left = (t.dx * pageWidth) - (boxWidth / 2);
+    final top = (t.dy * pageHeight) - (boxHeight / 2);
+
+    final resolvedFont = regularFonts[t.fontFamily] ??
+        regularFonts[CertificateFontFamily.amiri]!;
+
+    children.add(
+      pw.Positioned(
+        left: left,
+        top: top,
+        child: pw.SizedBox(
+          width: boxWidth,
+          height: boxHeight,
+          child: pw.Center(
+            child: pw.FittedBox(
+              fit: pw.BoxFit.scaleDown,
+              child: pw.Text(
+                t.text,
+                textDirection: pw.TextDirection.rtl,
+                textAlign: pw.TextAlign.center,
+                maxLines: 1,
+                overflow: pw.TextOverflow.clip,
+                style: pw.TextStyle(
+                  font: resolvedFont,
+                  fontSize: t.fontSize,
+                  color: t.fontColorValue != null
+                      ? PdfColor.fromInt(t.fontColorValue!)
+                      : PdfColors.black,
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

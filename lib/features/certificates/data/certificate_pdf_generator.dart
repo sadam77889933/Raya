@@ -8,12 +8,13 @@ import 'package:pdf/widgets.dart' as pw;
 import '../domain/entities/certificate_render_data.dart';
 import '../domain/entities/certificate_template.dart';
 import '../domain/entities/certificate_template_layout.dart';
+import 'certificate_font_catalog.dart';
 import 'templates/certificate_generic_template_renderer.dart';
 
 /// يدمج تخطيط مسجد مخصَّص (إن وُجد — "المرحلة الثانية"، القسم ١٣ من
-/// تصميم الميزة) فوق المواضع الثابتة للقالب الأساسي: يستبدل فقط `dx/dy`
-/// لكل حقل (يبقى الخط/اللون/الحجم من القالب الأساسي كما هو — لم تُضَف
-/// خاصية تخصيص الخط بعد)، ويُسقِط أي حقل مُعطَّل الإظهار تماماً من
+/// تصميم الميزة) فوق المواضع الثابتة للقالب الأساسي: يستبدل `dx/dy`،
+/// ونوع/لون/حجم الخط عند تخصيصها (وإلا يبقى الخط/اللون/الحجم من القالب
+/// الأساسي كما هو تماماً)، ويُسقِط أي حقل مُعطَّل الإظهار تماماً من
 /// القائمة النهائية. القالب الأساسي نفسه لا يتغيّر أبداً؛ هذا الدمج
 /// يحدث فقط لحظة التوليد، محلياً في هذه الدالة.
 List<CertificateFieldPosition> _mergeFieldPositions(
@@ -33,9 +34,12 @@ List<CertificateFieldPosition> _mergeFieldPositions(
       field: f.field,
       dx: override.dx,
       dy: override.dy,
-      fontSize: f.fontSize,
-      color: f.color,
+      fontSize: f.fontSize * override.fontScale,
+      color: override.fontColorValue != null
+          ? PdfColor.fromInt(override.fontColorValue!)
+          : f.color,
       bold: f.bold,
+      fontFamily: override.fontFamily,
       maxWidthRatio: f.maxWidthRatio,
     ));
   }
@@ -68,11 +72,8 @@ class CertificatePdfGenerator {
     String? mosqueStampBase64,
     CertificateTemplateLayout? customLayout,
   }) async {
-    final regularData =
-        await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
-    final boldData = await rootBundle.load('assets/fonts/Amiri-Bold.ttf');
-    final font = pw.Font.ttf(regularData);
-    final boldFont = pw.Font.ttf(boldData);
+    final regularFonts = await CertificateFontCatalog.loadRegular();
+    final boldFonts = await CertificateFontCatalog.loadBold();
 
     final bgBytes =
         (await rootBundle.load(template.backgroundImageAsset)).buffer.asUint8List();
@@ -112,10 +113,11 @@ class CertificatePdfGenerator {
             backgroundImage: bgImage,
             fields: effectiveFields,
             recipient: recipient,
-            font: font,
-            boldFont: boldFont,
+            regularFonts: regularFonts,
+            boldFonts: boldFonts,
             stampPosition: effectiveStamp,
             stampImage: stampImage,
+            customTexts: customLayout?.customTexts ?? const [],
             pageWidth: pageWidth,
             pageHeight: pageHeight,
           ),

@@ -1,8 +1,15 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../domain/entities/certificate_font_family.dart';
 import '../../domain/entities/certificate_template.dart';
 import '../../domain/entities/certificate_template_layout.dart';
 import '../providers/certificate_template_layout_provider.dart';
@@ -32,9 +39,25 @@ String _fieldLabel(CertificateField field) {
   }
 }
 
-/// محرر مواضع حقول قالب أساسي واحد — دفعة أولى من "المرحلة الثانية"
-/// (القسم ١٣ من تصميم الميزة): **سحب حرّ + إظهار/إخفاء فقط**، بلا تخصيص
-/// خط/لون/حجم وبلا استيراد قوالب خارجية (تُضاف لاحقاً تدريجياً).
+/// حدود منطقية لنسبة تكبير/تصغير الخط — تمنع تصغيراً/تكبيراً متطرفاً قد
+/// يُخرج النص عن مساحة الشهادة أو يجعله غير مقروء.
+const double _minFontScale = 0.5;
+const double _maxFontScale = 2.0;
+const double _fontScaleStep = 0.1;
+
+/// حدود حجم الخط المطلق (بالنقاط) لعناصر النص الحرّ — لا نسبة تكبير هنا
+/// لأنه لا يوجد حجم أساسي يُقاس نسبة إليه (بخلاف الحقول الثابتة).
+const double _minCustomFontSize = 10;
+const double _maxCustomFontSize = 72;
+const double _customFontSizeStep = 2;
+
+/// محرر مواضع حقول قالب أساسي واحد — الدفعة الثانية من "المرحلة الثانية"
+/// (القسم ١٣ من تصميم الميزة): **سحب حرّ + إظهار/إخفاء + تخصيص الخط**
+/// (النوع من خمسة خطوط مُجمَّعة، اللون بحرية كاملة — يدوياً عبر لوحة
+/// الألوان أو بقطّارة تلتقط لوناً مباشرة من صورة الشهادة نفسها — والحجم
+/// النسبي)، بالإضافة إلى **عناصر نص حرّ** يضيفها المستخدم يدوياً (نص
+/// مكتوب مباشرة + موضع حرّ بالسحب + نفس خيارات تخصيص الخط)، بلا استيراد
+/// قوالب خارجية بعد (تُضاف لاحقاً).
 ///
 /// التعديل هنا خاص **بمسجد واحد فقط** (`mosqueId`) — يُنشئ أو يحدِّث
 /// `CertificateTemplateLayout` مستقلاً في Firestore، بلا أي مساس بالقالب
@@ -61,6 +84,41 @@ class _CertificateTemplateEditorScreenState
   late Map<CertificateField, CertificateFieldLayout> _fieldLayouts;
   CertificateStampLayout? _stampLayout;
 
+  /// الحقل النصي المفتوح حالياً في لوحة تخصيص الخط — لا علاقة له بالختم
+  /// (صورة، بلا خط ليُخصَّص).
+  CertificateField? _selectedField;
+
+  /// بكسلات صورة خلفية القالب (RGBA خام) — تُحمَّل مرة واحدة فقط عند أول
+  /// استخدام لأداة "قطّارة اللون" (Format Painter المطلوبة)، وتُعاد
+  /// استخدام النسخة المحمَّلة لكل التقاط لاحق طوال حياة هذه الشاشة.
+  Uint8List? _bgPixels;
+  int? _bgPixelWidth;
+  int? _bgPixelHeight;
+  bool _loadingEyedropper = false;
+
+  /// الحقل الذي يُطلَب التقاط لون له حالياً من خلفية الشهادة — null يعني
+  /// أن القطّارة غير نشطة والسحب/الضغط العادي على العناصر يعمل كما هو.
+  CertificateField? _eyedropperTarget;
+
+  /// عناصر النص الحرّ المضافة يدوياً فوق هذا القالب لهذا المسجد — كل
+  /// عنصر مستقل تماماً (نص + موضع + خط/لون/حجم خاص به)، بلا أي علاقة
+  /// بحقول الشهادة الثابتة (القسم ١٣، دفعة النصوص الحرة).
+  late List<CertificateCustomTextElement> _customTexts;
+
+  /// متحكّم نص Flutter واحد لكل عنصر نص حرّ (بمعرّفه) — يبقى حياً طوال
+  /// عمر العنصر ليحافظ على موضع المؤشر أثناء الكتابة، ويُتخلّص منه فور
+  /// حذف العنصر أو إغلاق الشاشة.
+  final Map<String, TextEditingController> _customTextControllers = {};
+
+  /// عنصر النص الحرّ المفتوح حالياً في لوحة تخصيصه — يُلغي أي حقل ثابت
+  /// مفتوح، والعكس صحيح (لوحة واحدة مفتوحة كحد أقصى في كل لحظة).
+  String? _selectedCustomTextId;
+
+  /// عنصر النص الحرّ الذي تُطلَب قطّارة لون له حالياً — منفصل عن
+  /// [_eyedropperTarget] (الحقول الثابتة) لأن النصوص الحرة لا تملك قيمة
+  /// [CertificateField] مقابلة.
+  String? _eyedropperCustomTextId;
+
   /// يبني حالة البداية من التخطيط المخصَّص المحفوظ (إن وُجد)، وإلا من
   /// المواضع الثابتة في القالب الأساسي نفسها — بحيث تبدأ المشرفة دائماً
   /// من الشكل الحالي الفعلي للشهادة، لا من نقطة صفر.
@@ -75,11 +133,63 @@ class _CertificateTemplateEditorScreenState
         ? null
         : (saved?.stamp ??
             CertificateStampLayout(dx: basePosition.dx, dy: basePosition.dy));
+
+    _customTexts = List.of(saved?.customTexts ?? const []);
+    for (final controller in _customTextControllers.values) {
+      controller.dispose();
+    }
+    _customTextControllers.clear();
+    for (final t in _customTexts) {
+      _customTextControllers[t.id] = TextEditingController(text: t.text);
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _customTextControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  void _addCustomText() {
+    final id = const Uuid().v4();
+    final element =
+        CertificateCustomTextElement(id: id, text: 'نص جديد', dx: 0.5, dy: 0.5);
+    setState(() {
+      _customTexts = [..._customTexts, element];
+      _customTextControllers[id] = TextEditingController(text: element.text);
+      _selectedCustomTextId = id;
+      _selectedField = null;
+      _eyedropperTarget = null;
+      _eyedropperCustomTextId = null;
+    });
+  }
+
+  void _updateCustomText(
+    String id,
+    CertificateCustomTextElement Function(CertificateCustomTextElement current)
+        update,
+  ) {
+    setState(() {
+      _customTexts = [
+        for (final t in _customTexts) t.id == id ? update(t) : t,
+      ];
+    });
+  }
+
+  void _removeCustomText(String id) {
+    setState(() {
+      _customTexts = _customTexts.where((t) => t.id != id).toList();
+      _customTextControllers.remove(id)?.dispose();
+      if (_selectedCustomTextId == id) _selectedCustomTextId = null;
+      if (_eyedropperCustomTextId == id) _eyedropperCustomTextId = null;
+    });
   }
 
   void _resetField(CertificateField field) {
-    final base = widget.template.fixedFields
-        .firstWhere((f) => f.field == field);
+    final base =
+        widget.template.fixedFields.firstWhere((f) => f.field == field);
     setState(() {
       _fieldLayouts[field] =
           CertificateFieldLayout(field: field, dx: base.dx, dy: base.dy);
@@ -95,7 +205,174 @@ class _CertificateTemplateEditorScreenState
   }
 
   void _resetAll() {
-    setState(() => _seedFrom(null));
+    setState(() {
+      _seedFrom(null);
+      _selectedField = null;
+      _selectedCustomTextId = null;
+      _eyedropperTarget = null;
+      _eyedropperCustomTextId = null;
+    });
+  }
+
+  void _updateField(
+    CertificateField field,
+    CertificateFieldLayout Function(CertificateFieldLayout current) update,
+  ) {
+    setState(() {
+      _fieldLayouts[field] = update(_fieldLayouts[field]!);
+    });
+  }
+
+  /// حوار اختيار لون حرّ واحد مشترك بين لوحتي تخصيص الخط (الحقول الثابتة
+  /// والنصوص الحرة على حدّ سواء) — بلا أي تكرار لبنية الحوار نفسها.
+  Future<Color?> _pickColorDialog(Color initial) {
+    Color picked = initial;
+    return showDialog<Color>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('اختاري لوناً للنص',
+            style: TextStyle(fontFamily: 'Tajawal')),
+        content: SingleChildScrollView(
+          child: ColorPicker(
+            pickerColor: picked,
+            onColorChanged: (c) => picked = c,
+            enableAlpha: false,
+            labelTypes: const [ColorLabelType.hex],
+            pickerAreaHeightPercent: 0.7,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('إلغاء', style: TextStyle(fontFamily: 'Tajawal')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(picked),
+            child: const Text('اختيار', style: TextStyle(fontFamily: 'Tajawal')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// تحمِّل صورة خلفية الشهادة مرة واحدة فقط (إن لم تكن محمَّلة أصلاً) —
+  /// خطوة مشتركة بين قطّارة الحقول الثابتة وقطّارة النصوص الحرة على حدّ
+  /// سواء. تُرجِع `true` عند النجاح فقط.
+  Future<bool> _ensureBgPixelsLoaded() async {
+    if (_bgPixels != null) return true;
+    setState(() => _loadingEyedropper = true);
+    try {
+      final assetData =
+          await rootBundle.load(widget.template.backgroundImageAsset);
+      final codec = await ui.instantiateImageCodec(
+        assetData.buffer.asUint8List(),
+      );
+      final frame = await codec.getNextFrame();
+      final byteData = await frame.image.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      );
+      if (byteData == null) {
+        throw Exception('تعذّرت قراءة بيانات صورة الشهادة');
+      }
+      _bgPixels = byteData.buffer.asUint8List();
+      _bgPixelWidth = frame.image.width;
+      _bgPixelHeight = frame.image.height;
+      return true;
+    } catch (e) {
+      if (!mounted) return false;
+      setState(() => _loadingEyedropper = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content:
+                Text('تعذّر تحميل صورة الشهادة لالتقاط اللون: ${e.toString()}')),
+      );
+      return false;
+    }
+  }
+
+  /// تفعيل "قطّارة اللون" (Format Painter) لحقل ثابت: تنتظر ضغطة المشرفة
+  /// على أي نقطة من الشهادة نفسها لالتقاط لونها الفعلي وتطبيقه مباشرة على
+  /// [field] — بلا حاجة لمعرفة قيمة اللون يدوياً أو مطابقتها بالعين.
+  Future<void> _startEyedropper(CertificateField field) async {
+    final loaded = await _ensureBgPixelsLoaded();
+    if (!loaded || !mounted) return;
+    setState(() {
+      _loadingEyedropper = false;
+      _eyedropperTarget = field;
+      _eyedropperCustomTextId = null;
+    });
+  }
+
+  /// نفس فكرة [_startEyedropper] تماماً، لكن لعنصر نص حرّ بمعرّفه بدل حقل
+  /// ثابت.
+  Future<void> _startEyedropperForCustomText(String id) async {
+    final loaded = await _ensureBgPixelsLoaded();
+    if (!loaded || !mounted) return;
+    setState(() {
+      _loadingEyedropper = false;
+      _eyedropperCustomTextId = id;
+      _eyedropperTarget = null;
+    });
+  }
+
+  void _cancelEyedropper() => setState(() {
+        _eyedropperTarget = null;
+        _eyedropperCustomTextId = null;
+      });
+
+  /// تحوِّل نقطة الضغط على مساحة عرض الشهادة (بأبعاد [boxWidth]×[boxHeight])
+  /// إلى بكسل مقابل في صورة الخلفية الفعلية (BoxFit.fill يجعل التحويل
+  /// نسبياً بسيطاً بلا حساب حواف/تمدد)، وتقرأ لونه مباشرة من [_bgPixels]،
+  /// وتُطبِّقه على أي كان الهدف النشط حالياً — حقل ثابت أو نص حرّ.
+  void _pickColorAt(Offset localPosition, double boxWidth, double boxHeight) {
+    final field = _eyedropperTarget;
+    final customTextId = _eyedropperCustomTextId;
+    if ((field == null && customTextId == null) || _bgPixels == null) return;
+    final px = ((localPosition.dx / boxWidth) * _bgPixelWidth!)
+        .round()
+        .clamp(0, _bgPixelWidth! - 1);
+    final py = ((localPosition.dy / boxHeight) * _bgPixelHeight!)
+        .round()
+        .clamp(0, _bgPixelHeight! - 1);
+    final index = (py * _bgPixelWidth! + px) * 4;
+    final color = Color.fromARGB(
+      255,
+      _bgPixels![index],
+      _bgPixels![index + 1],
+      _bgPixels![index + 2],
+    );
+    if (field != null) {
+      _updateField(field, (c) => c.copyWith(fontColorValue: color.value));
+    } else if (customTextId != null) {
+      _updateCustomText(
+          customTextId, (c) => c.copyWith(fontColorValue: color.value));
+    }
+    setState(() {
+      _eyedropperTarget = null;
+      _eyedropperCustomTextId = null;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 1.5),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text('تم التقاط اللون وتطبيقه على الحقل',
+                style: TextStyle(fontFamily: 'Tajawal')),
+          ],
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _save() async {
@@ -108,12 +385,11 @@ class _CertificateTemplateEditorScreenState
         baseTemplateId: widget.template.id,
         fields: _fieldLayouts.values.toList(),
         stamp: _stampLayout,
+        customTexts: _customTexts,
         updatedAt: DateTime.now(),
         updatedByUid: user.uid,
       );
-      await ref
-          .read(certificateTemplateLayoutRepositoryProvider)
-          .save(layout);
+      await ref.read(certificateTemplateLayoutRepositoryProvider).save(layout);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('تم حفظ تخطيط القالب')),
@@ -136,6 +412,8 @@ class _CertificateTemplateEditorScreenState
     required double height,
     required String label,
     required void Function(Offset delta) onDrag,
+    VoidCallback? onTap,
+    bool selected = false,
     IconData? icon,
   }) {
     const chipWidth = 96.0;
@@ -144,6 +422,7 @@ class _CertificateTemplateEditorScreenState
       left: (dx * width) - (chipWidth / 2),
       top: (dy * height) - (chipHeight / 2),
       child: GestureDetector(
+        onTap: onTap,
         onPanUpdate: (details) => onDrag(details.delta),
         child: Container(
           width: chipWidth,
@@ -152,6 +431,9 @@ class _CertificateTemplateEditorScreenState
           decoration: BoxDecoration(
             color: AppTheme.primaryGreen.withOpacity(0.88),
             borderRadius: BorderRadius.circular(8),
+            border: selected
+                ? Border.all(color: AppTheme.goldAccent, width: 2)
+                : null,
             boxShadow: const [
               BoxShadow(color: Colors.black26, blurRadius: 4),
             ],
@@ -199,6 +481,11 @@ class _CertificateTemplateEditorScreenState
         title: Text(widget.template.displayName),
         actions: [
           IconButton(
+            tooltip: 'إضافة نص',
+            icon: const Icon(Icons.add_box_rounded),
+            onPressed: _isSaving ? null : _addCustomText,
+          ),
+          IconButton(
             tooltip: 'إعادة ضبط الكل',
             icon: const Icon(Icons.restart_alt_rounded),
             onPressed: _isSaving ? null : _resetAll,
@@ -212,7 +499,7 @@ class _CertificateTemplateEditorScreenState
             child: Align(
               alignment: Alignment.centerRight,
               child: Text(
-                'اسحبي أي عنصر لتغيير موضعه، ثم احفظي التعديل',
+                'اسحبي أي عنصر لتغيير موضعه، واضغطي على حقل من القائمة لتخصيص خطه',
                 style: TextStyle(
                     fontFamily: 'Tajawal', fontSize: 12, color: Colors.grey),
               ),
@@ -244,11 +531,21 @@ class _CertificateTemplateEditorScreenState
                               width: width,
                               height: height,
                               label: _fieldLabel(layout.field),
+                              selected: _selectedField == layout.field,
+                              onTap: () => setState(() {
+                                _selectedField =
+                                    _selectedField == layout.field
+                                        ? null
+                                        : layout.field;
+                                _selectedCustomTextId = null;
+                                _eyedropperTarget = null;
+                                _eyedropperCustomTextId = null;
+                              }),
                               onDrag: (delta) => setState(() {
-                                final dx =
-                                    (layout.dx + delta.dx / width).clamp(0.0, 1.0);
-                                final dy =
-                                    (layout.dy + delta.dy / height).clamp(0.0, 1.0);
+                                final dx = (layout.dx + delta.dx / width)
+                                    .clamp(0.0, 1.0);
+                                final dy = (layout.dy + delta.dy / height)
+                                    .clamp(0.0, 1.0);
                                 _fieldLayouts[layout.field] =
                                     layout.copyWith(dx: dx, dy: dy);
                               }),
@@ -270,6 +567,96 @@ class _CertificateTemplateEditorScreenState
                                   _stampLayout!.copyWith(dx: dx, dy: dy);
                             }),
                           ),
+                        for (final t in _customTexts)
+                          _buildDragChip(
+                            dx: t.dx,
+                            dy: t.dy,
+                            width: width,
+                            height: height,
+                            label: t.text.isEmpty ? 'نص فارغ' : t.text,
+                            selected: _selectedCustomTextId == t.id,
+                            onTap: () => setState(() {
+                              _selectedCustomTextId =
+                                  _selectedCustomTextId == t.id ? null : t.id;
+                              _selectedField = null;
+                              _eyedropperTarget = null;
+                              _eyedropperCustomTextId = null;
+                            }),
+                            onDrag: (delta) => setState(() {
+                              final dx =
+                                  (t.dx + delta.dx / width).clamp(0.0, 1.0);
+                              final dy =
+                                  (t.dy + delta.dy / height).clamp(0.0, 1.0);
+                              _customTexts = [
+                                for (final e in _customTexts)
+                                  e.id == t.id
+                                      ? e.copyWith(dx: dx, dy: dy)
+                                      : e,
+                              ];
+                            }),
+                          ),
+                        if (_eyedropperTarget != null ||
+                            _eyedropperCustomTextId != null) ...[
+                          Positioned.fill(
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTapDown: (details) => _pickColorAt(
+                                  details.localPosition, width, height),
+                              child: Container(
+                                color: Colors.black.withOpacity(0.06),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: 8,
+                            left: 8,
+                            right: 8,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                            color: Colors.black26,
+                                            blurRadius: 4),
+                                      ],
+                                    ),
+                                    child: const Text(
+                                      'اضغطي على أي نقطة من الشهادة لالتقاط لونها',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                          fontFamily: 'Tajawal', fontSize: 11),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                GestureDetector(
+                                  onTap: _cancelEyedropper,
+                                  child: Container(
+                                    width: 32,
+                                    height: 32,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                            color: Colors.black26,
+                                            blurRadius: 4),
+                                      ],
+                                    ),
+                                    child: const Icon(Icons.close_rounded,
+                                        size: 18, color: Colors.black87),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     );
                   },
@@ -283,17 +670,9 @@ class _CertificateTemplateEditorScreenState
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               children: [
                 for (final layout in _fieldLayouts.values)
-                  _buildFieldRow(
-                    label: _fieldLabel(layout.field),
-                    visible: layout.visible,
-                    onVisibleChanged: (value) => setState(() {
-                      _fieldLayouts[layout.field] =
-                          layout.copyWith(visible: value);
-                    }),
-                    onReset: () => _resetField(layout.field),
-                  ),
+                  _buildTextFieldRow(layout),
                 if (_stampLayout != null)
-                  _buildFieldRow(
+                  _buildSimpleRow(
                     label: 'الختم',
                     visible: _stampLayout!.visible,
                     onVisibleChanged: (value) => setState(() {
@@ -301,6 +680,23 @@ class _CertificateTemplateEditorScreenState
                     }),
                     onReset: _resetStamp,
                   ),
+                if (_customTexts.isNotEmpty) ...[
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        'نصوص حرة مضافة',
+                        style: TextStyle(
+                            fontFamily: 'Tajawal',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.grey),
+                      ),
+                    ),
+                  ),
+                  for (final t in _customTexts) _buildCustomTextRow(t),
+                ],
               ],
             ),
           ),
@@ -323,7 +719,417 @@ class _CertificateTemplateEditorScreenState
     );
   }
 
-  Widget _buildFieldRow({
+  /// صف حقل نصي واحد: عنوان + تبديل الإظهار كما هو، بالإضافة إلى لوحة
+  /// تخصيص خط قابلة للطي (تظهر بالضغط على الصف) — الخط، اللون، والحجم.
+  Widget _buildTextFieldRow(CertificateFieldLayout layout) {
+    final isSelected = _selectedField == layout.field;
+    return Column(
+      children: [
+        InkWell(
+          onTap: () => setState(() {
+            _selectedField = isSelected ? null : layout.field;
+            _selectedCustomTextId = null;
+            _eyedropperTarget = null;
+            _eyedropperCustomTextId = null;
+          }),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Icon(
+                  isSelected
+                      ? Icons.expand_less_rounded
+                      : Icons.expand_more_rounded,
+                  size: 18,
+                  color: Colors.grey.shade400,
+                ),
+                IconButton(
+                  tooltip: 'إعادة ضبط',
+                  icon: const Icon(Icons.replay_rounded, size: 18),
+                  color: Colors.grey.shade400,
+                  onPressed: () => _resetField(layout.field),
+                ),
+                Expanded(
+                  child: Text(
+                    _fieldLabel(layout.field),
+                    style: TextStyle(
+                      fontFamily: layout.fontFamily.flutterFamilyName,
+                      fontSize: 14,
+                      color: layout.fontColorValue != null
+                          ? Color(layout.fontColorValue!)
+                          : null,
+                    ),
+                  ),
+                ),
+                Switch(
+                  value: layout.visible,
+                  onChanged: (value) =>
+                      _updateField(layout.field, (c) => c.copyWith(visible: value)),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (isSelected) _buildFontPanel(layout),
+        const Divider(height: 1),
+      ],
+    );
+  }
+
+  Widget _buildFontPanel(CertificateFieldLayout layout) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryGreen.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _fontFamilyDropdownRow(
+            value: layout.fontFamily,
+            onChanged: (value) =>
+                _updateField(layout.field, (c) => c.copyWith(fontFamily: value)),
+          ),
+          const SizedBox(height: 8),
+          _fontSizeStepperRow(
+            valueLabel: '${(layout.fontScale * 100).round()}%',
+            onDecrement: () => _updateField(
+              layout.field,
+              (c) => c.copyWith(
+                  fontScale: (c.fontScale - _fontScaleStep)
+                      .clamp(_minFontScale, _maxFontScale)),
+            ),
+            onIncrement: () => _updateField(
+              layout.field,
+              (c) => c.copyWith(
+                  fontScale: (c.fontScale + _fontScaleStep)
+                      .clamp(_minFontScale, _maxFontScale)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          _colorRow(
+            currentColorValue: layout.fontColorValue,
+            onColorSelected: (value) =>
+                _updateField(layout.field, (c) => c.copyWith(fontColorValue: value)),
+            onClear: () =>
+                _updateField(layout.field, (c) => c.copyWith(clearFontColor: true)),
+            onEyedropperTap: () => _startEyedropper(layout.field),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// نفس لوحة [_buildFontPanel] بالضبط (نفس خيارات الخط/اللون)، لكن لعنصر
+  /// نص حرّ: الفرق الوحيد أن الحجم مطلق بالنقاط لا نسبة تكبير/تصغير، إذ
+  /// لا يوجد حجم أساسي يُقاس نسبة إليه.
+  Widget _buildCustomTextFontPanel(CertificateCustomTextElement t) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryGreen.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _fontFamilyDropdownRow(
+            value: t.fontFamily,
+            onChanged: (value) =>
+                _updateCustomText(t.id, (c) => c.copyWith(fontFamily: value)),
+          ),
+          const SizedBox(height: 8),
+          _fontSizeStepperRow(
+            valueLabel: '${t.fontSize.round()}',
+            onDecrement: () => _updateCustomText(
+              t.id,
+              (c) => c.copyWith(
+                  fontSize: (c.fontSize - _customFontSizeStep)
+                      .clamp(_minCustomFontSize, _maxCustomFontSize)),
+            ),
+            onIncrement: () => _updateCustomText(
+              t.id,
+              (c) => c.copyWith(
+                  fontSize: (c.fontSize + _customFontSizeStep)
+                      .clamp(_minCustomFontSize, _maxCustomFontSize)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          _colorRow(
+            currentColorValue: t.fontColorValue,
+            onColorSelected: (value) =>
+                _updateCustomText(t.id, (c) => c.copyWith(fontColorValue: value)),
+            onClear: () => _updateCustomText(
+                t.id, (c) => c.copyWith(clearFontColor: true)),
+            onEyedropperTap: () => _startEyedropperForCustomText(t.id),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// صف اختيار نوع الخط — مشترك بين لوحتي الحقول الثابتة والنصوص الحرة.
+  Widget _fontFamilyDropdownRow({
+    required CertificateFontFamily value,
+    required ValueChanged<CertificateFontFamily> onChanged,
+  }) {
+    return Row(
+      children: [
+        const SizedBox(
+          width: 52,
+          child: Text('الخط',
+              style:
+                  TextStyle(fontFamily: 'Tajawal', fontSize: 12, color: Colors.grey)),
+        ),
+        Expanded(
+          child: DropdownButton<CertificateFontFamily>(
+            isExpanded: true,
+            value: value,
+            underline: const SizedBox(),
+            items: CertificateFontFamily.values
+                .map((family) => DropdownMenuItem(
+                      value: family,
+                      child: Text(
+                        family.displayName,
+                        style: TextStyle(
+                            fontFamily: family.flutterFamilyName, fontSize: 14),
+                      ),
+                    ))
+                .toList(),
+            onChanged: (value) {
+              if (value == null) return;
+              onChanged(value);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// صف تكبير/تصغير الحجم — [valueLabel] هو النص المعروض فقط (نسبة مئوية
+  /// للحقول الثابتة، أو رقم نقاط مطلق للنصوص الحرة)؛ منطق التغيير نفسه
+  /// يبقى عند المستدعي (حدود مختلفة لكل حالة).
+  Widget _fontSizeStepperRow({
+    required String valueLabel,
+    required VoidCallback onDecrement,
+    required VoidCallback onIncrement,
+  }) {
+    return Row(
+      children: [
+        const SizedBox(
+          width: 52,
+          child: Text('الحجم',
+              style:
+                  TextStyle(fontFamily: 'Tajawal', fontSize: 12, color: Colors.grey)),
+        ),
+        IconButton(
+          tooltip: 'تصغير',
+          icon: const Icon(Icons.remove_circle_outline_rounded, size: 20),
+          color: AppTheme.primaryGreen,
+          onPressed: onDecrement,
+        ),
+        SizedBox(
+          width: 48,
+          child: Text(
+            valueLabel,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                fontFamily: 'Tajawal', fontSize: 13, fontWeight: FontWeight.w700),
+          ),
+        ),
+        IconButton(
+          tooltip: 'تكبير',
+          icon: const Icon(Icons.add_circle_outline_rounded, size: 20),
+          color: AppTheme.primaryGreen,
+          onPressed: onIncrement,
+        ),
+      ],
+    );
+  }
+
+  /// صف اختيار اللون الكامل (ثلاثة ألوان جاهزة + لوحة ألوان حرة + قطّارة)
+  /// — مشترك بين لوحتي الحقول الثابتة والنصوص الحرة، بمعزل تام عن نوع
+  /// النموذج المستدعي عبر ردود الأفعال (callbacks) فقط.
+  Widget _colorRow({
+    required int? currentColorValue,
+    required ValueChanged<int> onColorSelected,
+    required VoidCallback onClear,
+    required VoidCallback onEyedropperTap,
+  }) {
+    return Row(
+      children: [
+        const SizedBox(
+          width: 52,
+          child: Text('اللون',
+              style:
+                  TextStyle(fontFamily: 'Tajawal', fontSize: 12, color: Colors.grey)),
+        ),
+        _colorSwatch(
+          color: AppTheme.goldAccent,
+          selected: currentColorValue == AppTheme.goldAccent.value,
+          onTap: () => onColorSelected(AppTheme.goldAccent.value),
+        ),
+        const SizedBox(width: 8),
+        _colorSwatch(
+          color: AppTheme.primaryGreen,
+          selected: currentColorValue == AppTheme.primaryGreen.value,
+          onTap: () => onColorSelected(AppTheme.primaryGreen.value),
+        ),
+        const SizedBox(width: 8),
+        _colorSwatch(
+          color: Colors.black,
+          selected: currentColorValue == Colors.black.value,
+          onTap: () => onColorSelected(Colors.black.value),
+        ),
+        const SizedBox(width: 8),
+        GestureDetector(
+          onTap: () async {
+            final picked = await _pickColorDialog(
+                currentColorValue != null ? Color(currentColorValue) : Colors.black);
+            if (picked != null) onColorSelected(picked.value);
+          },
+          child: Container(
+            width: 26,
+            height: 26,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: SweepGradient(colors: [
+                Colors.red,
+                Colors.yellow,
+                Colors.green,
+                Colors.blue,
+                Colors.purple,
+                Colors.red,
+              ]),
+              boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 2)],
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Tooltip(
+          message: 'التقطي لوناً من الشهادة نفسها',
+          child: GestureDetector(
+            onTap: _loadingEyedropper ? null : onEyedropperTap,
+            child: Container(
+              width: 26,
+              height: 26,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 2)],
+              ),
+              child: _loadingEyedropper
+                  ? const Padding(
+                      padding: EdgeInsets.all(5),
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(Icons.colorize, size: 15, color: AppTheme.primaryGreen),
+            ),
+          ),
+        ),
+        const Spacer(),
+        if (currentColorValue != null)
+          TextButton(
+            onPressed: onClear,
+            child: const Text('افتراضي',
+                style: TextStyle(fontFamily: 'Tajawal', fontSize: 12)),
+          ),
+      ],
+    );
+  }
+
+  Widget _colorSwatch({
+    required Color color,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 26,
+        height: 26,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: selected ? AppTheme.goldAccent : Colors.white,
+            width: selected ? 2.5 : 2,
+          ),
+          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 2)],
+        ),
+      ),
+    );
+  }
+
+  /// صف عنصر نص حرّ واحد في القائمة: حذف + حقل نص قابل للتحرير مباشرة
+  /// (تُحدَّث القيمة المعروضة على شريحة القماشة فوراً) + طيّ لوحة تخصيص
+  /// الخط. لا يوجد زرّ "إعادة ضبط" هنا (بخلاف الحقول الثابتة) لأن عنصر
+  /// النص الحرّ ليس له أي موضع/شكل أساسي يُرتدّ إليه.
+  Widget _buildCustomTextRow(CertificateCustomTextElement t) {
+    final isSelected = _selectedCustomTextId == t.id;
+    final controller = _customTextControllers[t.id]!;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              IconButton(
+                tooltip: 'حذف',
+                icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                color: Colors.red.shade300,
+                onPressed: () => _removeCustomText(t.id),
+              ),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  textDirection: TextDirection.rtl,
+                  style: TextStyle(
+                    fontFamily: t.fontFamily.flutterFamilyName,
+                    fontSize: 14,
+                    color: t.fontColorValue != null
+                        ? Color(t.fontColorValue!)
+                        : null,
+                  ),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    hintText: 'اكتبي النص هنا',
+                  ),
+                  onChanged: (value) =>
+                      _updateCustomText(t.id, (c) => c.copyWith(text: value)),
+                ),
+              ),
+              IconButton(
+                icon: Icon(
+                  isSelected
+                      ? Icons.expand_less_rounded
+                      : Icons.expand_more_rounded,
+                  size: 18,
+                  color: Colors.grey.shade400,
+                ),
+                onPressed: () => setState(() {
+                  _selectedCustomTextId = isSelected ? null : t.id;
+                  _selectedField = null;
+                  _eyedropperTarget = null;
+                  _eyedropperCustomTextId = null;
+                }),
+              ),
+            ],
+          ),
+        ),
+        if (isSelected) _buildCustomTextFontPanel(t),
+        const Divider(height: 1),
+      ],
+    );
+  }
+
+  Widget _buildSimpleRow({
     required String label,
     required bool visible,
     required ValueChanged<bool> onVisibleChanged,
