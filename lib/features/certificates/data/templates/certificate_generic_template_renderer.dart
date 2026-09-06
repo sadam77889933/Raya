@@ -124,14 +124,27 @@ pw.Widget buildGenericCertificatePage({
   }
 
   // عناصر النص الحرّ: بلا حقل بيانات مرتبط، فتُرسَم بمحاذاة وسط بسيطة
-  // دائماً (بخلاف بعض الحقول الثابتة أعلاه التي تحتاج محاذاة يمين خاصة)،
-  // بنفس منطق FittedBox+scaleDown كشبكة أمان ضد فيضان نص طويل جداً.
+  // دائماً (بخلاف بعض الحقول الثابتة أعلاه التي تحتاج محاذاة يمين خاصة).
+  //
+  // مهم: النص هنا قد يمتد لأكثر من سطر (فاصل أسطر يدوي "\n" من المستخدم
+  // عبر محرِّر متعدد الأسطر، أو التفاف تلقائي لسطر طويل يفوق عرض
+  // الصندوق) — لذا لا نفرض `maxLines: 1` كما كان سابقاً. فرض سطر واحد مع
+  // صندوق بعرض ثابت كان يُلغي أي تكبير لحجم الخط فعلياً لأي نص طويل بما
+  // يكفي ليحتاج تصغيراً: عرضه الطبيعي بسطر واحد يتمدد مع حجم الخط، فمقياس
+  // `FittedBox` (عرض الصندوق ÷ العرض الطبيعي) يتقلّص بنفس النسبة تماماً،
+  // فيُلغي أحدهما الآخر رياضياً ويبقى الحجم المرسوم فعلياً ثابتاً مهما
+  // كبَّرت `fontSize` — وهذا بالضبط ما لاحظته المستخدمة (لم يتغيّر شيء عند
+  // رفع الحجم من ٢٤ إلى ٦٨ لنص طويل). بالسماح بالالتفاف لعدة أسطر وحساب
+  // ارتفاع الصندوق تبعاً لعدد الأسطر الفعلي المقدَّر، يبقى حجم الخط
+  // المُهيّأ هو ما يُرسَم فعلاً، و`FittedBox` يبقى فقط شبكة أمان نادرة
+  // الاستخدام (نص طويل جداً حتى بعد الالتفاف على الأسطر المتاحة).
   const customTextMaxWidthRatio = 0.6;
   for (final t in customTexts) {
     if (t.text.trim().isEmpty) continue;
 
     final boxWidth = customTextMaxWidthRatio * pageWidth;
-    final boxHeight = t.fontSize * 1.8;
+    final boxHeight =
+        _estimateCustomTextBoxHeight(t.text, t.fontSize, boxWidth);
     final left = (t.dx * pageWidth) - (boxWidth / 2);
     final top = (t.dy * pageHeight) - (boxHeight / 2);
 
@@ -148,18 +161,19 @@ pw.Widget buildGenericCertificatePage({
           child: pw.Center(
             child: pw.FittedBox(
               fit: pw.BoxFit.scaleDown,
-              child: pw.Text(
-                t.text,
-                textDirection: pw.TextDirection.rtl,
-                textAlign: pw.TextAlign.center,
-                maxLines: 1,
-                overflow: pw.TextOverflow.clip,
-                style: pw.TextStyle(
-                  font: resolvedFont,
-                  fontSize: t.fontSize,
-                  color: t.fontColorValue != null
-                      ? PdfColor.fromInt(t.fontColorValue!)
-                      : PdfColors.black,
+              child: pw.SizedBox(
+                width: boxWidth,
+                child: pw.Text(
+                  t.text,
+                  textDirection: pw.TextDirection.rtl,
+                  textAlign: pw.TextAlign.center,
+                  style: pw.TextStyle(
+                    font: resolvedFont,
+                    fontSize: t.fontSize,
+                    color: t.fontColorValue != null
+                        ? PdfColor.fromInt(t.fontColorValue!)
+                        : PdfColors.black,
+                  ),
                 ),
               ),
             ),
@@ -194,6 +208,38 @@ pw.Widget buildGenericCertificatePage({
   }
 
   return pw.Stack(children: children);
+}
+
+/// يقدِّر ارتفاع الصندوق اللازم لعنصر نص حرّ بعد السماح له بالالتفاف على
+/// عدة أسطر (بدل الافتراض القديم بسطر واحد `fontSize * 1.8` دائماً) —
+/// يجمع بين أسطر المستخدم اليدوية (فاصل "\n") وتقدير تقريبي لعدد أسطر
+/// الالتفاف التلقائي لكل سطر يدوي يفوق طوله عرض الصندوق عند [fontSize]
+/// المُعطى (بمتوسط عرض حرف تقريبي، إذ لا تتوفر هنا قياس دقيق لعرض نص
+/// حقيقي كما في محرّك عرض Flutter نفسه).
+///
+/// تقدير تقريبي بقصد لا دقيق: الهدف تفادي حاجة `FittedBox` لتصغير النص
+/// (وبالتالي حجم الخط المُهيّأ) حين يكون التقدير صحيحاً أو أعلى قليلاً من
+/// الحقيقة، فهامش أمان بسيط (×1.15) أفضل من نقصان التقدير الذي يعيد
+/// نفس مشكلة التصغير غير المرغوب فيها من جديد.
+double _estimateCustomTextBoxHeight(
+    String text, double fontSize, double boxWidth) {
+  const avgCharWidthFactor = 0.55;
+  final avgCharWidth = fontSize * avgCharWidthFactor;
+  final rawCharsPerLine =
+      avgCharWidth > 0 ? (boxWidth / avgCharWidth).floor() : 1;
+  final charsPerLine = rawCharsPerLine < 1 ? 1 : rawCharsPerLine;
+
+  var totalLines = 0;
+  for (final hardLine in text.split('\n')) {
+    final len = hardLine.trim().isEmpty ? 1 : hardLine.length;
+    final wrapped = (len / charsPerLine).ceil();
+    totalLines += wrapped < 1 ? 1 : wrapped;
+  }
+  if (totalLines < 1) totalLines = 1;
+
+  const lineHeightFactor = 1.35;
+  const safetyMargin = 1.15;
+  return totalLines * fontSize * lineHeightFactor * safetyMargin;
 }
 
 String? _resolveFieldValue(

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pdf/pdf.dart' show PdfPageFormat;
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/theme/app_theme.dart';
@@ -56,6 +57,12 @@ const double _customFontSizeStep = 2;
 const double _minEraseSize = 0.02;
 const double _maxEraseSize = 0.95;
 const double _eraseSizeStep = 0.01;
+
+/// نفس `customTextMaxWidthRatio` بالضبط في
+/// `certificate_generic_template_renderer.dart` — لازمة هنا لتُطابق
+/// معاينة القماشة عرض صندوق النص الحقيقي في ملف الـPDF الناتج تماماً
+/// (المعاينة المباشرة الحقيقية للنصوص الحرة).
+const double _customTextMaxWidthRatio = 0.6;
 
 /// محرر مواضع حقول قالب أساسي واحد — الدفعة الثانية من "المرحلة الثانية"
 /// (القسم ١٣ من تصميم الميزة): **سحب حرّ + إظهار/إخفاء + تخصيص الخط**
@@ -587,6 +594,78 @@ class _CertificateTemplateEditorScreenState
     );
   }
 
+  /// معاينة مباشرة حقيقية (WYSIWYG) لعنصر نص حرّ واحد على القماشة — بخلاف
+  /// [_buildDragChip] المستخدَم للحقول الثابتة/الختم (شريحة رمزية ثابتة
+  /// الحجم بخط Tajawal 11 دائماً، بلا أي علاقة بالخط/الحجم/اللون الفعلي)،
+  /// هذا العنصر يرسم النص الحقيقي: نفس نوع الخط ولونه المختاران فعلاً،
+  /// وحجم خط محوَّل من نقاط الـPDF المطلقة إلى بكسلات القماشة بنفس نسبة
+  /// تحويل الموضع (dx/dy) — عرض القماشة ÷ عرض صفحة الـPDF الفعلي — حتى
+  /// تبقى النسبة بين حجم الخط وعرض الشهادة مطابقة لما سيصدر فعلاً.
+  ///
+  /// الالتفاف على عدة أسطر هنا حقيقي بالكامل (تخطيط Flutter الفعلي للنص
+  /// ضمن عرض صندوق ثابت عبر `Align` داخل `Positioned` بارتفاع كامل)، لا
+  /// تقدير تقريبي كما في مولّد الـPDF (`_estimateCustomTextBoxHeight`) —
+  /// فلا حاجة له هنا أصلاً بما أن Flutter يحسب الارتفاع الحقيقي بنفسه.
+  Widget _buildCustomTextPreviewBox({
+    required CertificateCustomTextElement t,
+    required double width,
+    required double height,
+    required double fontScaleFactor,
+  }) {
+    final boxWidth = _customTextMaxWidthRatio * width;
+    final isSelected = _selectedCustomTextId == t.id;
+    final canvasFontSize = t.fontSize * fontScaleFactor;
+    return Positioned(
+      left: (t.dx * width) - (boxWidth / 2),
+      top: 0,
+      bottom: 0,
+      width: boxWidth,
+      child: GestureDetector(
+        onTap: () => setState(() {
+          _selectedCustomTextId = isSelected ? null : t.id;
+          _selectedField = null;
+          _selectedEraseRegionId = null;
+          _eyedropperTarget = null;
+          _eyedropperCustomTextId = null;
+          _eyedropperEraseRegionId = null;
+        }),
+        onPanUpdate: (details) => setState(() {
+          final dx = (t.dx + details.delta.dx / width).clamp(0.0, 1.0);
+          final dy = (t.dy + details.delta.dy / height).clamp(0.0, 1.0);
+          _customTexts = [
+            for (final e in _customTexts)
+              e.id == t.id ? e.copyWith(dx: dx, dy: dy) : e,
+          ];
+        }),
+        child: Align(
+          alignment: Alignment(0, (t.dy * 2) - 1),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: isSelected ? AppTheme.goldAccent : Colors.black26,
+                width: isSelected ? 2 : 1,
+              ),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              t.text.isEmpty ? 'نص فارغ' : t.text,
+              textDirection: TextDirection.rtl,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: t.fontFamily.flutterFamilyName,
+                fontSize: canvasFontSize,
+                color: t.fontColorValue != null
+                    ? Color(t.fontColorValue!)
+                    : Colors.black,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final layoutAsync = ref.watch(certificateTemplateLayoutProvider(
@@ -651,6 +730,13 @@ class _CertificateTemplateEditorScreenState
                   builder: (context, constraints) {
                     final width = constraints.maxWidth;
                     final height = constraints.maxHeight;
+                    // نفس أبعاد صفحة الـPDF الفعلية تماماً
+                    // (`certificate_pdf_generator.dart`: أفقي = A4 landscape،
+                    // فعرضها هو ارتفاع A4 القياسي) — تحويل حجم الخط المطلق
+                    // بالنقاط إلى بكسلات القماشة بنفس نسبة تحويل الموضع
+                    // (dx * width تماماً كـdx * pageWidth في المولّد)، فتبقى
+                    // نسبة حجم الخط إلى عرض الشهادة مطابقة لما سيصدر فعلاً.
+                    final fontScaleFactor = width / PdfPageFormat.a4.height;
                     return Stack(
                       children: [
                         Positioned.fill(
@@ -712,34 +798,11 @@ class _CertificateTemplateEditorScreenState
                             }),
                           ),
                         for (final t in _customTexts)
-                          _buildDragChip(
-                            dx: t.dx,
-                            dy: t.dy,
+                          _buildCustomTextPreviewBox(
+                            t: t,
                             width: width,
                             height: height,
-                            label: t.text.isEmpty ? 'نص فارغ' : t.text,
-                            selected: _selectedCustomTextId == t.id,
-                            onTap: () => setState(() {
-                              _selectedCustomTextId =
-                                  _selectedCustomTextId == t.id ? null : t.id;
-                              _selectedField = null;
-                              _selectedEraseRegionId = null;
-                              _eyedropperTarget = null;
-                              _eyedropperCustomTextId = null;
-                              _eyedropperEraseRegionId = null;
-                            }),
-                            onDrag: (delta) => setState(() {
-                              final dx =
-                                  (t.dx + delta.dx / width).clamp(0.0, 1.0);
-                              final dy =
-                                  (t.dy + delta.dy / height).clamp(0.0, 1.0);
-                              _customTexts = [
-                                for (final e in _customTexts)
-                                  e.id == t.id
-                                      ? e.copyWith(dx: dx, dy: dy)
-                                      : e,
-                              ];
-                            }),
+                            fontScaleFactor: fontScaleFactor,
                           ),
                         if (_eyedropperTarget != null ||
                             _eyedropperCustomTextId != null ||
@@ -1256,6 +1319,13 @@ class _CertificateTemplateEditorScreenState
                 child: TextField(
                   controller: controller,
                   textDirection: TextDirection.rtl,
+                  // متعدد الأسطر: تسمح بالضغط على Enter لإنزال سطر جديد
+                  // يدوياً بدل إغلاق لوحة المفاتيح — بالضبط كما سيُرسَم في
+                  // الشهادة النهائية (بلا فرض سطر واحد كما كان سابقاً).
+                  maxLines: null,
+                  minLines: 1,
+                  keyboardType: TextInputType.multiline,
+                  textInputAction: TextInputAction.newline,
                   style: TextStyle(
                     fontFamily: t.fontFamily.flutterFamilyName,
                     fontSize: 14,
@@ -1266,7 +1336,7 @@ class _CertificateTemplateEditorScreenState
                   decoration: const InputDecoration(
                     isDense: true,
                     border: InputBorder.none,
-                    hintText: 'اكتبي النص هنا',
+                    hintText: 'اكتبي النص هنا (Enter لسطر جديد)',
                   ),
                   onChanged: (value) =>
                       _updateCustomText(t.id, (c) => c.copyWith(text: value)),
