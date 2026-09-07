@@ -105,6 +105,17 @@ class CertificateTemplateDefinition {
   /// موضع ختم المسجد، أو null إن كان القالب لا يعرض ختماً إطلاقاً.
   final CertificateStampPosition? stampPosition;
 
+  /// المسار المحلي (على جهاز المشرفة) لصورة خلفية قالب **مستورَد** — القسم
+  /// ٦ من تصميم الميزة (استيراد قوالب). `null` لكل القوالب الأساسية
+  /// المُجمَّعة كـAssets داخل التطبيق؛ يُضبَط فقط لقالب مُصنَّع وقت التشغيل
+  /// من `ImportedCertificateTemplate.toDefinition()` واحد.
+  ///
+  /// عند عدم NULL: كل مكان يحمِّل صورة خلفية القالب (بطاقة العرض، قماشة
+  /// محرر مواضع الحقول، ومولّد الـPDF) يقرأ الصورة من هذا المسار عبر
+  /// `dart:io File` بدل `rootBundle`/`backgroundImageAsset` — القيمة
+  /// الأخيرة تبقى فارغة وغير مُستخدَمة في هذه الحالة.
+  final String? localBackgroundImagePath;
+
   const CertificateTemplateDefinition({
     required this.id,
     required this.displayName,
@@ -113,5 +124,25 @@ class CertificateTemplateDefinition {
     required this.recipientType,
     required this.fixedFields,
     this.stampPosition,
+    this.localBackgroundImagePath,
   });
+}
+
+/// موضع افتراضي معقول لحقل لا يملك أي موضع مُعرَّف مسبقاً في `fixedFields`
+/// الخاصة بقالبه — يحدث هذا في حالتين فقط: (أ) حقل أضافته المشرفة يدوياً
+/// عبر زر "إضافة حقل" في محرر مواضع الحقول (القسم ٦، دفعة الحقول
+/// اليدوية)، أو (ب) أي حقل مماثل ضمن قالب **مستورَد** لا يملك `fixedFields`
+/// إطلاقاً (قائمة فارغة دائماً — انظر `ImportedCertificateTemplate.
+/// toDefinition`). مصدر معرفة واحد يستخدمه كل من محرر مواضع الحقول
+/// (معاينة + إعادة ضبط) ومولّد الـPDF (`_mergeFieldPositions`) معاً، حتى
+/// لا تختلف المعاينة عن الناتج الفعلي أبداً لأي حقل مُضاف يدوياً.
+CertificateFieldPosition defaultFieldPosition(CertificateField field) {
+  return CertificateFieldPosition(
+    field: field,
+    dx: 0.5,
+    dy: 0.5,
+    fontSize: 24,
+    color: PdfColors.black,
+    maxWidthRatio: 0.5,
+  );
 }

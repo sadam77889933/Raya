@@ -22,10 +22,12 @@ import '../../domain/certificate_share_filename.dart';
 import '../../domain/entities/certificate_batch.dart';
 import '../../domain/entities/certificate_render_data.dart';
 import '../../domain/entities/certificate_template.dart';
+import '../../domain/entities/imported_certificate_template.dart';
 import '../providers/certificate_history_provider.dart';
 import '../providers/certificate_recipients_provider.dart';
 import '../providers/certificate_template_layout_provider.dart';
 import '../providers/certificate_wizard_provider.dart';
+import '../providers/imported_certificate_templates_provider.dart';
 import '../widgets/certificate_template_card.dart';
 
 const List<String> _stepTitles = [
@@ -68,6 +70,19 @@ class _CertificateWizardScreenState
     final effectiveMosqueId =
         user.isSupervisor ? _globalSupervisorMosqueId : user.mosqueId;
 
+    // القوالب المستورَدة لهذا المسجد (القسم ٦ من تصميم الميزة) — تُقرأ هنا
+    // مرة واحدة وتُمرَّر لكل خطوة تحتاجها، بدل أن تقرأ كل خطوة المزوّد
+    // بنفسها؛ فشل التحميل أو عدم وجود مسجد بعد يُعاد ببساطة كقائمة فارغة
+    // (لا تعطيل لبقية المعالج بسبب هذا فقط).
+    final importedTemplates = effectiveMosqueId != null
+        ? ref
+            .watch(importedCertificateTemplatesProvider(effectiveMosqueId))
+            .maybeWhen(
+              data: (list) => list,
+              orElse: () => const <ImportedCertificateTemplate>[],
+            )
+        : const <ImportedCertificateTemplate>[];
+
     // مراقبة مستمرة طوال بقاء شاشة المعالج كاملة (وليس فقط أثناء خطوة
     // اختيار المستفيدين) — تمنع تخلّص Riverpod التلقائي (autoDispose) من
     // مزوّد المجموعات ومزوّدات الحلقات/الدور التابعة له أثناء انتقال
@@ -90,7 +105,8 @@ class _CertificateWizardScreenState
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: _buildStepContent(wizard, notifier, user, effectiveMosqueId),
+              child: _buildStepContent(
+                  wizard, notifier, user, effectiveMosqueId, importedTemplates),
             ),
           ),
           _buildNavBar(wizard, notifier, effectiveMosqueId),
@@ -128,18 +144,20 @@ class _CertificateWizardScreenState
     CertificateWizardNotifier notifier,
     UserModel user,
     String? mosqueId,
+    List<ImportedCertificateTemplate> importedTemplates,
   ) {
     switch (wizard.step) {
       case 0:
         return _buildRecipientTypeStep(wizard, notifier);
       case 1:
-        return _buildTemplateStep(wizard, notifier);
+        return _buildTemplateStep(wizard, notifier, importedTemplates);
       case 2:
         return _buildRecipientsStep(wizard, notifier, user, mosqueId);
       case 3:
-        return _buildPreviewStep(wizard, notifier, mosqueId);
+        return _buildPreviewStep(wizard, notifier, mosqueId, importedTemplates);
       case 4:
-        return _buildGenerateStep(wizard, notifier, user, mosqueId);
+        return _buildGenerateStep(
+            wizard, notifier, user, mosqueId, importedTemplates);
       default:
         return const SizedBox.shrink();
     }
@@ -178,7 +196,10 @@ class _CertificateWizardScreenState
 
   // ── خطوة ٢: القالب ──
   Widget _buildTemplateStep(
-      CertificateWizardState wizard, CertificateWizardNotifier notifier) {
+    CertificateWizardState wizard,
+    CertificateWizardNotifier notifier,
+    List<ImportedCertificateTemplate> importedTemplates,
+  ) {
     final type = wizard.recipientType;
     if (type == null) {
       return const Center(
@@ -186,7 +207,15 @@ class _CertificateWizardScreenState
             style: TextStyle(fontFamily: 'Tajawal', color: Colors.grey)),
       );
     }
-    final templates = certificateTemplatesFor(type);
+    // القوالب الأساسية المُجمَّعة + القوالب المستورَدة لهذا المسجد (القسم
+    // ٦) لنفس نوع المستفيد فقط — بلا أي تفريق بصري بينهما في الشبكة، فكلا
+    // النوعين قالب صالح للاستخدام تماماً بمجرد إتمام استيراده.
+    final templates = [
+      ...certificateTemplatesFor(type),
+      ...importedTemplates
+          .where((t) => t.recipientType == type)
+          .map((t) => t.toDefinition()),
+    ];
     if (templates.isEmpty) {
       return const Center(
         child: Text('لا يوجد قالب متاح لهذا النوع بعد',
@@ -430,8 +459,12 @@ class _CertificateWizardScreenState
   }
 
   // ── خطوة ٤: معاينة ──
-  Widget _buildPreviewStep(CertificateWizardState wizard,
-      CertificateWizardNotifier notifier, String? mosqueId) {
+  Widget _buildPreviewStep(
+    CertificateWizardState wizard,
+    CertificateWizardNotifier notifier,
+    String? mosqueId,
+    List<ImportedCertificateTemplate> importedTemplates,
+  ) {
     final selectedIds = wizard.selectedRecipientIds.toList();
     if (selectedIds.isEmpty || wizard.templateId == null || mosqueId == null) {
       return const Center(
@@ -439,7 +472,7 @@ class _CertificateWizardScreenState
             style: TextStyle(fontFamily: 'Tajawal', color: Colors.grey)),
       );
     }
-    final template = certificateTemplateById(wizard.templateId!);
+    final template = resolveTemplateById(wizard.templateId!, importedTemplates);
     if (template == null) return const SizedBox.shrink();
 
     final recipients = _buildRenderDataList(wizard, mosqueId, selectedIds);
@@ -585,11 +618,16 @@ class _CertificateWizardScreenState
   }
 
   // ── خطوة ٥: الإنشاء والمشاركة ──
-  Widget _buildGenerateStep(CertificateWizardState wizard,
-      CertificateWizardNotifier notifier, UserModel user, String? mosqueId) {
+  Widget _buildGenerateStep(
+    CertificateWizardState wizard,
+    CertificateWizardNotifier notifier,
+    UserModel user,
+    String? mosqueId,
+    List<ImportedCertificateTemplate> importedTemplates,
+  ) {
     final selectedIds = wizard.selectedRecipientIds.toList();
     final template = wizard.templateId != null
-        ? certificateTemplateById(wizard.templateId!)
+        ? resolveTemplateById(wizard.templateId!, importedTemplates)
         : null;
 
     return Center(
@@ -615,7 +653,8 @@ class _CertificateWizardScreenState
             const CircularProgressIndicator()
           else
             ElevatedButton.icon(
-              onPressed: () => _generateAndShare(wizard, notifier, user, mosqueId),
+              onPressed: () => _generateAndShare(
+                  wizard, notifier, user, mosqueId, importedTemplates),
               icon: const Icon(Icons.picture_as_pdf_rounded),
               label: const Text('إنشاء الشهادات ومشاركتها'),
             ),
@@ -679,9 +718,10 @@ class _CertificateWizardScreenState
     CertificateWizardNotifier notifier,
     UserModel user,
     String? mosqueId,
+    List<ImportedCertificateTemplate> importedTemplates,
   ) async {
     if (mosqueId == null || wizard.templateId == null) return;
-    final template = certificateTemplateById(wizard.templateId!);
+    final template = resolveTemplateById(wizard.templateId!, importedTemplates);
     if (template == null) return;
 
     notifier.setGenerating(true);

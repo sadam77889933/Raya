@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
@@ -41,10 +43,17 @@ class CertificateTemplateCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
                 child: AspectRatio(
                   aspectRatio: 1.414, // A4 landscape تقريباً
-                  child: Image.asset(
-                    template.thumbnailAsset,
-                    fit: BoxFit.cover,
-                  ),
+                  // قالب مستورَد: صورة محلية على القرص (`Image.file`)؛ قالب
+                  // أساسي مُجمَّع كـAsset: كما كان دائماً (`Image.asset`).
+                  child: template.localBackgroundImagePath != null
+                      ? Image.file(
+                          File(template.localBackgroundImagePath!),
+                          fit: BoxFit.cover,
+                        )
+                      : Image.asset(
+                          template.thumbnailAsset,
+                          fit: BoxFit.cover,
+                        ),
                 ),
               ),
               const SizedBox(height: 8),

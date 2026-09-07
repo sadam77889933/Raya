@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -262,11 +263,88 @@ class _CertificateTemplateEditorScreenState
   }
 
   void _resetField(CertificateField field) {
-    final base =
-        widget.template.fixedFields.firstWhere((f) => f.field == field);
+    final base = widget.template.fixedFields.firstWhere(
+      (f) => f.field == field,
+      orElse: () => defaultFieldPosition(field),
+    );
     setState(() {
       _fieldLayouts[field] =
           CertificateFieldLayout(field: field, dx: base.dx, dy: base.dy);
+    });
+  }
+
+  /// تفتح قائمة (Bottom Sheet) بكل الحقول غير المُضافة بعد لهذا القالب —
+  /// القسم ٦ من تصميم الميزة (استيراد قوالب): قالب مستورَد يبدأ بلا أي
+  /// حقل إطلاقاً (`fixedFields` فارغة)، وهذه هي الطريقة الوحيدة لبناء
+  /// حقوله واحداً تلو الآخر. متاحة أيضاً لأي قالب أساسي عادي (لإضافة حقل
+  /// إضافي غير معرَّف له مسبقاً)، بلا أي قيد.
+  void _openAddFieldSheet() {
+    final available = CertificateField.values
+        .where((f) => !_fieldLayouts.containsKey(f))
+        .toList();
+    if (available.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('كل الحقول مُضافة بالفعل')),
+      );
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(14),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Text('اختاري حقلاً لإضافته',
+                    style: TextStyle(
+                        fontFamily: 'Tajawal', fontWeight: FontWeight.w700)),
+              ),
+            ),
+            for (final field in available)
+              ListTile(
+                title: Text(_fieldLabel(field),
+                    style: const TextStyle(fontFamily: 'Tajawal')),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _addFixedField(field);
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// تضيف حقلاً جديداً بموضع افتراضي معقول (منتصف الشهادة تقريباً — نفس
+  /// [defaultFieldPosition] المستخدَمة أيضاً في مولّد الـPDF لهذا الحقل
+  /// تحديداً إن لم يكن معرَّفاً في `fixedFields`)، ثم تفتح لوحة تخصيصه
+  /// مباشرة (نفس سلوك [_addCustomText]/[_addEraseRegion] عند الإضافة).
+  void _addFixedField(CertificateField field) {
+    final base = defaultFieldPosition(field);
+    setState(() {
+      _fieldLayouts[field] =
+          CertificateFieldLayout(field: field, dx: base.dx, dy: base.dy);
+      _selectedField = field;
+      _selectedCustomTextId = null;
+      _selectedEraseRegionId = null;
+      _eyedropperTarget = null;
+      _eyedropperCustomTextId = null;
+      _eyedropperEraseRegionId = null;
+    });
+  }
+
+  /// تحذف حقلاً أضافته المشرفة يدوياً عبر [_addFixedField] — لا تُستخدَم
+  /// إطلاقاً لحقل أساسي معرَّف في `fixedFields` (زر الحذف لا يظهر أصلاً
+  /// لهذه الحالة في [_buildTextFieldRow]، فلا حاجة لأي حماية إضافية هنا).
+  void _removeFixedField(CertificateField field) {
+    setState(() {
+      _fieldLayouts.remove(field);
+      if (_selectedField == field) _selectedField = null;
+      if (_eyedropperTarget == field) _eyedropperTarget = null;
     });
   }
 
@@ -338,11 +416,15 @@ class _CertificateTemplateEditorScreenState
     if (_bgPixels != null) return true;
     setState(() => _loadingEyedropper = true);
     try {
-      final assetData =
-          await rootBundle.load(widget.template.backgroundImageAsset);
-      final codec = await ui.instantiateImageCodec(
-        assetData.buffer.asUint8List(),
-      );
+      // قالب مستورَد: يُقرأ من مساره المحلي على القرص؛ قالب أساسي مُجمَّع
+      // كـAsset: كما كان دائماً عبر rootBundle.
+      final localPath = widget.template.localBackgroundImagePath;
+      final bgBytes = localPath != null
+          ? await File(localPath).readAsBytes()
+          : (await rootBundle.load(widget.template.backgroundImageAsset))
+              .buffer
+              .asUint8List();
+      final codec = await ui.instantiateImageCodec(bgBytes);
       final frame = await codec.getNextFrame();
       final byteData = await frame.image.toByteData(
         format: ui.ImageByteFormat.rawRgba,
@@ -802,6 +884,11 @@ class _CertificateTemplateEditorScreenState
         title: Text(widget.template.displayName),
         actions: [
           IconButton(
+            tooltip: 'إضافة حقل',
+            icon: const Icon(Icons.playlist_add_rounded),
+            onPressed: _isSaving ? null : _openAddFieldSheet,
+          ),
+          IconButton(
             tooltip: 'إضافة منطقة تغطية (مسح نص من القالب)',
             icon: const Icon(Icons.format_color_fill_rounded),
             onPressed: _isSaving ? null : _addEraseRegion,
@@ -851,10 +938,17 @@ class _CertificateTemplateEditorScreenState
                     return Stack(
                       children: [
                         Positioned.fill(
-                          child: Image.asset(
-                            widget.template.backgroundImageAsset,
-                            fit: BoxFit.fill,
-                          ),
+                          child: widget.template.localBackgroundImagePath !=
+                                  null
+                              ? Image.file(
+                                  File(widget
+                                      .template.localBackgroundImagePath!),
+                                  fit: BoxFit.fill,
+                                )
+                              : Image.asset(
+                                  widget.template.backgroundImageAsset,
+                                  fit: BoxFit.fill,
+                                ),
                         ),
                         for (final region in _eraseRegions)
                           _buildEraseRegionBox(
@@ -867,7 +961,11 @@ class _CertificateTemplateEditorScreenState
                             _buildFixedFieldPreviewBox(
                               layout: layout,
                               basePosition: widget.template.fixedFields
-                                  .firstWhere((f) => f.field == layout.field),
+                                  .firstWhere(
+                                (f) => f.field == layout.field,
+                                orElse: () =>
+                                    defaultFieldPosition(layout.field),
+                              ),
                               width: width,
                               height: height,
                               fontScaleFactor: fontScaleFactor,
@@ -1040,8 +1138,15 @@ class _CertificateTemplateEditorScreenState
 
   /// صف حقل نصي واحد: عنوان + تبديل الإظهار كما هو، بالإضافة إلى لوحة
   /// تخصيص خط قابلة للطي (تظهر بالضغط على الصف) — الخط، اللون، والحجم.
+  ///
+  /// حقل أساسي معرَّف في `fixedFields` نفسها: زر "إعادة ضبط" (يرتدّ لموضعه
+  /// الأصلي في القالب). حقل أضافته المشرفة يدوياً عبر [_addFixedField] —
+  /// لا "أصل" له ليُعاد إليه أصلاً — فيظهر زر "حذف" بدلاً منه (نفس منطق
+  /// الحذف في عناصر النص الحرّ ومناطق التغطية).
   Widget _buildTextFieldRow(CertificateFieldLayout layout) {
     final isSelected = _selectedField == layout.field;
+    final isBaseField =
+        widget.template.fixedFields.any((f) => f.field == layout.field);
     return Column(
       children: [
         InkWell(
@@ -1064,12 +1169,20 @@ class _CertificateTemplateEditorScreenState
                   size: 18,
                   color: Colors.grey.shade400,
                 ),
-                IconButton(
-                  tooltip: 'إعادة ضبط',
-                  icon: const Icon(Icons.replay_rounded, size: 18),
-                  color: Colors.grey.shade400,
-                  onPressed: () => _resetField(layout.field),
-                ),
+                if (isBaseField)
+                  IconButton(
+                    tooltip: 'إعادة ضبط',
+                    icon: const Icon(Icons.replay_rounded, size: 18),
+                    color: Colors.grey.shade400,
+                    onPressed: () => _resetField(layout.field),
+                  )
+                else
+                  IconButton(
+                    tooltip: 'حذف الحقل',
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                    color: Colors.red.shade300,
+                    onPressed: () => _removeFixedField(layout.field),
+                  ),
                 Expanded(
                   child: Text(
                     _fieldLabel(layout.field),

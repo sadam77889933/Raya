@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart' show rootBundle;
@@ -23,7 +24,10 @@ List<CertificateFieldPosition> _mergeFieldPositions(
 ) {
   if (customLayout == null) return baseFields;
   final merged = <CertificateFieldPosition>[];
+  final coveredFields = <CertificateField>{};
+
   for (final f in baseFields) {
+    coveredFields.add(f.field);
     final override = customLayout.layoutFor(f.field);
     if (override == null) {
       merged.add(f);
@@ -43,6 +47,31 @@ List<CertificateFieldPosition> _mergeFieldPositions(
       maxWidthRatio: f.maxWidthRatio,
     ));
   }
+
+  // حقول أضافتها المشرفة يدوياً عبر زر "إضافة حقل" في المحرر — لا وجود
+  // لها إطلاقاً ضمن baseFields (قوالب مستورَدة غالباً، `fixedFields`
+  // فارغة تماماً لها). بدون هذه الحلقة كانت ستُسقَط بصمت من ملف الـPDF
+  // النهائي رغم ظهورها بصرياً في معاينة المحرر — الموضع الافتراضي
+  // [defaultFieldPosition] هو نفسه المستخدَم في المحرر لأي حقل كهذا،
+  // فتبقى المعاينة مطابقة للناتج الفعلي دائماً.
+  for (final override in customLayout.fields) {
+    if (coveredFields.contains(override.field)) continue;
+    if (!override.visible) continue;
+    final base = defaultFieldPosition(override.field);
+    merged.add(CertificateFieldPosition(
+      field: override.field,
+      dx: override.dx,
+      dy: override.dy,
+      fontSize: base.fontSize * override.fontScale,
+      color: override.fontColorValue != null
+          ? PdfColor.fromInt(override.fontColorValue!)
+          : base.color,
+      bold: base.bold,
+      fontFamily: override.fontFamily,
+      maxWidthRatio: base.maxWidthRatio,
+    ));
+  }
+
   return merged;
 }
 
@@ -75,8 +104,15 @@ class CertificatePdfGenerator {
     final regularFonts = await CertificateFontCatalog.loadRegular();
     final boldFonts = await CertificateFontCatalog.loadBold();
 
-    final bgBytes =
-        (await rootBundle.load(template.backgroundImageAsset)).buffer.asUint8List();
+    // قالب مستورَد (`localBackgroundImagePath` غير فارغ): يُقرأ من القرص
+    // مباشرة؛ قالب أساسي مُجمَّع كـAsset: يُقرأ كما كان دائماً عبر
+    // rootBundle.
+    final localPath = template.localBackgroundImagePath;
+    final bgBytes = localPath != null
+        ? await File(localPath).readAsBytes()
+        : (await rootBundle.load(template.backgroundImageAsset))
+            .buffer
+            .asUint8List();
     final bgImage = pw.MemoryImage(bgBytes);
 
     pw.MemoryImage? stampImage;

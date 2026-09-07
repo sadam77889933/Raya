@@ -2,6 +2,7 @@ import 'package:pdf/pdf.dart';
 
 import '../../domain/entities/certificate_batch.dart';
 import '../../domain/entities/certificate_template.dart';
+import '../../domain/entities/imported_certificate_template.dart';
 
 /// قائمة مفتوحة بكل القوالب الأساسية المتاحة في التطبيق — تبدأ بعنصر
 /// واحد فقط عند إطلاق المرحلة الأولى (قالب "شهادة شكر" الذي اعتمدته
@@ -149,6 +150,23 @@ List<CertificateTemplateDefinition> certificateTemplatesFor(
 CertificateTemplateDefinition? certificateTemplateById(String id) {
   for (final t in certificateTemplateRegistry) {
     if (t.id == id) return t;
+  }
+  return null;
+}
+
+/// تحلّ معرِّف قالب مخزَّن (كمعرِّف القالب المختار في معالج إنشاء شهادة)
+/// إلى تعريفه الفعلي — تبحث أولاً بين القوالب الأساسية المُجمَّعة
+/// ([certificateTemplateById])، ثم بين القوالب **المستورَدة** لنفس المسجد
+/// (إن مُرِّرت — القسم ٦ من تصميم الميزة)، بلا حاجة لمعرفة مسبقة من
+/// المستدعي إن كان هذا المعرِّف لقالب أساسي أم مستورَد.
+CertificateTemplateDefinition? resolveTemplateById(
+  String id,
+  List<ImportedCertificateTemplate> importedTemplates,
+) {
+  final builtIn = certificateTemplateById(id);
+  if (builtIn != null) return builtIn;
+  for (final t in importedTemplates) {
+    if (t.id == id) return t.toDefinition();
   }
   return null;
 }

@@ -18,6 +18,7 @@ import '../../domain/entities/certificate_render_data.dart';
 import '../providers/certificate_history_provider.dart';
 import '../providers/certificate_recipients_provider.dart';
 import '../providers/certificate_template_layout_provider.dart';
+import '../providers/imported_certificate_templates_provider.dart';
 import '../widgets/certificate_batch_history_tile.dart';
 import 'certificate_wizard_screen.dart';
 import 'manage_certificate_templates_screen.dart';
@@ -98,7 +99,13 @@ class _CertificatesHomeScreenState extends ConsumerState<CertificatesHomeScreen>
   }
 
   Future<void> _reshareBatch(CertificateBatch batch) async {
-    final template = certificateTemplateById(batch.templateId);
+    // القالب قد يكون أساسياً مُجمَّعاً أو **مستورَداً** (القسم ٦ من تصميم
+    // الميزة) — بدون هذا كانت إعادة مشاركة دفعة صادرة أصلاً عن قالب
+    // مستورَد ستفشل بصمت هنا (`return` مبكر بلا أي رسالة) لأن القالب غير
+    // موجود إطلاقاً في السجل الأساسي الثابت.
+    final importedTemplates = await ref
+        .read(importedCertificateTemplatesProvider(batch.mosqueId).future);
+    final template = resolveTemplateById(batch.templateId, importedTemplates);
     if (template == null) return;
 
     setState(() => _isResharing = true);
