@@ -28,7 +28,7 @@ class CertificateFieldLayout extends Equatable {
   final double dx;
   final double dy;
 
-  /// نوع الخط — من القائمة المُجمَّعة فقط (خمسة خطوط)، افتراضياً
+  /// نوع الخط — من القائمة المُجمَّعة فقط (ستة خطوط)، افتراضياً
   /// `Amiri` ليطابق شكل الحقل قبل أي تخصيص.
   final CertificateFontFamily fontFamily;
 

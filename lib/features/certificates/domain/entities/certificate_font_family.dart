@@ -11,6 +11,7 @@ enum CertificateFontFamily {
   mirza,
   katibeh,
   lalezar,
+  notoKufiArabic,
 }
 
 extension CertificateFontFamilyX on CertificateFontFamily {
@@ -27,6 +28,8 @@ extension CertificateFontFamilyX on CertificateFontFamily {
         return 'كاتبة (هندسي)';
       case CertificateFontFamily.lalezar:
         return 'لالزار (عريض)';
+      case CertificateFontFamily.notoKufiArabic:
+        return 'كوفي (هندسي)';
     }
   }
 
@@ -46,6 +49,8 @@ extension CertificateFontFamilyX on CertificateFontFamily {
         return 'Katibeh';
       case CertificateFontFamily.lalezar:
         return 'Lalezar';
+      case CertificateFontFamily.notoKufiArabic:
+        return 'NotoKufiArabic';
     }
   }
 }

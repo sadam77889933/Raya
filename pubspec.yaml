@@ -68,3 +68,7 @@ flutter:
       fonts:
         - asset: assets/fonts/Lalezar-Regular.ttf
           weight: 400
+    - family: NotoKufiArabic
+      fonts:
+        - asset: assets/fonts/NotoKufiArabic-Regular.ttf
+          weight: 400
