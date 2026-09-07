@@ -60,4 +60,13 @@ class CertificateFontCatalog {
     }
     return result;
   }
+
+  /// هل هذا الخط يملك نسخة عريضة (Bold) مُجمَّعة فعلاً؟ مصدر معرفة واحد
+  /// (بدل تكرار قائمة "الخطوط ذات الوزن العريض" في مكانين قد يختلفان لاحقاً
+  /// عن بعضهما) — يستخدمه مولّد الـPDF ضمنياً (عبر [_boldAssets] أعلاه)،
+  /// وتستخدمه أيضاً معاينة محرر القالب لتقرير هل تطلب وزناً عريضاً فعلياً
+  /// أم ترتدّ للوزن العادي، فتبقى مطابقة تماماً لسلوك الارتداد في
+  /// `certificate_generic_template_renderer.dart`.
+  static bool hasBoldAsset(CertificateFontFamily family) =>
+      _boldAssets.containsKey(family);
 }

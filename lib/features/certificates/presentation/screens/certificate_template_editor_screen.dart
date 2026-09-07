@@ -5,11 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:pdf/pdf.dart' show PdfPageFormat;
+import 'package:pdf/pdf.dart' show PdfColor, PdfPageFormat;
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../data/certificate_font_catalog.dart';
 import '../../domain/entities/certificate_font_family.dart';
 import '../../domain/entities/certificate_template.dart';
 import '../../domain/entities/certificate_template_layout.dart';
@@ -39,6 +40,17 @@ String _fieldLabel(CertificateField field) {
       return 'نوع الشهادة';
   }
 }
+
+/// يحوّل لون [PdfColor] (نظام ألوان حزمة pdf، قيم عشرية 0.0-1.0 لكل قناة)
+/// إلى [Color] فلاتر عادي — لازم لعرض لون الحبر الافتراضي لحقل ثابت
+/// (`CertificateFieldPosition.color`) بدقة على قماشة المحرر، بنفس اللون
+/// تماماً الذي سيُرسَم به في ملف الـPDF الناتج عند عدم تخصيص لون خاص.
+Color _pdfColorToFlutter(PdfColor c) => Color.fromRGBO(
+      (c.red * 255).round().clamp(0, 255),
+      (c.green * 255).round().clamp(0, 255),
+      (c.blue * 255).round().clamp(0, 255),
+      c.alpha,
+    );
 
 /// حدود منطقية لنسبة تكبير/تصغير الخط — تمنع تصغيراً/تكبيراً متطرفاً قد
 /// يُخرج النص عن مساحة الشهادة أو يجعله غير مقروء.
@@ -494,6 +506,11 @@ class _CertificateTemplateEditorScreenState
     }
   }
 
+  /// شريحة سحب رمزية بسيطة (نفس الشكل والحجم دائماً) — تُستخدَم الآن
+  /// للختم فقط (صورة، بلا خط ليُخصَّص أو معاينة WYSIWYG له)؛ الحقول
+  /// الثابتة (اسم الدار/المسجد/المستفيدة...) تستخدم
+  /// [_buildFixedFieldPreviewBox] بدلاً منها، وعناصر النص الحرّ تستخدم
+  /// [_buildCustomTextPreviewBox].
   Widget _buildDragChip({
     required double dx,
     required double dy,
@@ -594,8 +611,102 @@ class _CertificateTemplateEditorScreenState
     );
   }
 
+  /// معاينة مباشرة حقيقية (WYSIWYG) لحقل ثابت واحد (اسم الدار/المسجد/
+  /// المستفيدة...) — بنفس فكرة [_buildCustomTextPreviewBox] تماماً، لكن
+  /// بمصدرين للبيانات معاً: [basePosition] (حجم الخط الأساسي، نسبة أقصى
+  /// عرض، لون ووزن افتراضيان — من القالب الأساسي الثابت في الكود) و
+  /// [layout] (تخصيص هذا المسجد تحديداً: الموضع الفعلي، نسبة التكبير/
+  /// التصغير، الخط، اللون).
+  ///
+  /// النص المعروض هو تسمية الحقل نفسها (`_fieldLabel`) كنص عيّنة فقط —
+  /// هذه الشاشة عامة لكل مستفيدة مستقبلية، فلا تعرف اسماً حقيقياً بعد؛
+  /// هذا النص للمعاينة البصرية حصراً، لا يُحفظ ولا يظهر في أي شهادة فعلية.
+  ///
+  /// بخلاف النص الحرّ (يلتفّ على عدة أسطر عمداً بعد إصلاح خلل الحجم)،
+  /// الحقول الثابتة سطر واحد دائماً في المولّد الفعلي
+  /// (`certificate_generic_template_renderer.dart`: `maxLines: 1` +
+  /// `FittedBox(scaleDown)` كشبكة أمان تصغير فقط) — نفس القيد هنا حرفياً،
+  /// فارتفاع الصندوق معروف مسبقاً (لا حاجة لحيلة `Align` بارتفاع كامل
+  /// المستخدَمة في معاينة النص الحرّ لحساب ارتفاع متغيّر).
+  ///
+  /// محاذاة اليمين خاصة بـ"اسم الدار"/"اسم المسجد" (يقعان بجانب تسميتَي
+  /// "مدرسة"/"بجامع" المطبوعتين في صورة الخلفية نفسها) تُطابق تماماً
+  /// `needsRightAlign` في المولّد؛ ووزن الخط العريض يُطلَب فقط إن كان هذا
+  /// الخط المختار يملك فعلاً نسخة عريضة مُجمَّعة (`CertificateFontCatalog.
+  /// hasBoldAsset`) تماماً كسلوك الارتداد في المولّد، فلا يظهر هنا وزن
+  /// عريض مزيَّف (Faux Bold من فلاتر) لخط لا يملكه فعلياً في الـPDF.
+  Widget _buildFixedFieldPreviewBox({
+    required CertificateFieldLayout layout,
+    required CertificateFieldPosition basePosition,
+    required double width,
+    required double height,
+    required double fontScaleFactor,
+  }) {
+    final boxWidth = basePosition.maxWidthRatio * width;
+    final canvasFontSize =
+        basePosition.fontSize * layout.fontScale * fontScaleFactor;
+    final boxHeight = canvasFontSize * 1.8;
+    final isSelected = _selectedField == layout.field;
+    final needsRightAlign = layout.field == CertificateField.schoolName ||
+        layout.field == CertificateField.mosqueName;
+    final effectiveBold = basePosition.bold &&
+        CertificateFontCatalog.hasBoldAsset(layout.fontFamily);
+    final color = layout.fontColorValue != null
+        ? Color(layout.fontColorValue!)
+        : _pdfColorToFlutter(basePosition.color);
+
+    return Positioned(
+      left: (layout.dx * width) - (boxWidth / 2),
+      top: (layout.dy * height) - (boxHeight / 2),
+      child: GestureDetector(
+        onTap: () => setState(() {
+          _selectedField = isSelected ? null : layout.field;
+          _selectedCustomTextId = null;
+          _selectedEraseRegionId = null;
+          _eyedropperTarget = null;
+          _eyedropperCustomTextId = null;
+          _eyedropperEraseRegionId = null;
+        }),
+        onPanUpdate: (details) => setState(() {
+          final dx = (layout.dx + details.delta.dx / width).clamp(0.0, 1.0);
+          final dy = (layout.dy + details.delta.dy / height).clamp(0.0, 1.0);
+          _fieldLayouts[layout.field] = layout.copyWith(dx: dx, dy: dy);
+        }),
+        child: Container(
+          width: boxWidth,
+          height: boxHeight,
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: isSelected ? AppTheme.goldAccent : Colors.black26,
+              width: isSelected ? 2 : 1,
+            ),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          alignment:
+              needsRightAlign ? Alignment.centerRight : Alignment.center,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              _fieldLabel(layout.field),
+              textDirection: TextDirection.rtl,
+              maxLines: 1,
+              style: TextStyle(
+                fontFamily: layout.fontFamily.flutterFamilyName,
+                fontSize: canvasFontSize,
+                fontWeight:
+                    effectiveBold ? FontWeight.bold : FontWeight.normal,
+                color: color,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// معاينة مباشرة حقيقية (WYSIWYG) لعنصر نص حرّ واحد على القماشة — بخلاف
-  /// [_buildDragChip] المستخدَم للحقول الثابتة/الختم (شريحة رمزية ثابتة
+  /// [_buildDragChip] المستخدَم للختم فقط الآن (شريحة رمزية ثابتة
   /// الحجم بخط Tajawal 11 دائماً، بلا أي علاقة بالخط/الحجم/اللون الفعلي)،
   /// هذا العنصر يرسم النص الحقيقي: نفس نوع الخط ولونه المختاران فعلاً،
   /// وحجم خط محوَّل من نقاط الـPDF المطلقة إلى بكسلات القماشة بنفس نسبة
@@ -753,32 +864,13 @@ class _CertificateTemplateEditorScreenState
                           ),
                         for (final layout in _fieldLayouts.values)
                           if (layout.visible)
-                            _buildDragChip(
-                              dx: layout.dx,
-                              dy: layout.dy,
+                            _buildFixedFieldPreviewBox(
+                              layout: layout,
+                              basePosition: widget.template.fixedFields
+                                  .firstWhere((f) => f.field == layout.field),
                               width: width,
                               height: height,
-                              label: _fieldLabel(layout.field),
-                              selected: _selectedField == layout.field,
-                              onTap: () => setState(() {
-                                _selectedField =
-                                    _selectedField == layout.field
-                                        ? null
-                                        : layout.field;
-                                _selectedCustomTextId = null;
-                                _selectedEraseRegionId = null;
-                                _eyedropperTarget = null;
-                                _eyedropperCustomTextId = null;
-                                _eyedropperEraseRegionId = null;
-                              }),
-                              onDrag: (delta) => setState(() {
-                                final dx = (layout.dx + delta.dx / width)
-                                    .clamp(0.0, 1.0);
-                                final dy = (layout.dy + delta.dy / height)
-                                    .clamp(0.0, 1.0);
-                                _fieldLayouts[layout.field] =
-                                    layout.copyWith(dx: dx, dy: dy);
-                              }),
+                              fontScaleFactor: fontScaleFactor,
                             ),
                         if (_stampLayout != null && _stampLayout!.visible)
                           _buildDragChip(
