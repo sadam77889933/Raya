@@ -161,10 +161,17 @@ class _CertificateTemplateEditorScreenState
   /// المواضع الثابتة في القالب الأساسي نفسها — بحيث تبدأ المشرفة دائماً
   /// من الشكل الحالي الفعلي للشهادة، لا من نقطة صفر.
   void _seedFrom(CertificateTemplateLayout? saved) {
+    // الحقول التي أضافتها المشرفة يدوياً عبر "إضافة حقل" (زر متاح لكل قالب، أساسي أو مستورَد) تُحفَظ فقط داخل التخطيط المخصّص (`saved.fields`) ولا وجود لها إطلاقاً في `widget.template.fixedFields`
+    // (ثابتة للقالب الأساسي، وفارغة دائماً للقالب المستورَد) - الاكتفاء بالتكرار على `fixedFields` وحدها كان يسقطها بصمت عند
+    // إعادة فتح المحرر رغم بقائها محفوظة فعلياً وظهورها الصحيح عند توليد الشهادات.
+    final allFields = <CertificateField>{
+      for (final f in widget.template.fixedFields) f.field,
+      for (final f in saved?.fields ?? const <CertificateFieldLayout>[])
+        f.field,
+    };
     _fieldLayouts = {
-      for (final f in widget.template.fixedFields)
-        f.field: saved?.layoutFor(f.field) ??
-            CertificateFieldLayout(field: f.field, dx: f.dx, dy: f.dy),
+      for (final field in allFields)
+        field: saved?.layoutFor(field) ?? _defaultLayoutFor(field),
     };
     final basePosition = widget.template.stampPosition;
     _stampLayout = basePosition == null
@@ -182,6 +189,15 @@ class _CertificateTemplateEditorScreenState
     for (final t in _customTexts) {
       _customTextControllers[t.id] = TextEditingController(text: t.text);
     }
+  }
+
+  /// الموضع الافتراضي لحقل لا يوجد له تخطيط محفوظ بعد - موضعه الثابت في القالب الأساسي إن وجداً، وموضع افتراضي معقول لحقل مضاف يدوياً بحت لا وجود له في القالب (حقول القالب المستورَد جميعها تدخل هنا).
+  CertificateFieldLayout _defaultLayoutFor(CertificateField field) {
+    final base = widget.template.fixedFields.firstWhere(
+      (f) => f.field == field,
+      orElse: () => defaultFieldPosition(field),
+    );
+    return CertificateFieldLayout(field: base.field, dx: base.dx, dy: base.dy);
   }
 
   @override
@@ -290,30 +306,45 @@ class _CertificateTemplateEditorScreenState
     }
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(14),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Text('اختاري حقلاً لإضافته',
-                    style: TextStyle(
-                        fontFamily: 'Tajawal', fontWeight: FontWeight.w700)),
+        child: ConstrainedBox(
+          // قائمة الحقول الممكنة (حتى تسعة) قد تتجاوز ارتفاع الشاشة على الشيت الرأسية،
+          // فيستلزم تقييد ارتفاع الشيت + تمرير داخلي بدل امتداد المحتوى خارج الشاشة.
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(sheetContext).size.height * 0.7,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(14),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Text('اختاري حقلاً لإضافته',
+                      style: TextStyle(
+                          fontFamily: 'Tajawal', fontWeight: FontWeight.w700)),
+                ),
               ),
-            ),
-            for (final field in available)
-              ListTile(
-                title: Text(_fieldLabel(field),
-                    style: const TextStyle(fontFamily: 'Tajawal')),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  _addFixedField(field);
-                },
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final field in available)
+                      ListTile(
+                        title: Text(_fieldLabel(field),
+                            style: const TextStyle(fontFamily: 'Tajawal')),
+                        onTap: () {
+                          Navigator.of(sheetContext).pop();
+                          _addFixedField(field);
+                        },
+                      ),
+                  ],
+                ),
               ),
-            const SizedBox(height: 8),
-          ],
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
