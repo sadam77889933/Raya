@@ -214,15 +214,33 @@ class _ImportTemplateDialogState extends ConsumerState<_ImportTemplateDialog> {
     super.dispose();
   }
 
+  /// حد أقصى معقول لحجم ملف القالب المستورَد (صورة أو PDF) - ملف أكبر من هذا قد يستهلك ذاكرة كافية
+  /// لإسقاط التطبيق بالكامل عند قراءته دفعة واحدة في الذاكرة على أجهزة محدودة الرام -
+  /// هذا ما حدث فعلياً مع ملف تصدير Canva ضخم: قراءته كاملاً في الذاكرة أسقطت التطبيق بالكامل بلا أي خطأً يُمكن عرضه للمستخدمة.
+  static const int _maxImportFileSizeBytes = 8 * 1024 * 1024; // 8 ميجابايت
+
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
+    // نسخة file_picker 12.x (إعادة الكتابة الموحدة): pickFile() (المفردة) هي البديل غير الُهمل لـ pickFiles(allowMultiple: false)،
+    // تعيد PlatformFile؟ مباشرة (null عند الإلغاء)، بلا FilePickerResult وبلا withData نهائياً.
+    final picked = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'png', 'jpg', 'jpeg'],
-      withData: true,
     );
-    if (result == null || result.files.isEmpty) return;
+    if (picked == null) return;
+
+    if (picked.path != null) {
+      final sizeBytes = await File(picked.path!).length();
+      if (sizeBytes > _maxImportFileSizeBytes) {
+        setState(() {
+          _error =
+              'حجم الملف كبير جداً (${(sizeBytes / (1024 * 1024)).toStringAsFixed(1)} ميجابايت) - الحد الأقصى ${_maxImportFileSizeBytes ~/ (1024 * 1024)} ميجابايت. جرّبي صورة بحجم أصغر.';
+        });
+        return;
+      }
+    }
+
     setState(() {
-      _pickedFile = result.files.single;
+      _pickedFile = picked;
       _error = null;
     });
   }
@@ -244,12 +262,16 @@ class _ImportTemplateDialogState extends ConsumerState<_ImportTemplateDialog> {
       _error = null;
     });
     try {
-      Uint8List? bytes = picked.bytes;
-      if (bytes == null && picked.path != null) {
+      // file_picker 12.x: لا يوجد getter مزامن اسمه bytes بعد الآن على PlatformFile إطلاقاً،
+      // فالبايتس تُقرّأ عند الحاجة عبر هذه الدالة غير المتزامنة، مع احتياط بالقراءة من مسار الملف مباشرة إن فشلت.
+      Uint8List bytes;
+      try {
+        bytes = await picked.readAsBytes();
+      } catch (_) {
+        if (picked.path == null) {
+          throw Exception('تعذّرت قراءة الملف المختار');
+        }
         bytes = await File(picked.path!).readAsBytes();
-      }
-      if (bytes == null) {
-        throw Exception('تعذّرت قراءة الملف المختار');
       }
       final extension = (picked.extension ?? '').toLowerCase();
       final isPdf = extension == 'pdf';
