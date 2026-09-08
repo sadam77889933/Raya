@@ -17,6 +17,7 @@ import '../../../mosques/presentation/providers/mosque_provider.dart';
 import '../../../mosques/presentation/providers/school_provider.dart';
 import '../../../roster_report/domain/entities/roster_report_group.dart';
 import '../../data/certificate_pdf_generator.dart';
+import '../../data/hijri_date_formatter.dart';
 import '../../data/templates/certificate_template_registry.dart';
 import '../../domain/certificate_share_filename.dart';
 import '../../domain/entities/certificate_batch.dart';
@@ -475,7 +476,7 @@ class _CertificateWizardScreenState
     final template = resolveTemplateById(wizard.templateId!, importedTemplates);
     if (template == null) return const SizedBox.shrink();
 
-    final recipients = _buildRenderDataList(wizard, mosqueId, selectedIds);
+    final recipients = _buildRenderDataList(wizard, mosqueId, selectedIds, template);
     if (recipients.isEmpty) return const SizedBox.shrink();
 
     final index = wizard.previewIndex.clamp(0, recipients.length - 1).toInt();
@@ -666,8 +667,19 @@ class _CertificateWizardScreenState
   /// يبني بيانات العرض للمعاينة (خطوة ٤) — من سجل الحلقات للطالبات، أو
   /// من قائمة المعلمات المسندات للدار المختارة يدوياً للمعلمات (انظر
   /// `_buildTeacherRecipients` أعلاه لسبب عدم وجود "دار افتراضية" آلية).
+  ///
+  /// [template] يُستخدَم فقط لتعبئة `CertificateRenderData.certificateType` (اسم القالب
+  /// المعروض، لا مصدر آخر له غيره حالياً)، والتاريخ الهجري ليوم
+  /// الإصدار يُحسَب هنا (لا كتاريخ إنشاء الدفعة نفسه كما في إعادة المشاركة في
+  /// `certificates_home_screen.dart`)، بما أن هذه الدالة تستخدَم حصرًا للتوليد الجديد.
   List<CertificateRenderData> _buildRenderDataList(
-      CertificateWizardState wizard, String mosqueId, List<String> selectedIds) {
+      CertificateWizardState wizard,
+      String mosqueId,
+      List<String> selectedIds,
+      CertificateTemplateDefinition template) {
+    final todayLabel = formatHijriDateLabel(DateTime.now());
+    final academicYearLabel = formatHijriYearLabel(DateTime.now());
+
     if (wizard.recipientType == CertificateRecipientType.teacher) {
       final schoolId = wizard.selectedSchoolId;
       if (schoolId == null) return const [];
@@ -691,11 +703,19 @@ class _CertificateWizardScreenState
           recipientName: teacher.name,
           mosqueName: mosque?.name ?? '',
           schoolName: school?.name ?? '',
+          supervisorName: mosque?.supervisorName,
+          date: todayLabel,
+          academicYear: academicYearLabel,
+          certificateType: template.displayName,
         ));
       }
       return data;
     }
 
+    final mosque = ref
+        .read(activeMosquesProvider)
+        .where((m) => m.id == mosqueId)
+        .firstOrNull;
     final groups = ref.read(certificateRecipientGroupsProvider(mosqueId));
     final data = <CertificateRenderData>[];
     for (final group in groups) {
@@ -707,6 +727,10 @@ class _CertificateWizardScreenState
           mosqueName: group.mosqueName,
           schoolName: group.schoolName,
           circleName: group.circleName,
+          supervisorName: mosque?.supervisorName,
+          date: todayLabel,
+          academicYear: academicYearLabel,
+          certificateType: template.displayName,
         ));
       }
     }
@@ -727,7 +751,7 @@ class _CertificateWizardScreenState
     notifier.setGenerating(true);
     try {
       final selectedIds = wizard.selectedRecipientIds.toList();
-      final recipients = _buildRenderDataList(wizard, mosqueId, selectedIds);
+      final recipients = _buildRenderDataList(wizard, mosqueId, selectedIds, template);
       if (recipients.isEmpty) {
         notifier.setError('لم يتبقَّ أي مستفيد ضمن الاختيار');
         return;

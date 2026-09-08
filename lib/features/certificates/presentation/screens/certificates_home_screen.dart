@@ -9,12 +9,15 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../auth/presentation/providers/teachers_provider.dart';
 import '../../../auth/domain/entities/user_model.dart';
+import '../../../mosques/domain/entities/mosque.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
 import '../../data/certificate_pdf_generator.dart';
+import '../../data/hijri_date_formatter.dart';
 import '../../data/templates/certificate_template_registry.dart';
 import '../../domain/certificate_share_filename.dart';
 import '../../domain/entities/certificate_batch.dart';
 import '../../domain/entities/certificate_render_data.dart';
+import '../../domain/entities/certificate_template.dart';
 import '../providers/certificate_history_provider.dart';
 import '../providers/certificate_recipients_provider.dart';
 import '../providers/certificate_template_layout_provider.dart';
@@ -51,9 +54,16 @@ class _CertificatesHomeScreenState extends ConsumerState<CertificatesHomeScreen>
   /// يدوية سابقاً. هذه الدالة تُعيد المحاولة تلقائياً بفاصل قصير بدل
   /// الفشل الفوري، فتنجح غالباً من أول ضغطة وحيدة.
   Future<List<CertificateRenderData>?> _resolveRecipients(
-      CertificateBatch batch) async {
+    CertificateBatch batch, {
+    required Mosque? mosque,
+    required CertificateTemplateDefinition template,
+  }) async {
     const maxAttempts = 8;
     const retryDelay = Duration(milliseconds: 300);
+    // تاريخ إصدار الدفعة الأصلي عند إعادة المشاركة (لا تاريخ اليوم
+    // الحالي) — الشهادة تعاد إنتاجها بنفس تاريخها الأصلي دائماً.
+    final dateLabel = formatHijriDateLabel(batch.createdAt);
+    final academicYearLabel = formatHijriYearLabel(batch.createdAt);
     for (var attempt = 0; attempt < maxAttempts; attempt++) {
       final recipients = <CertificateRenderData>[];
       if (batch.recipientType == CertificateRecipientType.teacher) {
@@ -72,6 +82,10 @@ class _CertificatesHomeScreenState extends ConsumerState<CertificatesHomeScreen>
             // circleNameSnapshot (استخدام مزدوج للحقل خاص بدفعات
             // المعلمات — لا "حلقة" فعلية للمعلمة).
             schoolName: batch.circleNameSnapshot ?? '',
+            supervisorName: mosque?.supervisorName,
+            date: dateLabel,
+            academicYear: academicYearLabel,
+            certificateType: template.displayName,
           ));
         }
       } else {
@@ -86,6 +100,10 @@ class _CertificatesHomeScreenState extends ConsumerState<CertificatesHomeScreen>
               mosqueName: group.mosqueName,
               schoolName: group.schoolName,
               circleName: group.circleName,
+              supervisorName: mosque?.supervisorName,
+              date: dateLabel,
+              academicYear: academicYearLabel,
+              certificateType: template.displayName,
             ));
           }
         }
@@ -110,7 +128,15 @@ class _CertificatesHomeScreenState extends ConsumerState<CertificatesHomeScreen>
 
     setState(() => _isResharing = true);
     try {
-      final recipients = await _resolveRecipients(batch);
+      final mosque = ref
+          .read(activeMosquesProvider)
+          .where((m) => m.id == batch.mosqueId)
+          .firstOrNull;
+      final recipients = await _resolveRecipients(
+        batch,
+        mosque: mosque,
+        template: template,
+      );
 
       if (recipients == null) {
         if (!mounted) return;
@@ -120,11 +146,6 @@ class _CertificatesHomeScreenState extends ConsumerState<CertificatesHomeScreen>
         );
         return;
       }
-
-      final mosque = ref
-          .read(activeMosquesProvider)
-          .where((m) => m.id == batch.mosqueId)
-          .firstOrNull;
 
       // نفس التخطيط المخصَّص المستخدَم عند الإنشاء الأول (إن وُجد) — حتى
       // تُطابق إعادة المشاركة الشكل الحالي الفعلي للقالب لهذا المسجد.

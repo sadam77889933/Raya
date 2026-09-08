@@ -262,6 +262,6 @@ String? _resolveFieldValue(
     case CertificateField.academicYear:
       return recipient.academicYear;
     case CertificateField.certificateType:
-      return null;
+      return recipient.certificateType;
   }
 }
