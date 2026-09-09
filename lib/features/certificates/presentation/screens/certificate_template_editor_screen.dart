@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -11,6 +12,8 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../mosques/domain/entities/mosque.dart';
+import '../../../mosques/presentation/providers/mosque_provider.dart';
 import '../../data/certificate_font_catalog.dart';
 import '../../domain/entities/certificate_font_family.dart';
 import '../../domain/entities/certificate_template.dart';
@@ -198,6 +201,18 @@ class _CertificateTemplateEditorScreenState
       orElse: () => defaultFieldPosition(field),
     );
     return CertificateFieldLayout(field: base.field, dx: base.dx, dy: base.dy);
+  }
+
+  /// وزن الحقل العريض في القالب الاساسي نفسه (او الموضع الافتراضي لحقل
+  /// اضيف يدويا بلا اصل في القالب) - نفس منطق _defaultLayoutFor تماما،
+  /// مستخرَج هنا لعرض القيمة الفعلية الحالية في لوحة تخصيص الخط قبل اي
+  /// تخصيص صريح من المشرفة.
+  bool _baseBoldFor(CertificateField field) {
+    final base = widget.template.fixedFields.firstWhere(
+      (f) => f.field == field,
+      orElse: () => defaultFieldPosition(field),
+    );
+    return base.bold;
   }
 
   @override
@@ -675,6 +690,51 @@ class _CertificateTemplateEditorScreenState
     );
   }
 
+  /// معاينة الختم — صورة الختم الحقيقية للمسجد (WYSIWYG بنفس نسبة تكبير/
+  /// تصغير العرض [_stampLayout.widthScale] المُطبَّقة فعلياً عند توليد PDF عبر
+  /// `_mergeStampPosition`) إن كانت مرفوعة أصلاً في بيانات المسجد، وإلا شريحة
+  /// رمزية عامة [_buildDragChip] لمسجد لم يرفع ختمه بعد بعد — كلا الحالتين
+  /// قابلة للسحب لتغيير الموضع بنفس منطق السحب نفسه (مُعرَّف مرة واحدة هنا
+  /// فقط تجنباً لتكرار الكود بين الحالتين).
+  Widget _buildStampPreview({
+    required Uint8List? stampBytes,
+    required double width,
+    required double height,
+  }) {
+    final layout = _stampLayout!;
+    final basePosition = widget.template.stampPosition;
+    void onDrag(Offset delta) => setState(() {
+          final dx = (layout.dx + delta.dx / width).clamp(0.0, 1.0);
+          final dy = (layout.dy + delta.dy / height).clamp(0.0, 1.0);
+          _stampLayout = layout.copyWith(dx: dx, dy: dy);
+        });
+
+    if (stampBytes == null || basePosition == null) {
+      return _buildDragChip(
+        dx: layout.dx,
+        dy: layout.dy,
+        width: width,
+        height: height,
+        label: 'الختم',
+        icon: Icons.approval_rounded,
+        onDrag: onDrag,
+      );
+    }
+
+    final stampWidth = basePosition.widthRatio * layout.widthScale * width;
+    return Positioned(
+      left: layout.dx * width,
+      top: layout.dy * height,
+      child: FractionalTranslation(
+        translation: const Offset(-0.5, -0.5),
+        child: GestureDetector(
+          onPanUpdate: (details) => onDrag(details.delta),
+          child: Image.memory(stampBytes, width: stampWidth),
+        ),
+      ),
+    );
+  }
+
   /// مستطيل منطقة تغطية واحدة على القماشة — يُرسَم بحجمه ولونه الحقيقيين
   /// (لا شريحة رمزية كـ[_buildDragChip]) حتى تُطابق المعاينة هنا الناتج
   /// النهائي في PDF تماماً، قابل للسحب لأي موضع وللتحديد بالضغط لفتح لوحة
@@ -762,7 +822,7 @@ class _CertificateTemplateEditorScreenState
     final isSelected = _selectedField == layout.field;
     final needsRightAlign = layout.field == CertificateField.schoolName ||
         layout.field == CertificateField.mosqueName;
-    final effectiveBold = basePosition.bold &&
+    final effectiveBold = (layout.boldOverride ?? basePosition.bold) &&
         CertificateFontCatalog.hasBoldAsset(layout.fontFamily);
     final color = layout.fontColorValue != null
         ? Color(layout.fontColorValue!)
@@ -894,6 +954,15 @@ class _CertificateTemplateEditorScreenState
   Widget build(BuildContext context) {
     final layoutAsync = ref.watch(certificateTemplateLayoutProvider(
         (mosqueId: widget.mosqueId, templateId: widget.template.id)));
+    final mosqueStampBase64 = ref
+        .watch(activeMosquesProvider)
+        .where((m) => m.id == widget.mosqueId)
+        .firstOrNull
+        ?.stampBase64;
+    final stampBytes =
+        (mosqueStampBase64 != null && mosqueStampBase64.isNotEmpty)
+            ? base64Decode(mosqueStampBase64)
+            : null;
 
     if (!_initialized) {
       final saved = layoutAsync.maybeWhen(
@@ -1002,21 +1071,10 @@ class _CertificateTemplateEditorScreenState
                               fontScaleFactor: fontScaleFactor,
                             ),
                         if (_stampLayout != null && _stampLayout!.visible)
-                          _buildDragChip(
-                            dx: _stampLayout!.dx,
-                            dy: _stampLayout!.dy,
+                          _buildStampPreview(
+                            stampBytes: stampBytes,
                             width: width,
                             height: height,
-                            label: 'الختم',
-                            icon: Icons.approval_rounded,
-                            onDrag: (delta) => setState(() {
-                              final dx = (_stampLayout!.dx + delta.dx / width)
-                                  .clamp(0.0, 1.0);
-                              final dy = (_stampLayout!.dy + delta.dy / height)
-                                  .clamp(0.0, 1.0);
-                              _stampLayout =
-                                  _stampLayout!.copyWith(dx: dx, dy: dy);
-                            }),
                           ),
                         for (final t in _customTexts)
                           _buildCustomTextPreviewBox(
@@ -1110,6 +1168,27 @@ class _CertificateTemplateEditorScreenState
                       _stampLayout = _stampLayout!.copyWith(visible: value);
                     }),
                     onReset: _resetStamp,
+                  ),
+                if (_stampLayout != null)
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(
+                        start: 48, bottom: 6),
+                    child: _fontSizeStepperRow(
+                      valueLabel:
+                          '${(_stampLayout!.widthScale * 100).round()}%',
+                      onDecrement: () => setState(() {
+                        _stampLayout = _stampLayout!.copyWith(
+                            widthScale: (_stampLayout!.widthScale -
+                                    _fontScaleStep)
+                                .clamp(_minFontScale, _maxFontScale));
+                      }),
+                      onIncrement: () => setState(() {
+                        _stampLayout = _stampLayout!.copyWith(
+                            widthScale: (_stampLayout!.widthScale +
+                                    _fontScaleStep)
+                                .clamp(_minFontScale, _maxFontScale));
+                      }),
+                    ),
                   ),
                 if (_eraseRegions.isNotEmpty) ...[
                   const Padding(
@@ -1259,6 +1338,12 @@ class _CertificateTemplateEditorScreenState
                 _updateField(layout.field, (c) => c.copyWith(fontFamily: value)),
           ),
           const SizedBox(height: 8),
+          _boldToggleRow(
+            value: layout.boldOverride ?? _baseBoldFor(layout.field),
+            onChanged: (value) => _updateField(
+                layout.field, (c) => c.copyWith(boldOverride: value)),
+          ),
+          const SizedBox(height: 8),
           _fontSizeStepperRow(
             valueLabel: '${(layout.fontScale * 100).round()}%',
             onDecrement: () => _updateField(
@@ -1335,6 +1420,27 @@ class _CertificateTemplateEditorScreenState
           ),
         ],
       ),
+    );
+  }
+
+  /// صف تفعيل وزن الخط العريض لحقل ثابت واحد - يعرض القيمة الفعلية
+  /// الحالية (تخصيص صريح من المشرفة ان حددته، والا وزن القالب الاساسي
+  /// نفسه)، وأي تبديل يكتب قيمة صريحة جديدة (true/false) بدل تركها
+  /// موروثة، بنفس منطق بقية خيارات لوحة الخط.
+  Widget _boldToggleRow({
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Row(
+      children: [
+        const SizedBox(
+          width: 52,
+          child: Text('عريض',
+              style: TextStyle(
+                  fontFamily: 'Tajawal', fontSize: 12, color: Colors.grey)),
+        ),
+        Switch(value: value, onChanged: onChanged),
+      ],
     );
   }
 

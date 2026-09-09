@@ -42,7 +42,7 @@ List<CertificateFieldPosition> _mergeFieldPositions(
       color: override.fontColorValue != null
           ? PdfColor.fromInt(override.fontColorValue!)
           : f.color,
-      bold: f.bold,
+      bold: override.boldOverride ?? f.bold,
       fontFamily: override.fontFamily,
       maxWidthRatio: f.maxWidthRatio,
     ));
@@ -66,7 +66,7 @@ List<CertificateFieldPosition> _mergeFieldPositions(
       color: override.fontColorValue != null
           ? PdfColor.fromInt(override.fontColorValue!)
           : base.color,
-      bold: base.bold,
+      bold: override.boldOverride ?? base.bold,
       fontFamily: override.fontFamily,
       maxWidthRatio: base.maxWidthRatio,
     ));
@@ -86,7 +86,7 @@ CertificateStampPosition? _mergeStampPosition(
   return CertificateStampPosition(
     dx: override.dx,
     dy: override.dy,
-    widthRatio: baseStamp.widthRatio,
+    widthRatio: baseStamp.widthRatio * override.widthScale,
   );
 }
 

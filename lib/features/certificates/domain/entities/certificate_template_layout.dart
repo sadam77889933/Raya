@@ -40,6 +40,13 @@ class CertificateFieldLayout extends Equatable {
   /// وليس حجماً مطلقاً بالبكسل، فيحافظ على نفس النسبة عند التصدير.
   final double fontScale;
 
+  /// تخصيص صريح لوزن الخط (عريض/عادي) لهذا الحقل تحديدا - null يعني اتباع
+  /// وزن القالب الاساسي كما هو (CertificateFieldPosition.bold) بلا اي
+  /// تخصيص، بنفس فكرة fontColorValue تماما. خط بلا نسخة عريضة مجمَّعة
+  /// (انظر CertificateFontCatalog.hasBoldAsset) يرتد تلقائيا لنسخته
+  /// العادية حتى لو كانت هذه القيمة true.
+  final bool? boldOverride;
+
   const CertificateFieldLayout({
     required this.field,
     this.visible = true,
@@ -48,6 +55,7 @@ class CertificateFieldLayout extends Equatable {
     this.fontFamily = CertificateFontFamily.amiri,
     this.fontColorValue,
     this.fontScale = 1.0,
+    this.boldOverride,
   });
 
   CertificateFieldLayout copyWith({
@@ -58,6 +66,7 @@ class CertificateFieldLayout extends Equatable {
     int? fontColorValue,
     bool clearFontColor = false,
     double? fontScale,
+    bool? boldOverride,
   }) {
     return CertificateFieldLayout(
       field: field,
@@ -68,6 +77,7 @@ class CertificateFieldLayout extends Equatable {
       fontColorValue:
           clearFontColor ? null : (fontColorValue ?? this.fontColorValue),
       fontScale: fontScale ?? this.fontScale,
+      boldOverride: boldOverride ?? this.boldOverride,
     );
   }
 
@@ -79,6 +89,7 @@ class CertificateFieldLayout extends Equatable {
         'fontFamily': fontFamily.name,
         if (fontColorValue != null) 'fontColorValue': fontColorValue,
         'fontScale': fontScale,
+        if (boldOverride != null) 'boldOverride': boldOverride,
       };
 
   factory CertificateFieldLayout.fromJson(Map<String, dynamic> json) {
@@ -96,12 +107,21 @@ class CertificateFieldLayout extends Equatable {
       ),
       fontColorValue: (json['fontColorValue'] as num?)?.toInt(),
       fontScale: (json['fontScale'] as num?)?.toDouble() ?? 1.0,
+      boldOverride: json['boldOverride'] as bool?,
     );
   }
 
   @override
-  List<Object?> get props =>
-      [field, visible, dx, dy, fontFamily, fontColorValue, fontScale];
+  List<Object?> get props => [
+        field,
+        visible,
+        dx,
+        dy,
+        fontFamily,
+        fontColorValue,
+        fontScale,
+        boldOverride
+      ];
 }
 
 /// تخطيط مخصَّص لموضع الختم — منفصل عن [CertificateFieldLayout] لأن
@@ -111,33 +131,43 @@ class CertificateStampLayout extends Equatable {
   final bool visible;
   final double dx;
   final double dy;
+  final double widthScale;
 
   const CertificateStampLayout({
     this.visible = true,
     required this.dx,
     required this.dy,
+    this.widthScale = 1.0,
   });
 
-  CertificateStampLayout copyWith({bool? visible, double? dx, double? dy}) {
+  CertificateStampLayout copyWith({
+    bool? visible,
+    double? dx,
+    double? dy,
+    double? widthScale,
+  }) {
     return CertificateStampLayout(
       visible: visible ?? this.visible,
       dx: dx ?? this.dx,
       dy: dy ?? this.dy,
+      widthScale: widthScale ?? this.widthScale,
     );
   }
 
-  Map<String, dynamic> toJson() => {'visible': visible, 'dx': dx, 'dy': dy};
+  Map<String, dynamic> toJson() =>
+      {'visible': visible, 'dx': dx, 'dy': dy, 'widthScale': widthScale};
 
   factory CertificateStampLayout.fromJson(Map<String, dynamic> json) {
     return CertificateStampLayout(
       visible: json['visible'] as bool? ?? true,
       dx: _numOr(json['dx'], 0.5),
       dy: _numOr(json['dy'], 0.5),
+      widthScale: _numOr(json['widthScale'], 1.0),
     );
   }
 
   @override
-  List<Object?> get props => [visible, dx, dy];
+  List<Object?> get props => [visible, dx, dy, widthScale];
 }
 
 /// عنصر نص حرّ واحد يضيفه المستخدم يدوياً فوق الشهادة — بلا أي حقل بيانات
