@@ -42,6 +42,8 @@ String _fieldLabel(CertificateField field) {
       return 'العام الدراسي';
     case CertificateField.certificateType:
       return 'نوع الشهادة';
+    case CertificateField.schoolNameBadge:
+      return 'اسم الدار (الشارة)';
   }
 }
 
@@ -802,12 +804,13 @@ class _CertificateTemplateEditorScreenState
   /// فارتفاع الصندوق معروف مسبقاً (لا حاجة لحيلة `Align` بارتفاع كامل
   /// المستخدَمة في معاينة النص الحرّ لحساب ارتفاع متغيّر).
   ///
-  /// محاذاة اليمين خاصة بـ"اسم الدار"/"اسم المسجد" (يقعان بجانب تسميتَي
-  /// "مدرسة"/"بجامع" المطبوعتين في صورة الخلفية نفسها) تُطابق تماماً
-  /// `needsRightAlign` في المولّد؛ ووزن الخط العريض يُطلَب فقط إن كان هذا
-  /// الخط المختار يملك فعلاً نسخة عريضة مُجمَّعة (`CertificateFontCatalog.
-  /// hasBoldAsset`) تماماً كسلوك الارتداد في المولّد، فلا يظهر هنا وزن
-  /// عريض مزيَّف (Faux Bold من فلاتر) لخط لا يملكه فعلياً في الـPDF.
+  /// محاذاة اليمين تُقرأ من `basePosition.rightAlign` مباشرة (خاصية
+  /// صريحة لكل موضع، لا فحص بنوع الحقل) فتُطابق تماماً منطق المولّد
+  /// `certificate_generic_template_renderer.dart`؛ ووزن الخط العريض
+  /// يُطلَب فقط إن كان هذا الخط المختار يملك فعلاً نسخة عريضة مُجمَّعة
+  /// (`CertificateFontCatalog.hasBoldAsset`) تماماً كسلوك الارتداد في
+  /// المولّد، فلا يظهر هنا وزن عريض مزيَّف (Faux Bold من فلاتر) لخط لا
+  /// يملكه فعلياً في الـPDF.
   Widget _buildFixedFieldPreviewBox({
     required CertificateFieldLayout layout,
     required CertificateFieldPosition basePosition,
@@ -820,8 +823,7 @@ class _CertificateTemplateEditorScreenState
         basePosition.fontSize * layout.fontScale * fontScaleFactor;
     final boxHeight = canvasFontSize * 1.8;
     final isSelected = _selectedField == layout.field;
-    final needsRightAlign = layout.field == CertificateField.schoolName ||
-        layout.field == CertificateField.mosqueName;
+    final needsRightAlign = basePosition.rightAlign;
     final effectiveBold = (layout.boldOverride ?? basePosition.bold) &&
         CertificateFontCatalog.hasBoldAsset(layout.fontFamily);
     final color = layout.fontColorValue != null
@@ -923,8 +925,21 @@ class _CertificateTemplateEditorScreenState
         }),
         child: Align(
           alignment: Alignment(0, (t.dy * 2) - 1),
+          // بلا أي `padding` رأسي هنا عمداً (كان `vertical: 2` سابقاً):
+          // لأن `Align` يوسِّط هذا الصندوق كاملاً (نص + حشوة + إطار) حول
+          // النقطة المحسوبة من `dy`، فإن أي حشوة رأسية تمدّد حافة الإطار
+          // المرئية لأعلى ولأسفل بمقدارها فوق النص الفعلي بلا أن تغيّر
+          // مركز النص نفسه إطلاقاً (الحشوة متناظرة، فلا تُزيح المركز) —
+          // وهذا بالضبط ما كان يخلق وهماً بصرياً أثناء التعديل: حافة
+          // الإطار تلامس عنصراً آخر فوقها بينما حروف النص الفعلية أسفل
+          // منها بقليل (بمقدار الحشوة)، فيبدو العنصران "ملتصقين" في شاشة
+          // التحرير بينما الشهادة الفعلية (بلا أي إطار مرسوم) تُظهر
+          // الفجوة الحقيقية بين حروف النص وما فوقه بلا حشوة تخفيها. إزالة
+          // الحشوة الرأسية تجعل حافة الإطار قريبة جداً من الحروف نفسها
+          // (فرق عرض الإطار فقط، ١-٢ بكسل لا يُلاحَظ)، فما يبدو متلاصقاً في
+          // المعاينة يكون متلاصقاً فعلياً في الشهادة الناتجة.
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
             decoration: BoxDecoration(
               border: Border.all(
                 color: isSelected ? AppTheme.goldAccent : Colors.black26,

@@ -70,17 +70,17 @@ pw.Widget buildGenericCertificatePage({
     final left = (f.dx * pageWidth) - (boxWidth / 2);
     final top = (f.dy * pageHeight) - (boxHeight / 2);
 
-    // حقول تأتي مباشرة بعد تسمية ثابتة على نفس السطر (مثل "مدرسة" قبل
-    // اسم الدار، و"بجامع" قبل اسم المسجد) يجب أن تُحاذى إلى يمين صندوقها
-    // لا أن تُتوسَّط: القيمة القصيرة تلتصق بالتسمية المجاورة بلا فراغ
-    // ظاهر، والقيمة الطويلة تنمو يساراً داخل الفراغ الفعلي المتاح بدل أن
-    // تتمدد بالتساوي في الاتجاهين وتصطدم بالتسمية. الحقول الأخرى (كاسم
-    // المستفيدة) تقع على سطر مستقل متماثل فلا تحتاج هذا التعديل.
+    // محاذاة اليمين خاصية صريحة على كل موضع حقل ([CertificateFieldPosition.
+    // rightAlign]) بدل فحص نوع الحقل هنا: نفس الحقل قد يحتاج توسيطاً في
+    // قالب (سطر مستقل بنقاط) ومحاذاة يمين في آخر (يتبع تسمية ثابتة مثل
+    // "مدرسة"/"بجامع"/"للطالبة/" مباشرة على نفس السطر) — القيمة القصيرة
+    // تلتصق بالتسمية المجاورة بلا فراغ ظاهر، والقيمة الطويلة تنمو داخل
+    // الفراغ الفعلي المتاح بدل أن تتمدد بالتساوي في الاتجاهين وتصطدم
+    // بالتسمية.
     //
     // FittedBox+scaleDown يبقى شبكة أمان: يصغّر الخط تلقائياً فقط عند
     // الحاجة (اسم طويل جداً حتى بعد توسيع الصندوق) بلا أي قياس يدوي.
-    final needsRightAlign = f.field == CertificateField.schoolName ||
-        f.field == CertificateField.mosqueName;
+    final needsRightAlign = f.rightAlign;
 
     // الخطوط الزخرفية الثلاثة الجديدة (Mirza / Katibeh / Lalezar)
     // خطوط عرض بوزن واحد فقط، فلا نسخة عريضة لها — إن طُلب وزن عريض لخط
@@ -263,5 +263,9 @@ String? _resolveFieldValue(
       return recipient.academicYear;
     case CertificateField.certificateType:
       return recipient.certificateType;
+    case CertificateField.schoolNameBadge:
+      // نفس بيانات اسم الدار (schoolName) - انظر تعليق تعريف enum لسبب
+      // وجود قيمة منفصلة (موضع عرض ثانٍ ومستقل لنفس البيانات).
+      return recipient.schoolName;
   }
 }

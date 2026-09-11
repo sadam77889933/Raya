@@ -45,6 +45,18 @@ List<CertificateFieldPosition> _mergeFieldPositions(
       bold: override.boldOverride ?? f.bold,
       fontFamily: override.fontFamily,
       maxWidthRatio: f.maxWidthRatio,
+      // إصلاح: كانت rightAlign تُفقَد هنا دائماً (تعود للقيمة الافتراضية
+      // false) بمجرد وجود تخطيط مخصَّص محفوظ لهذا المسجد لهذا الحقل، مهما
+      // كان القالب الأساسي قد ضبطها true - يُعيد بناء الحقل من الصفر بلا
+      // نقل هذه الخاصية عمداً. اكتُشف عند إضافة أول قالب يحتاجها فعلياً
+      // (schoolName/mosqueName/recipientName كلها rightAlign:true في
+      // "appreciation_certificate_student"): بمجرد أن تفتح المشرفة محرر
+      // مواضع الحقول وتحفظ مرة واحدة (حتى بلا أي تعديل فعلي)، يُنشأ
+      // تخطيط مخصَّص لمسجدها فيمرّ كل حقل من هنا فصاعداً، فتفقد محاذاة
+      // اليمين فوراً وتظهر الحقول متوسِّطة بدل ملتصقة بمكانها الصحيح -
+      // بالضبط ما لاحظته المستخدمة (المعاينة تطابق التصميم في المحرر،
+      // لكن تنحرف في الشهادة الفعلية المُصدَرة لمسجد له تخطيط محفوظ).
+      rightAlign: f.rightAlign,
     ));
   }
 
@@ -69,6 +81,7 @@ List<CertificateFieldPosition> _mergeFieldPositions(
       bold: override.boldOverride ?? base.bold,
       fontFamily: override.fontFamily,
       maxWidthRatio: base.maxWidthRatio,
+      rightAlign: base.rightAlign,
     ));
   }
 

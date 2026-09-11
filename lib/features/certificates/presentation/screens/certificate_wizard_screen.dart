@@ -727,6 +727,10 @@ class _CertificateWizardScreenState
           mosqueName: group.mosqueName,
           schoolName: group.schoolName,
           circleName: group.circleName,
+          // معلمة حلقة الطالبة نفسها (`CertificateField.teacherName`) —
+          // كانت مفقودة هنا كلياً من قبل، فيظهر الحقل فارغاً دائماً في أي
+          // قالب أُضيف له يدوياً عبر "إضافة حقل"، مهما كان موضعه صحيحاً.
+          teacherName: group.teacherName,
           supervisorName: mosque?.supervisorName,
           date: todayLabel,
           academicYear: academicYearLabel,
