@@ -25,6 +25,12 @@ const PdfColor _goldInkColor = PdfColor(0.8078, 0.6235, 0.2078); // #CE9F35
 /// عيّنة بكسل داخلية مباشرة على الصورة، لا تخميناً).
 const PdfColor _darkBrownInkColor = PdfColor(0.3255, 0.1804, 0.1216); // #532E1F
 
+/// لون حبر النص المطبوع في تصميم "شهادة تقدير — طالبات (٢)" — رمادي
+/// محايد داكن (يختلف عن كل الألوان أعلاه)، عُيِّن مباشرة من عيّنة بكسل
+/// داخلية غير مُبعثَرة بالتنعيم الطرفي على كلمة "بجامع" في نص الشهادة
+/// الأصلية.
+const PdfColor _grayInkColor = PdfColor(0.2196, 0.2196, 0.2196); // #383838
+
 final List<CertificateTemplateDefinition> certificateTemplateRegistry = [
   CertificateTemplateDefinition(
     id: 'thanks_certificate_student',
@@ -448,6 +454,163 @@ final List<CertificateTemplateDefinition> certificateTemplateRegistry = [
     stampPosition: const CertificateStampPosition(
       dx: 0.352,
       dy: 0.780,
+      widthRatio: 0.09,
+    ),
+  ),
+  // قالب "شهادة تقدير" ثانٍ للطالبات — تصميم مختلف تماماً عن
+  // "appreciation_certificate_student" أعلاه رغم تطابق العنوان المطبوع
+  // "شهادة تقدير" بين الاثنين؛ لتفادي الالتباس بينهما في قائمة القوالب
+  // اختارت المستخدمة صراحةً تسمية العرض "شهادة تقدير — طالبات (٢)" (بنفس
+  // نمط التمييز المعتمد سابقاً لقالب "thanks_certificate_teacher_v2").
+  // قياس كل المواضع بالبكسل على الصورة الأصلية (2000×1414) بنفس المنهج
+  // المعتمد أعلاه — تحليل عمودي/أفقي دقيق لكثافة البكسلات الداكنة (لا
+  // تخمين بصري) لتحديد حدود كل عنصر ثابت مطبوع، مع احترازات ضد تلوث
+  // القياس بالإطار الزخرفي المحيط وزخارف الزوايا.
+  //
+  // يضم أسفل هذا التصميم ثلاث تسميات: "المشرفة" (يسار، مع خط توقيع
+  // تحتها)، "التاريخ" (وسط، نص ثابت بلا أي خط توقيع تحته إطلاقاً)،
+  // و"المديرة" (يمين، مع خط توقيع تحتها أيضاً) - كلاهما (التاريخ
+  // والمديرة) يُترك فراغاً للتعبئة/التوقيع اليدوي بلا أي حقل نصي مرتبط،
+  // تماماً كحقول التوقيع غير المُفعّلة في قوالب أخرى سابقة، إذ لم تطلب
+  // المستخدمة أي حقل لهما.
+  CertificateTemplateDefinition(
+    id: 'appreciation_certificate_student_v2',
+    displayName: 'شهادة تقدير — طالبات (٢)',
+    backgroundImageAsset:
+        'assets/images/certificate_templates/appreciation_certificate_student_v2_bg.png',
+    thumbnailAsset:
+        'assets/images/certificate_templates/appreciation_certificate_student_v2_thumb.png',
+    recipientType: CertificateRecipientType.student,
+    fixedFields: const [
+      // اسم الدار بعد كلمة "مدرسة" في سطر "تمنح مدرسة ___ بجامع ___" -
+      // الفراغ الفعلي ممتد من نهاية "مدرسة" (يمين، نسبة ≈0.6215) حتى
+      // بداية "بجامع" على نفس السطر (يسار، نسبة ≈0.332)، فاعُتمد عرض
+      // صندوق آمن (0.26) بمحاذاة يمين تلتصق بكلمة "مدرسة" مباشرة.
+      CertificateFieldPosition(
+        field: CertificateField.schoolName,
+        dx: 0.4915,
+        dy: 0.333,
+        fontSize: 20,
+        color: _grayInkColor,
+        bold: true,
+        maxWidthRatio: 0.26,
+        rightAlign: true,
+      ),
+      // اسم المسجد بعد كلمة "بجامع" (نفس السطر أعلاه) - الفراغ الفعلي
+      // ممتد من نهاية "بجامع" (يمين، نسبة ≈0.2795) حتى الحافة الزخرفية
+      // الآمنة يساراً.
+      CertificateFieldPosition(
+        field: CertificateField.mosqueName,
+        dx: 0.1745,
+        dy: 0.333,
+        fontSize: 20,
+        color: _grayInkColor,
+        bold: true,
+        maxWidthRatio: 0.21,
+        rightAlign: true,
+      ),
+      // اسم الطالبة على الخط الأفقي الفعلي أسفل سطر "هذه الشهادة إلى
+      // الطالبة:" (لا التصاقاً بنهاية السطر نفسه) - الخط ممتد أفقياً من
+      // نسبة ≈0.3105 إلى ≈0.718، فاعُتمد حقل متمركز (بلا rightAlign) بعرض
+      // صندوق يطابق عرض الخط تقريباً، وارتفاع يتوسط الفراغ الرأسي بين
+      // نهاية نص التسمية أعلاه وبداية الخط نفسه.
+      CertificateFieldPosition(
+        field: CertificateField.recipientName,
+        dx: 0.5143,
+        dy: 0.444,
+        fontSize: 24,
+        color: _grayInkColor,
+        bold: true,
+        maxWidthRatio: 0.40,
+      ),
+    ],
+    // لا يوجد أي دليل مطبوع لموضع الختم في هذا التصميم. اعتُمد الفراغ
+    // الأبيض الطبيعي أسفل خط توقيع "المشرفة" مباشرة (لا أعلاه)، بناءً على
+    // ملاحظة المستخدمة الصريحة على قالب سابق: "الختم فوق اسم المشرفه
+    // المفروض يكون تحت اسم المشرفة" - بمحاذاة أفقية على مركز الخط نفسه
+    // (نسبة ≈0.239)، وبعرض (0.09) متسق مع بقية القوالب.
+    stampPosition: const CertificateStampPosition(
+      dx: 0.239,
+      dy: 0.904,
+      widthRatio: 0.09,
+    ),
+  ),
+  // قالب "شهادة تقدير" رابع للمعلمات — تصميم مختلف تماماً عن
+  // "thanks_certificate_teacher" و"thanks_certificate_teacher_v2" أعلاه رغم
+  // تطابق العنوان المطبوع "شهادة تقدير" بين الثلاثة؛ لتفادي الالتباس بينها
+  // في قائمة القوالب اختارت المستخدمة صراحةً تسمية العرض "شهادة تقدير —
+  // معلمات (٣)" (بنفس نمط التمييز المعتمد سابقاً). قياس كل المواضع بالبكسل
+  // على الصورة الأصلية (2000×1414) بنفس المنهج المعتمد أعلاه — تحليل
+  // عمودي/أفقي دقيق لكثافة البكسلات الداكنة (لا تخمين بصري)، مع احترازات
+  // ضد تلوث القياس بالإطار الزخرفي المحيط وزخارف الزوايا وخلفية الشيفرون
+  // الزخرفية الفاتحة في هذا التصميم تحديداً.
+  //
+  // اسم الدار واسم المسجد هنا يقعان على سطرين متتاليين من نفس الجملة
+  // المُلتفة (لا على سطر واحد كبقية القوالب): "... من مدرسة [الدار]"
+  // ينتهي بها السطر الأول، ثم يبدأ السطر الثاني بـ"بجامع [المسجد] ،
+  // لما ..." - بنفس نمط الالتفاف على سطرين المكتشَف سابقاً في
+  // "thanks_certificate_teacher_v2" (القسم ١٦). لون حبر النص الديناميكي في
+  // هذا التصميم أسود خالص فعلياً (عُيِّن من عيّنة بكسل داخلية مباشرة على
+  // كلمة "مدرسة")، فلا حاجة لأي ثابت لون جديد - القيمة الافتراضية
+  // [PdfColors.black] تُستخدَم كما هي.
+  CertificateTemplateDefinition(
+    id: 'thanks_certificate_teacher_v3',
+    displayName: 'شهادة تقدير — معلمات (٣)',
+    backgroundImageAsset:
+        'assets/images/certificate_templates/thanks_certificate_teacher_v3_bg.png',
+    thumbnailAsset:
+        'assets/images/certificate_templates/thanks_certificate_teacher_v3_thumb.png',
+    recipientType: CertificateRecipientType.teacher,
+    fixedFields: const [
+      // اسم المعلمة على الخط الأفقي الفعلي أسفل سطر "يسرنا منح هذه
+      // الشهادة إلى:" (لا التصاقاً بالسطر نفسه) - الخط ممتد أفقياً من
+      // نسبة ≈0.2975 إلى ≈0.6985، فاعُتمد حقل متمركز (بلا rightAlign) بعرض
+      // صندوق يطابق عرض الخط تقريباً، بارتفاع يتوسط الفراغ الرأسي بين
+      // نهاية نص التسمية أعلاه وبداية الخط نفسه.
+      CertificateFieldPosition(
+        field: CertificateField.recipientName,
+        dx: 0.498,
+        dy: 0.4587,
+        fontSize: 24,
+        bold: true,
+        maxWidthRatio: 0.38,
+      ),
+      // اسم الدار مباشرة بعد كلمة "مدرسة" في نهاية السطر الأول من الجملة
+      // - الفراغ الفعلي ممتد من نهاية "مدرسة" (يمين، نسبة ≈0.4230) حتى
+      // الحافة اليسرى للسطر (لا كلمة أخرى تحدّه من اليسار في هذا السطر).
+      CertificateFieldPosition(
+        field: CertificateField.schoolName,
+        dx: 0.248,
+        dy: 0.561,
+        fontSize: 20,
+        bold: true,
+        maxWidthRatio: 0.35,
+        rightAlign: true,
+      ),
+      // اسم المسجد مباشرة بعد كلمة "بجامع" في بداية السطر الثاني (يمين) -
+      // الفراغ الفعلي ضيّق نسبياً، ممتد من نهاية "بجامع" (نسبة ≈0.8490)
+      // حتى قبل الفاصلة "،" وبداية "لما..." (نسبة ≈0.7405)، فاعُتمد عرض
+      // صندوق آمن (0.10) يتجنّب الفاصلة.
+      CertificateFieldPosition(
+        field: CertificateField.mosqueName,
+        dx: 0.799,
+        dy: 0.633,
+        fontSize: 20,
+        bold: true,
+        maxWidthRatio: 0.10,
+        rightAlign: true,
+      ),
+    ],
+    // لا يوجد أي دليل مطبوع لموضع الختم في هذا التصميم (لا "التاريخ" في
+    // هذا القالب أصلاً، بخلاف "appreciation_certificate_student_v2"
+    // السابق). اعتُمد الفراغ الأبيض الفعلي أسفل الخط المنقّط تحت تسمية
+    // "المشرفة" مباشرة (لا أعلاه)، بنفس القاعدة المعتمدة منذ ملاحظة
+    // المستخدمة على قالب سابق (القسم ١٦: "الختم فوق اسم المشرفه المفروض
+    // يكون تحت اسم المشرفة") - بمحاذاة أفقية على مركز الخط نفسه (نسبة
+    // ≈0.282)، في الفراغ الضيّق بين الخط ونهاية الإطار الزخرفي السفلي.
+    stampPosition: const CertificateStampPosition(
+      dx: 0.282,
+      dy: 0.906,
       widthRatio: 0.09,
     ),
   ),

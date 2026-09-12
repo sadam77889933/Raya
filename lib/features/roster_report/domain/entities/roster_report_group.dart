@@ -12,10 +12,19 @@ class RosterReportGroup {
   final String circleName;
   final List<RosterStudent> students;
 
+  /// اسم معلمة (أو معلمات، مفصولة بفاصلة عربية) هذه الحلقة تحديداً — يُملأ
+  /// فقط من طرف مستهلِكي هذا الكيان الذين يحتاجونه فعلاً (الشهادات، حقل
+  /// [CertificateField.teacherName] القابل للإضافة يدوياً على قوالب
+  /// الطالبات)؛ تقرير "قائمة أسماء الطالبات" الأصلي لا يمرّره فيبقى
+  /// `null` هناك دون أي أثر عليه. `null` تعني ببساطة عدم وجود معلمة
+  /// مسندة لهذه الحلقة حالياً، لا خطأً.
+  final String? teacherName;
+
   const RosterReportGroup({
     required this.mosqueName,
     required this.schoolName,
     required this.circleName,
     required this.students,
+    this.teacherName,
   });
 }
