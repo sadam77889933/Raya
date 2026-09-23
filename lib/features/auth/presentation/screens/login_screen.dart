@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -31,6 +32,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _loadSavedCredentials() async {
+    if (kIsWeb) return; // الخدمة نفسها تُعيد null على الويب، لكن نتجنّب الاستدعاء أصلاً
     final saved = await ref
         .read(credentialsStorageServiceProvider)
         .getSavedCredentials();
@@ -181,40 +183,45 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             const SizedBox(height: 14),
 
-            InkWell(
-              onTap: () => setState(() => _rememberMe = !_rememberMe),
-              child: Row(
-                children: [
-                  Container(
-                    width: 19,
-                    height: 19,
-                    decoration: BoxDecoration(
-                      color: _rememberMe ? _darkGreen : Colors.transparent,
-                      border: Border.all(
-                        color: _rememberMe
-                            ? _darkGreen
-                            : Colors.grey.shade400,
-                        width: 1.5,
+            // "تذكّرني" تُخفى على الويب: تعتمد على flutter_secure_storage
+            // التي تخزّن كلمة المرور نفسها، وتنفيذها على الويب يخزّن مفتاح
+            // التشفير داخل متصفح نفس الجهاز — أقل أماناً بكثير من Keystore
+            // على أندرويد/iOS (راجع تعليق CredentialsStorageService).
+            if (!kIsWeb)
+              InkWell(
+                onTap: () => setState(() => _rememberMe = !_rememberMe),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 19,
+                      height: 19,
+                      decoration: BoxDecoration(
+                        color: _rememberMe ? _darkGreen : Colors.transparent,
+                        border: Border.all(
+                          color: _rememberMe
+                              ? _darkGreen
+                              : Colors.grey.shade400,
+                          width: 1.5,
+                        ),
+                        borderRadius: BorderRadius.circular(5),
                       ),
-                      borderRadius: BorderRadius.circular(5),
+                      child: _rememberMe
+                          ? Icon(Icons.check_rounded, size: 13, color: _gold)
+                          : null,
                     ),
-                    child: _rememberMe
-                        ? Icon(Icons.check_rounded, size: 13, color: _gold)
-                        : null,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'تذكّرني في هذا الجهاز',
-                    style: TextStyle(
-                      fontFamily: 'Tajawal',
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: _darkGreen,
+                    const SizedBox(width: 8),
+                    Text(
+                      'تذكّرني في هذا الجهاز',
+                      style: TextStyle(
+                        fontFamily: 'Tajawal',
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: _darkGreen,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
 
             if (authState.status == AuthStatus.error) ...[
               const SizedBox(height: 12),
