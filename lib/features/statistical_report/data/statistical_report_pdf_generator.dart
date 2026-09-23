@@ -1,6 +1,5 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
-import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -30,7 +29,7 @@ class StatisticalReportPdfGenerator {
   /// (Roster) الخاصة بالحلقة، وليس من بيانات التقارير الشهرية نفسها —
   /// تُمرَّر جاهزة من الشاشة لتبقى هذه الدالة منطقاً حسابياً بحتاً بلا أي
   /// اعتماد على Riverpod أو الواجهة.
-  static Future<String> generate({
+  static Future<Uint8List> generate({
     required StatisticalReportResult result,
     required String circleName,
     required String periodLabel,
@@ -111,14 +110,7 @@ class StatisticalReportPdfGenerator {
       ),
     );
 
-    final bytes = await doc.save();
-    final dir = await getTemporaryDirectory();
-    final safeCircleName =
-        circleName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
-    final file =
-        File('${dir.path}/تقرير_إحصائي_$safeCircleName.pdf');
-    await file.writeAsBytes(bytes);
-    return file.path;
+    return doc.save();
   }
 
   // ---------------------------------------------------------------------

@@ -1,10 +1,7 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
+import '../../../../core/services/pdf_share_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../auth/presentation/providers/teachers_provider.dart';
@@ -165,18 +162,7 @@ class _CertificatesHomeScreenState extends ConsumerState<CertificatesHomeScreen>
         circleNameSnapshot: batch.circleNameSnapshot,
         mosqueNameSnapshot: batch.mosqueNameSnapshot ?? mosque?.name,
       );
-      // XFile.fromData(bytes, name: ...) لا يُظهِر الاسم المطلوب على كل
-      // منصة (على ويندوز يظهر اسم عشوائي بدل الاسم المُمرَّر). الحل
-      // الموثوق: كتابة الملف فعلياً بالاسم المطلوب في مجلد مؤقت أولاً،
-      // ثم مشاركته كملف حقيقي بمساره — نفس أسلوب بقية مولّدات PDF
-      // بالمشروع.
-      final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/$fileName');
-      await file.writeAsBytes(bytes);
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'application/pdf')],
-        subject: 'شهادات',
-      );
+      await sharePdfBytes(bytes, fileName: fileName, subject: 'شهادات');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

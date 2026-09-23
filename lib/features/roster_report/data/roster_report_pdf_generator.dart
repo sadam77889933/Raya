@@ -1,7 +1,6 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:hijri/hijri_calendar.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -23,7 +22,7 @@ import '../domain/entities/roster_report_group.dart';
 /// المعاكس لما يظهر في مخطط HTML (الذي يُقلَب تلقائياً في المتصفح بسبب
 /// dir=rtl)، حتى تُطابق الطباعة الفعلية شكل المخطط المعتمَد تماماً.
 class RosterReportPdfGenerator {
-  static Future<String> generate({
+  static Future<Uint8List> generate({
     required List<RosterReportGroup> groups,
     required bool showInactive,
     String? mosqueScopeLabel,
@@ -188,11 +187,7 @@ class RosterReportPdfGenerator {
       ),
     );
 
-    final bytes = await doc.save();
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/قائمة_أسماء_الطالبات.pdf');
-    await file.writeAsBytes(bytes);
-    return file.path;
+    return doc.save();
   }
 
   /// صفٌّ من عنصرين ضمن مربّع بيانات التقرير (مطابق لصفّي meta-grid في

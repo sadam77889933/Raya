@@ -1,9 +1,7 @@
-import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart' show rootBundle;
-import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -23,7 +21,7 @@ import '../domain/entities/summer_test_question.dart';
 /// Expanded يمتص الباقي) وُضع هنا بالترتيب المعاكس لما يظهر في مخطط الـ
 /// HTML المعتمَد (الذي يُقلَب تلقائياً هناك بسبب direction:rtl).
 class SummerTestPdfGenerator {
-  static Future<String> generate({
+  static Future<Uint8List> generate({
     required SummerTest test,
     required List<SummerTestQuestion> questions,
     required String centerName,
@@ -157,12 +155,7 @@ class SummerTestPdfGenerator {
       ),
     );
 
-    final bytes = await doc.save();
-    final dir = await getTemporaryDirectory();
-    final safeTitle = test.title.trim().isEmpty ? 'اختبار' : test.title.trim();
-    final file = File('${dir.path}/$safeTitle.pdf');
-    await file.writeAsBytes(bytes);
-    return file.path;
+    return doc.save();
   }
 
   static pw.Widget _questionBlock(

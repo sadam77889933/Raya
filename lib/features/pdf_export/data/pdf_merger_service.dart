@@ -1,16 +1,12 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui';
-import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 /// دمج عدة ملفات PDF جاهزة (كل واحد كصفحاته الأصلية كاملة)
 /// إلى ملف واحد نهائي — لا يُغيّر أي محتوى، فقط يُلحق الصفحات
 class PdfMergerService {
-  /// يستقبل قائمة مسارات ملفات PDF، ويُعيد مسار الملف المُدمَج
-  Future<String> mergePdfs(
-    List<String> pdfPaths, {
-    required String outputFileName,
-  }) async {
+  /// يستقبل قائمة بايتات ملفات PDF جاهزة، ويُعيد بايتات الملف المُدمَج
+  Future<Uint8List> mergePdfs(List<Uint8List> pdfBytesList) async {
     final mergedDocument = PdfDocument();
     mergedDocument.pages.removeAt(0);
 
@@ -19,8 +15,7 @@ class PdfMergerService {
         const Size(595.15, 842.01);
     mergedDocument.pageSettings.margins.all = 0;
 
-    for (final path in pdfPaths) {
-      final bytes = await File(path).readAsBytes();
+    for (final bytes in pdfBytesList) {
       final sourceDocument = PdfDocument(inputBytes: bytes);
 
       for (int i = 0; i < sourceDocument.pages.count; i++) {
@@ -39,13 +34,9 @@ class PdfMergerService {
       sourceDocument.dispose();
     }
 
-    final bytes = await mergedDocument.save();
+    final mergedBytes = await mergedDocument.save();
     mergedDocument.dispose();
 
-    final dir = await getTemporaryDirectory();
-    final outputFile = File('${dir.path}/$outputFileName');
-    await outputFile.writeAsBytes(bytes);
-
-    return outputFile.path;
+    return Uint8List.fromList(mergedBytes);
   }
 }

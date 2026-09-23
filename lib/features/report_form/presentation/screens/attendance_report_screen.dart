@@ -13,7 +13,7 @@ import '../../domain/entities/student_attendance_summary.dart';
 import '../providers/all_reports_provider.dart';
 import '../providers/my_reports_provider.dart';
 import '../../../auth/presentation/providers/teachers_provider.dart';
-import 'package:share_plus/share_plus.dart';
+import '../../../../core/services/pdf_share_service.dart';
 import '../../data/attendance_pdf_generator.dart';
 
 class AttendanceReportScreen extends ConsumerStatefulWidget {
@@ -57,7 +57,7 @@ class _AttendanceReportScreenState
           ? '$_fromMonth $_fromYear'
           : 'من $_fromMonth $_fromYear إلى $_toMonth $_toYear';
 
-      final path = await AttendancePdfGenerator.generate(
+      final bytes = await AttendancePdfGenerator.generate(
         summaries: summaries,
         periodLabel: periodLabel,
         mosqueName: mosqueName,
@@ -67,8 +67,11 @@ class _AttendanceReportScreenState
       );
 
       if (!mounted) return;
-      await Share.shareXFiles([XFile(path)],
-          subject: 'تقرير الحضور والغياب');
+      await sharePdfBytes(
+        bytes,
+        fileName: 'تقرير_الحضور_والغياب.pdf',
+        subject: 'تقرير الحضور والغياب',
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -437,7 +440,7 @@ class _AttendanceReportScreenState
                           final s = summaries[index];
                           return _buildRow(s);
                         },
-                      ), 
+                      ),
                 if (summaries.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   SizedBox(

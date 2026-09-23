@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:share_plus/share_plus.dart';
 
+import '../../../../core/services/pdf_share_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../mosques/domain/entities/mosque.dart';
@@ -44,7 +44,7 @@ class _RosterReportScreenState extends ConsumerState<RosterReportScreen> {
   }) async {
     setState(() => _isExporting = true);
     try {
-      final path = await RosterReportPdfGenerator.generate(
+      final bytes = await RosterReportPdfGenerator.generate(
         groups: groups,
         showInactive: _showInactive,
         mosqueScopeLabel: mosqueLabel,
@@ -52,7 +52,11 @@ class _RosterReportScreenState extends ConsumerState<RosterReportScreen> {
         circleScopeLabel: circleLabel,
       );
       if (!mounted) return;
-      await Share.shareXFiles([XFile(path)], subject: 'قائمة أسماء الطالبات');
+      await sharePdfBytes(
+        bytes,
+        fileName: 'قائمة_أسماء_الطالبات.pdf',
+        subject: 'قائمة أسماء الطالبات',
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

@@ -1,7 +1,5 @@
-﻿import 'dart:io';
-import 'dart:typed_data';
+﻿import 'dart:typed_data';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -77,7 +75,7 @@ class PdfGenerator {
   /// [circleTime]: وقت الحلقة اليومي الظاهر في صف عدد الطالبات. مرّري
   /// null إن لم يُحدَّد لهذه الحلقة (حلقات قديمة مثلاً)، وسيُستخدم
   /// [TeachingCircle.defaultCircleTime] ("عصراً").
-  Future<String> generate(
+  Future<Uint8List> generate(
     CircleReport report, {
     Uint8List? stampBytes,
     String? supervisorName,
@@ -127,10 +125,7 @@ class PdfGenerator {
       );
     }
 
-    final dir  = await getTemporaryDirectory();
-    final file = File('${dir.path}/${report.suggestedFileName}');
-    await file.writeAsBytes(await pdf.save());
-    return file.path;
+    return await pdf.save();
   }
 
   pw.Widget _page(

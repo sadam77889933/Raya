@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hijri/hijri_calendar.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/constants/quran_constants.dart';
+import '../../../../core/services/pdf_share_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../auth/presentation/providers/teachers_provider.dart';
@@ -725,7 +725,7 @@ class _ExportPdfButtonState extends State<_ExportPdfButton> {
   Future<void> _export() async {
     setState(() => _isExporting = true);
     try {
-      final path = await StatisticalReportPdfGenerator.generate(
+      final bytes = await StatisticalReportPdfGenerator.generate(
         result: widget.result,
         circleName: widget.circleName,
         periodLabel: widget.periodLabel,
@@ -738,7 +738,13 @@ class _ExportPdfButtonState extends State<_ExportPdfButton> {
       );
 
       if (!mounted) return;
-      await Share.shareXFiles([XFile(path)], subject: 'تقرير إحصائي لأداء الحلقة');
+      final safeCircleName =
+          widget.circleName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+      await sharePdfBytes(
+        bytes,
+        fileName: 'تقرير_إحصائي_$safeCircleName.pdf',
+        subject: 'تقرير إحصائي لأداء الحلقة',
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

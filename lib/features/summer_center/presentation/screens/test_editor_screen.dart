@@ -1,12 +1,11 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
-import 'package:share_plus/share_plus.dart';
 
+import '../../../../core/services/pdf_share_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/summer_test_pdf_generator.dart';
 import '../../domain/entities/summer_center.dart';
@@ -192,7 +191,7 @@ class TestEditorScreen extends ConsumerWidget {
     }
   }
 
-  Future<String?> _generatePdf(BuildContext context, WidgetRef ref, SummerTest test, List<SummerTestQuestion> questions) async {
+  Future<Uint8List?> _generatePdf(BuildContext context, WidgetRef ref, SummerTest test, List<SummerTestQuestion> questions) async {
     try {
       final mosques = ref.read(activeMosquesProvider);
       final mosque = mosques.where((m) => m.id == center.mosqueId).firstOrNull;
@@ -229,15 +228,16 @@ class TestEditorScreen extends ConsumerWidget {
   }
 
   Future<void> _previewPdf(BuildContext context, WidgetRef ref, SummerTest test, List<SummerTestQuestion> questions) async {
-    final path = await _generatePdf(context, ref, test, questions);
-    if (path == null || !context.mounted) return;
-    await Printing.layoutPdf(onLayout: (_) async => File(path).readAsBytes(), name: test.title);
+    final bytes = await _generatePdf(context, ref, test, questions);
+    if (bytes == null || !context.mounted) return;
+    await Printing.layoutPdf(onLayout: (_) async => bytes, name: test.title);
   }
 
   Future<void> _sharePdf(BuildContext context, WidgetRef ref, SummerTest test, List<SummerTestQuestion> questions) async {
-    final path = await _generatePdf(context, ref, test, questions);
-    if (path == null || !context.mounted) return;
-    await Share.shareXFiles([XFile(path)], subject: test.title);
+    final bytes = await _generatePdf(context, ref, test, questions);
+    if (bytes == null || !context.mounted) return;
+    final safeTitle = test.title.trim().isEmpty ? 'اختبار' : test.title.trim();
+    await sharePdfBytes(bytes, fileName: '$safeTitle.pdf', subject: test.title);
   }
 
   @override

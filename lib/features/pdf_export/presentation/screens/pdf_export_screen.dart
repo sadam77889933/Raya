@@ -1,14 +1,13 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:printing/printing.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/router/app_router.dart';
+import '../../../../core/services/pdf_share_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/pdf_generator.dart';
 import '../../../report_form/presentation/providers/report_form_provider.dart';
@@ -23,26 +22,30 @@ enum UploadStatus { uploading, uploaded, failed }
 
 class _PdfExportState {
   final _PdfStatus status;
-  final String? pdfPath;
+  final Uint8List? pdfBytes;
+  final String? fileName;
   final String? errorMessage;
   final UploadStatus? uploadStatus;
 
   const _PdfExportState({
     this.status = _PdfStatus.idle,
-    this.pdfPath,
+    this.pdfBytes,
+    this.fileName,
     this.errorMessage,
     this.uploadStatus,
   });
 
   _PdfExportState copyWith({
     _PdfStatus? status,
-    String? pdfPath,
+    Uint8List? pdfBytes,
+    String? fileName,
     String? errorMessage,
     UploadStatus? uploadStatus,
   }) {
     return _PdfExportState(
       status: status ?? this.status,
-      pdfPath: pdfPath ?? this.pdfPath,
+      pdfBytes: pdfBytes ?? this.pdfBytes,
+      fileName: fileName ?? this.fileName,
       errorMessage: errorMessage ?? this.errorMessage,
       uploadStatus: uploadStatus ?? this.uploadStatus,
     );
@@ -86,7 +89,7 @@ class _PdfExportNotifier extends StateNotifier<_PdfExportState> {
           .map((c) => c.circleTime)
           .firstOrNull;
 
-      final path = await PdfGenerator.instance.generate(
+      final bytes = await PdfGenerator.instance.generate(
         report,
         stampBytes: stampBytes,
         supervisorName: mosque?.supervisorName,
@@ -96,7 +99,11 @@ class _PdfExportNotifier extends StateNotifier<_PdfExportState> {
         monthlyBannerText: mosque?.monthlyBannerText,
         circleTime: circleTime,
       );
-      state = _PdfExportState(status: _PdfStatus.ready, pdfPath: path);
+      state = _PdfExportState(
+        status: _PdfStatus.ready,
+        pdfBytes: bytes,
+        fileName: report.suggestedFileName,
+      );
 
       _uploadToFirestore(report);
     } catch (e) {
@@ -163,16 +170,17 @@ class _PdfExportScreenState extends ConsumerState<PdfExportScreen> {
     });
   }
 
-  Future<void> _share(String path) async {
-    await Share.shareXFiles(
-      [XFile(path)],
+  Future<void> _share(Uint8List bytes, String fileName) async {
+    await sharePdfBytes(
+      bytes,
+      fileName: fileName,
       subject: 'تقرير حلقة القرآن الكريم',
     );
   }
 
-  Future<void> _preview(String path) async {
+  Future<void> _preview(Uint8List bytes) async {
     await Printing.layoutPdf(
-      onLayout: (_) async => File(path).readAsBytes(),
+      onLayout: (_) async => bytes,
       name: 'تقرير الحلقة',
     );
   }
@@ -213,7 +221,8 @@ class _PdfExportScreenState extends ConsumerState<PdfExportScreen> {
       case _PdfStatus.generating:
         return _buildGenerating(theme);
       case _PdfStatus.ready:
-        return _buildReady(context, state.pdfPath!, theme, state.uploadStatus);
+        return _buildReady(context, state.pdfBytes!, state.fileName!, theme,
+            state.uploadStatus);
       case _PdfStatus.error:
         return _buildError(state.errorMessage!, theme);
     }
@@ -248,7 +257,8 @@ class _PdfExportScreenState extends ConsumerState<PdfExportScreen> {
 
   Widget _buildReady(
     BuildContext context,
-    String pdfPath,
+    Uint8List pdfBytes,
+    String fileName,
     ThemeData theme,
     UploadStatus? uploadStatus,
   ) {
@@ -289,7 +299,7 @@ class _PdfExportScreenState extends ConsumerState<PdfExportScreen> {
           Column(
             children: [
               ElevatedButton.icon(
-                onPressed: () => _share(pdfPath),
+                onPressed: () => _share(pdfBytes, fileName),
                 icon: const Icon(Icons.share_rounded, size: 20),
                 label: const Text(AppStrings.shareReport),
                 style: ElevatedButton.styleFrom(
@@ -298,7 +308,7 @@ class _PdfExportScreenState extends ConsumerState<PdfExportScreen> {
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
-                onPressed: () => _preview(pdfPath),
+                onPressed: () => _preview(pdfBytes),
                 icon: const Icon(Icons.visibility_rounded, size: 18),
                 label: const Text('معاينة PDF'),
               ),

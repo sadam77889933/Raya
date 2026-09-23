@@ -1,9 +1,8 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:share_plus/share_plus.dart';
+import '../../../../core/services/pdf_share_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
 import '../../../mosques/presentation/providers/teaching_circle_provider.dart';
@@ -82,7 +81,7 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
           .map((c) => c.circleTime)
           .firstOrNull;
 
-      final path = await PdfGenerator.instance.generate(
+      final bytes = await PdfGenerator.instance.generate(
         updatedReport,
         stampBytes: stampBytes,
         supervisorName: mosque?.supervisorName,
@@ -94,8 +93,9 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
       );
 
       if (!mounted) return;
-      await Share.shareXFiles(
-        [XFile(path)],
+      await sharePdfBytes(
+        bytes,
+        fileName: updatedReport.suggestedFileName,
         subject: 'تقرير حلقة القرآن الكريم',
       );
     } catch (e) {

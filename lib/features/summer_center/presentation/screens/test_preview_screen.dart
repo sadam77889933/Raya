@@ -1,12 +1,11 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
-import 'package:share_plus/share_plus.dart';
 
+import '../../../../core/services/pdf_share_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
 import '../../data/summer_test_pdf_generator.dart';
@@ -34,7 +33,7 @@ class TestPreviewScreen extends ConsumerWidget {
     required this.subject,
   });
 
-  Future<String?> _generatePdf(BuildContext context, WidgetRef ref) async {
+  Future<Uint8List?> _generatePdf(BuildContext context, WidgetRef ref) async {
     final test = ref.read(summerTestProvider(testId)).value;
     final questions = ref.read(summerQuestionsProvider(testId)).value ?? const [];
     if (test == null) return null;
@@ -71,15 +70,17 @@ class TestPreviewScreen extends ConsumerWidget {
   }
 
   Future<void> _share(BuildContext context, WidgetRef ref) async {
-    final path = await _generatePdf(context, ref);
-    if (path == null || !context.mounted) return;
-    await Share.shareXFiles([XFile(path)]);
+    final bytes = await _generatePdf(context, ref);
+    if (bytes == null || !context.mounted) return;
+    final test = ref.read(summerTestProvider(testId)).value;
+    final safeTitle = (test == null || test.title.trim().isEmpty) ? 'اختبار' : test.title.trim();
+    await sharePdfBytes(bytes, fileName: '$safeTitle.pdf');
   }
 
   Future<void> _exportPdf(BuildContext context, WidgetRef ref) async {
-    final path = await _generatePdf(context, ref);
-    if (path == null || !context.mounted) return;
-    await Printing.layoutPdf(onLayout: (_) async => File(path).readAsBytes());
+    final bytes = await _generatePdf(context, ref);
+    if (bytes == null || !context.mounted) return;
+    await Printing.layoutPdf(onLayout: (_) async => bytes);
   }
 
   @override

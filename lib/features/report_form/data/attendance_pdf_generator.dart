@@ -1,12 +1,11 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
-import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../domain/entities/student_attendance_summary.dart';
 
 class AttendancePdfGenerator {
-  static Future<String> generate({
+  static Future<Uint8List> generate({
     required List<StudentAttendanceSummary> summaries,
     required String periodLabel,
     String? mosqueName,
@@ -103,11 +102,7 @@ class AttendancePdfGenerator {
       ),
     );
 
-    final bytes = await doc.save();
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/تقرير_الحضور_والغياب.pdf');
-    await file.writeAsBytes(bytes);
-    return file.path;
+    return doc.save();
   }
 
   static pw.Widget _filterRow(

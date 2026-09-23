@@ -1,10 +1,9 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hijri/hijri_calendar.dart';
-import 'package:share_plus/share_plus.dart';
+import '../../../../core/services/pdf_share_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
 import '../../../mosques/presentation/providers/teaching_circle_provider.dart';
@@ -78,7 +77,7 @@ class _MergeReportsScreenState extends ConsumerState<MergeReportsScreen> {
       final mosques = ref.read(activeMosquesProvider);
       final circles = ref.read(teachingCirclesStreamProvider).value ?? [];
 
-      final List<String> generatedFiles = [];
+      final List<PdfShareItem> generatedFiles = [];
 
       for (final mosqueId in _selectedMosqueIds) {
         final mosqueReports =
@@ -110,7 +109,7 @@ class _MergeReportsScreenState extends ConsumerState<MergeReportsScreen> {
 
         setState(() => _statusText = 'جاري إنشاء تقارير $mosqueName...');
 
-        final individualPaths = <String>[];
+        final individualPdfBytesList = <Uint8List>[];
         for (final report in mosqueReports) {
           final circleReport = report.toCircleReport();
           final updatedReport = circleReport.copyWith(
@@ -122,7 +121,7 @@ class _MergeReportsScreenState extends ConsumerState<MergeReportsScreen> {
               .map((c) => c.circleTime)
               .firstOrNull;
 
-          final path = await PdfGenerator.instance.generate(
+          final bytes = await PdfGenerator.instance.generate(
             updatedReport,
             stampBytes: stampBytes,
             supervisorName: mosque?.supervisorName,
@@ -132,18 +131,19 @@ class _MergeReportsScreenState extends ConsumerState<MergeReportsScreen> {
             monthlyBannerText: mosque?.monthlyBannerText,
             circleTime: circleTime,
           );
-          individualPaths.add(path);
+          individualPdfBytesList.add(bytes);
         }
 
         setState(() => _statusText = 'جاري دمج تقارير $mosqueName...');
 
-        final mergedPath =
-            await ref.read(pdfMergerServiceProvider).mergePdfs(
-                  individualPaths,
-                  outputFileName: 'تقارير_$mosqueName.pdf',
-                );
+        final mergedBytes = await ref
+            .read(pdfMergerServiceProvider)
+            .mergePdfs(individualPdfBytesList);
 
-        generatedFiles.add(mergedPath);
+        final mergedFileName = 'تقارير_$mosqueName.pdf';
+        generatedFiles.add(
+          PdfShareItem(bytes: mergedBytes, fileName: mergedFileName),
+        );
       }
 
       if (generatedFiles.isEmpty) {
@@ -161,8 +161,8 @@ class _MergeReportsScreenState extends ConsumerState<MergeReportsScreen> {
 
       setState(() => _statusText = 'جاري فتح المشاركة...');
 
-      await Share.shareXFiles(
-        generatedFiles.map((p) => XFile(p)).toList(),
+      await sharePdfFiles(
+        generatedFiles,
         subject: 'تقارير الحلقات المدمجة',
       );
     } catch (e) {
