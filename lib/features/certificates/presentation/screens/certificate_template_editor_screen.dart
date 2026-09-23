@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -19,6 +18,7 @@ import '../../domain/entities/certificate_font_family.dart';
 import '../../domain/entities/certificate_template.dart';
 import '../../domain/entities/certificate_template_layout.dart';
 import '../providers/certificate_template_layout_provider.dart';
+import '../../data/template_image_store.dart';
 
 /// تسميات عربية مختصرة لكل حقل — تُستخدَم في شرائح السحب وقائمة
 /// الإظهار/الإخفاء أسفل الشاشة فقط، بلا أي علاقة بنص الشهادة نفسها.
@@ -468,7 +468,7 @@ class _CertificateTemplateEditorScreenState
       // كـAsset: كما كان دائماً عبر rootBundle.
       final localPath = widget.template.localBackgroundImagePath;
       final bgBytes = localPath != null
-          ? await File(localPath).readAsBytes()
+          ? await TemplateImageStore.loadBytes(localPath)
           : (await rootBundle.load(widget.template.backgroundImageAsset))
               .buffer
               .asUint8List();
@@ -1020,7 +1020,21 @@ class _CertificateTemplateEditorScreenState
           ),
         ],
       ),
-      body: Column(
+      // LayoutBuilder هنا (بدل Column مباشرة) هو الإصلاح الفعلي لخلل
+      // تجاوز ارتفاع الشاشة (Overflow) المكتشَف فعلياً على نوافذ سطح
+      // المكتب العريضة/القصيرة: بلا هذا الغلاف، AspectRatio أدناه يستقبل
+      // ارتفاعاً غير محدود من Column (سلوك عادي لعنصر غير Expanded)،
+      // فيحسب ارتفاعه من عرضه فقط بلا أي سقف — على شاشة جوال ضيقة يبقى
+      // الناتج معقولاً دائماً، لكن على نافذة سطح مكتب عريضة يتجاوز
+      // الارتفاع الفعلي المتاح بسهولة. maxPreviewHeight يضع سقفاً
+      // بنسبة من الارتفاع الكلي الحقيقي المتاح (outerConstraints، وهو
+      // محدود دائماً من Scaffold) — لا يُغيّر شيئاً على الجوال (الحجم
+      // الطبيعي هناك أصلاً أصغر من السقف فلا يُفعَّل إطلاقاً)، ويمنع
+      // التجاوز فعلياً على سطح المكتب.
+      body: LayoutBuilder(
+        builder: (context, outerConstraints) {
+          final maxPreviewHeight = outerConstraints.maxHeight * 0.55;
+          return Column(
         children: [
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -1035,9 +1049,11 @@ class _CertificateTemplateEditorScreenState
           ),
           Padding(
             padding: const EdgeInsets.all(16),
-            child: AspectRatio(
-              aspectRatio: 1.414,
-              child: ClipRRect(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxPreviewHeight),
+              child: AspectRatio(
+                aspectRatio: 1.414,
+                child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
@@ -1055,9 +1071,8 @@ class _CertificateTemplateEditorScreenState
                         Positioned.fill(
                           child: widget.template.localBackgroundImagePath !=
                                   null
-                              ? Image.file(
-                                  File(widget
-                                      .template.localBackgroundImagePath!),
+                              ? TemplateImageStore.buildImage(
+                                  widget.template.localBackgroundImagePath!,
                                   fit: BoxFit.fill,
                                 )
                               : Image.asset(
@@ -1167,6 +1182,7 @@ class _CertificateTemplateEditorScreenState
                 ),
               ),
             ),
+            ),
           ),
           const Divider(height: 1),
           Expanded(
@@ -1257,6 +1273,8 @@ class _CertificateTemplateEditorScreenState
             ),
           ),
         ],
+          );
+        },
       ),
     );
   }

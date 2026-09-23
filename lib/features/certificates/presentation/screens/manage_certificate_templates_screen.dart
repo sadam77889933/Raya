@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -16,6 +15,7 @@ import '../../domain/entities/imported_certificate_template.dart';
 import '../providers/imported_certificate_templates_provider.dart';
 import '../widgets/certificate_template_card.dart';
 import 'certificate_template_editor_screen.dart';
+import '../../data/template_image_store.dart';
 
 /// عنصر واحد في شبكة القوالب — قالب أساسي مُجمَّع (`imported == null`) أو
 /// قالب مستورَد (`imported` يحمل سجله الكامل، لازم فقط لزر الحذف).
@@ -228,15 +228,18 @@ class _ImportTemplateDialogState extends ConsumerState<_ImportTemplateDialog> {
     );
     if (picked == null) return;
 
-    if (picked.path != null) {
-      final sizeBytes = await File(picked.path!).length();
-      if (sizeBytes > _maxImportFileSizeBytes) {
-        setState(() {
-          _error =
-              'حجم الملف كبير جداً (${(sizeBytes / (1024 * 1024)).toStringAsFixed(1)} ميجابايت) - الحد الأقصى ${_maxImportFileSizeBytes ~/ (1024 * 1024)} ميجابايت. جرّبي صورة بحجم أصغر.';
-        });
-        return;
-      }
+    // file_picker 12.x: لا يوجد getter مزامن اسمه size على PlatformFile
+    // إطلاقاً (خطأ تصريف فعلي رصدتيه) — البديل الصحيح `Future<int?>
+    // length()` غير متزامن (يعمل على كل المنصات بما فيها الويب، بلا أي
+    // حاجة لـdart:io). null يعني حجماً غير معروف بلا قراءة كاملة للملف؛
+    // في هذه الحالة النادرة نسمح بالمتابعة بدل حظرها بلا داعٍ.
+    final sizeBytes = await picked.length();
+    if (sizeBytes != null && sizeBytes > _maxImportFileSizeBytes) {
+      setState(() {
+        _error =
+            'حجم الملف كبير جداً (${(sizeBytes / (1024 * 1024)).toStringAsFixed(1)} ميجابايت) - الحد الأقصى ${_maxImportFileSizeBytes ~/ (1024 * 1024)} ميجابايت. جرّبي صورة بحجم أصغر.';
+      });
+      return;
     }
 
     setState(() {
@@ -271,7 +274,7 @@ class _ImportTemplateDialogState extends ConsumerState<_ImportTemplateDialog> {
         if (picked.path == null) {
           throw Exception('تعذّرت قراءة الملف المختار');
         }
-        bytes = await File(picked.path!).readAsBytes();
+        bytes = await TemplateImageStore.readPickedFileBytes(picked.path!);
       }
       final extension = (picked.extension ?? '').toLowerCase();
       final isPdf = extension == 'pdf';

@@ -1,9 +1,9 @@
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/entities/certificate_template.dart';
+import '../../data/template_image_store.dart';
 
 /// بطاقة عرض قالب شهادة واحد — تُستخدم في خطوة اختيار القالب بالمعالج
 /// وفي شاشة إدارة القوالب معاً. مبنية أصلاً لتتّسع لأي عدد من القوالب
@@ -46,8 +46,8 @@ class CertificateTemplateCard extends StatelessWidget {
                   // قالب مستورَد: صورة محلية على القرص (`Image.file`)؛ قالب
                   // أساسي مُجمَّع كـAsset: كما كان دائماً (`Image.asset`).
                   child: template.localBackgroundImagePath != null
-                      ? Image.file(
-                          File(template.localBackgroundImagePath!),
+                      ? TemplateImageStore.buildImage(
+                          template.localBackgroundImagePath!,
                           fit: BoxFit.cover,
                         )
                       : Image.asset(

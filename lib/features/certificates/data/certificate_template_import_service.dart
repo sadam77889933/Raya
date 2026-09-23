@@ -1,13 +1,12 @@
-import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
-import 'package:uuid/uuid.dart';
 
-/// يحوِّل ملفاً مستورَداً (صورة أو PDF) إلى صورة محفوظة محلياً داخل مجلد
-/// وثائق التطبيق، جاهزة لتُستخدَم كـ`localBackgroundImagePath` لقالب
-/// مستورَد جديد — القسم ٦ من تصميم الميزة (استيراد قوالب).
+import 'template_image_store.dart';
+
+/// يحوِّل ملفاً مستورَداً (صورة أو PDF) إلى صورة محفوظة عبر
+/// `TemplateImageStore`، جاهزة لتُستخدَم كـ`localBackgroundImagePath`
+/// لقالب مستورَد جديد — القسم ٦ من تصميم الميزة (استيراد قوالب).
 ///
 /// ملف PDF: يُحوَّل إلى صورة الصفحة الأولى فقط (`Printing.raster` من
 /// حزمة `printing`، المُستخدَمة أصلاً في مكان آخر بالمشروع)، بدقة طباعة
@@ -21,20 +20,11 @@ class CertificateTemplateImportService {
     required bool isPdf,
     String imageExtension = 'png',
   }) async {
-    final docsDir = await getApplicationDocumentsDirectory();
-    final dir =
-        Directory('${docsDir.path}/certificate_templates_imported/$mosqueId');
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-    }
-
-    final id = const Uuid().v4();
-
     final Uint8List finalBytes;
     final String extension;
     if (isPdf) {
-      final raster = await Printing.raster(bytes, pages: const [0], dpi: 200)
-          .first;
+      final raster =
+          await Printing.raster(bytes, pages: const [0], dpi: 200).first;
       finalBytes = await raster.toPng();
       extension = 'png';
     } else {
@@ -42,8 +32,10 @@ class CertificateTemplateImportService {
       extension = imageExtension.isEmpty ? 'png' : imageExtension;
     }
 
-    final destPath = '${dir.path}/$id.$extension';
-    await File(destPath).writeAsBytes(finalBytes);
-    return destPath;
+    return TemplateImageStore.save(
+      mosqueId: mosqueId,
+      bytes: finalBytes,
+      extension: extension,
+    );
   }
 }

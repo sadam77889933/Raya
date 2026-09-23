@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart' show rootBundle;
@@ -11,6 +10,7 @@ import '../domain/entities/certificate_template.dart';
 import '../domain/entities/certificate_template_layout.dart';
 import 'certificate_font_catalog.dart';
 import 'templates/certificate_generic_template_renderer.dart';
+import 'template_image_store.dart';
 
 /// يدمج تخطيط مسجد مخصَّص (إن وُجد — "المرحلة الثانية"، القسم ١٣ من
 /// تصميم الميزة) فوق المواضع الثابتة للقالب الأساسي: يستبدل `dx/dy`،
@@ -122,7 +122,7 @@ class CertificatePdfGenerator {
     // rootBundle.
     final localPath = template.localBackgroundImagePath;
     final bgBytes = localPath != null
-        ? await File(localPath).readAsBytes()
+        ? await TemplateImageStore.loadBytes(localPath)
         : (await rootBundle.load(template.backgroundImageAsset))
             .buffer
             .asUint8List();
