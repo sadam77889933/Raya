@@ -1,1 +1,35 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"daftar-alhalaqah","appId":"1:510083510800:android:27f79d3595b39ffae69095","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"daftar-alhalaqah","configurations":{"android":"1:510083510800:android:27f79d3595b39ffae69095"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "daftar-alhalaqah",
+          "appId": "1:510083510800:android:27f79d3595b39ffae69095",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "daftar-alhalaqah",
+          "configurations": {
+            "android": "1:510083510800:android:27f79d3595b39ffae69095"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
