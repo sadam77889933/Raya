@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 import 'core/router/app_router.dart';
+import 'core/router/url_strategy.dart';
 import 'core/theme/app_theme.dart';
 import 'firebase_options.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +17,7 @@ import 'features/auth/presentation/screens/mosque_supervisor_dashboard_screen.da
 import 'features/notifications/data/scheduled_notification_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  configureUrlStrategy();
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,

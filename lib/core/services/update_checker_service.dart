@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:package_info_plus/package_info_plus.dart';
 
 class UpdateInfo {
@@ -29,6 +30,9 @@ class UpdateCheckerService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   Future<UpdateInfo> checkForUpdate() async {
+    // لا معنى لتحديث "APK" على الويب - تحديث الصفحة كافٍ دائماً بلا أي
+    // إجراء من المستخدم، فلا داعي لفحص Firestore أو إظهار نافذة تحديث هنا.
+    if (kIsWeb) return UpdateInfo.noUpdate;
     try {
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersionCode = int.tryParse(packageInfo.buildNumber) ?? 0;
