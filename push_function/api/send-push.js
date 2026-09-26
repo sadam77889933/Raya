@@ -28,7 +28,12 @@ const admin = require('firebase-admin');
 // نُهيّئ Admin SDK مرة واحدة فقط لكل نسخة دالة تشغيلية (Vercel قد يُعيد
 // استخدام نفس النسخة لعدة طلبات متتالية — تجنّباً لخطأ "already exists").
 if (!admin.apps.length) {
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  // .replace(/^﻿/, '') يُزيل حرف BOM غير المرئي الذي تُضيفه أحياناً
+  // أدوات ويندوز (Notepad/PowerShell) في أول الملف عند نسخ/تمرير محتواه —
+  // بدونه يفشل JSON.parse برسالة غامضة "Unexpected token '﻿'".
+  const raw = (process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '')
+    .replace(/^﻿/, '')
+    .trim();
   if (!raw) {
     throw new Error(
       'متغيّر البيئة FIREBASE_SERVICE_ACCOUNT_JSON غير مضبوط. راجعي README.md.'
