@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
 import '../domain/entities/app_notification.dart';
 
 class NotificationService {
@@ -108,23 +111,68 @@ class NotificationService {
     await batch.commit();
   }
 
-  /// رسالة يدوية من مشرفة لمعلمات (مسجد معيّن أو الكل)
+  /// رسالة يدوية من مشرفة لمعلمات (مسجد معيّن أو الكل)، أو لمعلمة واحدة
+  /// محدَّدة عبر [recipientUid] (يبقى [targetMosqueId] مسجد تلك المعلمة،
+  /// لغرض توثيقي فقط — بنفس نمط إشعارات نقل الطالبة).
+  ///
+  /// عند تحديد [recipientUid]: تُحفَظ الرسالة في Firestore أولاً (لا تضيع
+  /// أبداً حتى لو فشل الإرسال الفعلي بعدها)، ثم تُحاوَل محاولة واحدة
+  /// لإرسال Push Notification فعلي عبر الدالة الخارجية — فشل هذه المحاولة
+  /// (لا إنترنت، الدالة الخارجية معطَّلة مؤقتاً، إلخ) لا يُرجع أي خطأ
+  /// للمشرفة ولا يُعاد تلقائياً، لأن الرسالة وصلت فعلاً لصندوق إشعارات
+  /// المعلمة داخل التطبيق بصرف النظر عن نتيجة الـPush.
   Future<void> sendCustomMessage({
     required String title,
     required String body,
     required String senderName,
     String? targetMosqueId,
+    String? recipientUid,
   }) async {
-    await _firestore.collection(_collection).add({
+    final docRef = await _firestore.collection(_collection).add({
       'type': 'custom_message',
       'audienceRole': 'teacher',
       'targetMosqueId': targetMosqueId,
+      'recipientUid': recipientUid,
       'title': title,
       'body': body,
       'senderName': senderName,
       'createdAt': DateTime.now().toIso8601String(),
       'readBy': <String>[],
     });
+
+    if (recipientUid != null && recipientUid.isNotEmpty) {
+      unawaited(_triggerPush(docRef.id));
+    }
+  }
+
+  /// يطلب من الدالة الخارجية (Vercel) إرسال Push فعلي لصاحبة الإشعار
+  /// [notificationId]. لا يفعل شيئاً بصمت إن لم يُضبَط رابط الدالة بعد في
+  /// `app_config/push.vercelEndpointUrl` — حتى يعمل التطبيق طبيعياً قبل
+  /// إتمام إعداد الدالة الخارجية. أي خطأ هنا يُبتلَع عمداً (انظر التوثيق
+  /// أعلاه في [sendCustomMessage]).
+  Future<void> _triggerPush(String notificationId) async {
+    try {
+      final configDoc =
+          await _firestore.collection('app_config').doc('push').get();
+      final endpoint = configDoc.data()?['vercelEndpointUrl'] as String?;
+      if (endpoint == null || endpoint.isEmpty) return;
+
+      final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
+      if (idToken == null) return;
+
+      await http
+          .post(
+            Uri.parse(endpoint),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'idToken': idToken,
+              'notificationId': notificationId,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+    } catch (_) {
+      // فشل صامت ومقصود — انظر توثيق sendCustomMessage أعلاه.
+    }
   }
 
   /// إشعارات المشرفات (تلقائية عند رفع تقرير) — مُصفّاة بمسجد إن وُجد.

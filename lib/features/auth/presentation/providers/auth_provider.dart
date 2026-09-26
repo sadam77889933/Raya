@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/auth_repository_impl.dart';
 import '../../domain/entities/user_model.dart';
@@ -8,6 +10,7 @@ import '../../../mosques/presentation/providers/teaching_circle_provider.dart';
 import '../../../report_form/presentation/providers/all_reports_provider.dart';
 import '../../../roster/presentation/providers/roster_provider.dart';
 import 'teachers_provider.dart';
+import '../../../notifications/presentation/providers/push_token_provider.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => AuthRepositoryImpl(),
@@ -54,6 +57,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
         status: user != null ? AuthStatus.signedIn : AuthStatus.signedOut,
         user: user,
       );
+      if (user != null) {
+        // لا يطلب إذناً جديداً — فقط يُعيد مزامنة التوكن إن كان الإذن
+        // ممنوحاً أصلاً من جلسة سابقة على هذا الجهاز.
+        unawaited(_ref
+            .read(pushTokenServiceProvider)
+            .resumeTokenSyncIfAlreadyGranted(user.uid));
+      }
     } catch (_) {
       state = const AuthState(status: AuthStatus.signedOut);
     }
@@ -64,6 +74,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       final user = await _repo.signIn(email, password);
       state = AuthState(status: AuthStatus.signedIn, user: user);
+      unawaited(_ref
+          .read(pushTokenServiceProvider)
+          .resumeTokenSyncIfAlreadyGranted(user.uid));
     } catch (e) {
       state = AuthState(
         status: AuthStatus.error,
@@ -73,6 +86,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> signOut() async {
+    final uid = state.user?.uid;
+    if (uid != null) {
+      await _ref.read(pushTokenServiceProvider).deleteCurrentTokenOnSignOut(uid);
+    }
     await _repo.signOut();
     state = const AuthState(status: AuthStatus.signedOut);
     _clearCachedMosqueData();

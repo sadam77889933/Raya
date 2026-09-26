@@ -1,7 +1,10 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../notifications/presentation/providers/push_token_provider.dart';
 import '../../domain/entities/app_notification.dart';
 import '../providers/notification_provider.dart';
 import 'compose_notification_screen.dart';
@@ -52,6 +55,7 @@ class NotificationsScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
+                _PushPermissionBanner(uid: user.uid),
                 Expanded(
                   child: notifications.isEmpty
                       ? Center(
@@ -110,6 +114,148 @@ class NotificationsScreen extends ConsumerWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// بطاقة تفعيل إشعارات Push — تظهر مرة واحدة فقط أعلى الشاشة، وتختفي
+/// نهائياً على هذا الجهاز بعد أول ضغطة على "تفعيل" (بغضّ النظر عن نتيجة
+/// طلب الإذن: قبول أو رفض) أو إن كان الإذن ممنوحاً أصلاً. لا نافذة نظام
+/// تلقائية عند فتح الشاشة — الإذن يُطلب فقط من ضغطة زر حقيقية، وهذا شرط
+/// إلزامي لعمل الإشعارات على آيفون/آيباد.
+class _PushPermissionBanner extends ConsumerStatefulWidget {
+  final String uid;
+  const _PushPermissionBanner({required this.uid});
+
+  @override
+  ConsumerState<_PushPermissionBanner> createState() =>
+      _PushPermissionBannerState();
+}
+
+class _PushPermissionBannerState extends ConsumerState<_PushPermissionBanner> {
+  bool _loading = false;
+  bool? _dismissedOnThisDevice; // null = لم يُحمَّل بعد من التخزين المحلي
+
+  static String _dismissKey(String uid) => 'push_banner_dismissed_$uid';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDismissedState();
+  }
+
+  Future<void> _loadDismissedState() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _dismissedOnThisDevice = prefs.getBool(_dismissKey(widget.uid)) ?? false;
+    });
+  }
+
+  Future<void> _markDismissed() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_dismissKey(widget.uid), true);
+  }
+
+  Future<void> _enablePush() async {
+    setState(() => _loading = true);
+    try {
+      final service = ref.read(pushTokenServiceProvider);
+      final vapidKey = kIsWeb ? await service.getWebVapidKey() : null;
+      await service.requestPermissionAndRegister(
+        uid: widget.uid,
+        webVapidKey: vapidKey,
+      );
+    } catch (_) {
+      // فشل تفعيل الإشعارات لا يجب أن يعطّل الشاشة — البطاقة تختفي من هذا
+      // الجهاز على أي حال، والمستخدمة يمكنها منح الإذن لاحقاً من إعدادات
+      // النظام نفسها إن رغبت.
+    } finally {
+      await _markDismissed();
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _dismissedOnThisDevice = true;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_dismissedOnThisDevice == null || _dismissedOnThisDevice == true) {
+      return const SizedBox.shrink();
+    }
+
+    final grantedAsync = ref.watch(notificationPermissionGrantedProvider);
+    final alreadyGranted = grantedAsync.asData?.value ?? false;
+    if (alreadyGranted) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: AppTheme.lightGreen,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryGreen,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.notifications_active_rounded,
+                  color: Colors.white, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'فعّلي إشعارات رعاية لتصلك الرسائل الجديدة حتى لو كان التطبيق مغلقاً',
+                style: TextStyle(
+                  fontFamily: 'Tajawal',
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w500,
+                  color: AppTheme.primaryGreen,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _loading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppTheme.primaryGreen,
+                    ),
+                  )
+                : ElevatedButton(
+                    onPressed: _enablePush,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryGreen,
+                      foregroundColor: Colors.white,
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    child: const Text(
+                      'تفعيل',
+                      style: TextStyle(
+                        fontFamily: 'Tajawal',
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+          ],
+        ),
       ),
     );
   }

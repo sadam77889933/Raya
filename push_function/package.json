@@ -1,0 +1,13 @@
+{
+  "name": "raaya-push-function",
+  "version": "1.0.0",
+  "private": true,
+  "description": "دالة خارجية (Vercel Serverless Function) لإرسال إشعارات Push حقيقية عبر Firebase Cloud Messaging لتطبيق رعاية — تُبقي مشروع Firebase على خطة Spark المجانية بالكامل، لأن FCM يتطلب Admin SDK موثوقاً من خادم خارجي ولا يمكن استدعاؤه مباشرة من تطبيق العميل.",
+  "main": "api/send-push.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}
