@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'core/router/app_router.dart';
 import 'core/router/url_strategy.dart';
@@ -14,6 +16,13 @@ import 'core/services/update_checker_service.dart';
 import 'core/widgets/update_dialog.dart';
 import 'features/auth/presentation/screens/mosque_supervisor_dashboard_screen.dart';
 import 'features/notifications/data/scheduled_notification_service.dart';
+import 'features/notifications/presentation/screens/notifications_screen.dart';
+
+/// مفتاح تنقّل جذري — يسمح بفتح شاشة الإشعارات من خارج شجرة الودجت (عند
+/// الضغط على إشعار Push نظامي)، بصرف النظر عن أي شاشة مفتوحة حالياً تحتها
+/// (لوحة المشرفة العامة/مشرفة المسجد/الشاشة الرئيسية للمعلمة).
+final navigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   configureUrlStrategy();
@@ -39,6 +48,30 @@ void main() async {
       child: QuranCircleReportApp(),
     ),
   );
+
+  // فتح شاشة الإشعارات تلقائياً عند الضغط على إشعار Push نظامي — على
+  // أندرويد/iOS فقط (firebase_messaging يدعمها، لكن الويب يعتمد بدلاً من
+  // ذلك على firebase-messaging-sw.js الذي يكتفي بفتح/تركيز نافذة التطبيق
+  // على الصفحة الرئيسية، دون معرفة مسبقة بأي صفحة داخلية).
+  if (!kIsWeb) {
+    _openNotificationsIfLaunchedFromPush();
+    FirebaseMessaging.onMessageOpenedApp.listen((_) {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+      );
+    });
+  }
+}
+
+/// يغطي حالة: التطبيق كان مغلقاً تماماً وفُتح بالضغط على الإشعار مباشرة.
+Future<void> _openNotificationsIfLaunchedFromPush() async {
+  final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+  if (initialMessage == null) return;
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    navigatorKey.currentState?.push(
+      MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+    );
+  });
 }
 
 class QuranCircleReportApp extends ConsumerWidget {
@@ -47,6 +80,7 @@ class QuranCircleReportApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'رعاية',
       builder: (context, child) {
         return Directionality(
