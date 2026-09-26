@@ -206,7 +206,7 @@ class _ComposeNotificationScreenState
                   Consumer(
                     builder: (context, ref, _) {
                       final teachersAsync =
-                          ref.watch(teachersByMosqueProvider(effectiveMosqueId!));
+                          ref.watch(teachersByMosqueProvider(effectiveMosqueId));
                       return teachersAsync.when(
                         loading: () => const LinearProgressIndicator(),
                         error: (e, _) => Text('تعذّر تحميل المعلمات: $e'),
