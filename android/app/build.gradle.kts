@@ -33,6 +33,25 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            // تعطيل مؤقت لتقليص/تعتيم الكود (R8): AGP 9.0.1 يفشل في العثور على
+            // ملف proguard الافتراضي الخاص به داخلياً عند تفعيل minify ضمنياً
+            // (Supplied proguard configuration does not exist:
+            // .../proguard-android-optimize.txt-9.0.1) - خلل واضح في نسخة AGP
+            // الحديثة جداً هذه، وليس في إعدادات المشروع. الأثر: حجم APK أكبر
+            // قليلاً بلا تصغير/تعتيم للكود، لكن البناء يعمل. يمكن إعادة تفعيل
+            // isMinifyEnabled لاحقاً عند إصلاح الخلل في إصدار أحدث من AGP، أو
+            // عند تعريف قواعد proguard مخصّصة صراحةً بدل الاعتماد على ملف AGP
+            // الافتراضي.
+            isMinifyEnabled = false
+            // AGP/إضافة Flutter Gradle Plugin يُفعّلان shrinkResources
+            // افتراضياً لبنية الإصدار حتى لو لم يُذكَر هنا صراحة - وهذا
+            // يتطلب إلزامياً تفعيل تقليص الكود (isMinifyEnabled) لأن تقليص
+            // الموارد غير المستخدَمة يعتمد عليه لمعرفة ما هو "غير مستخدَم"
+            // فعلياً. بما أن isMinifyEnabled معطَّل أعلاه (بسبب خلل AGP
+            // 9.0.1 الموضَّح)، لازم تعطيل هذا أيضاً صراحةً وإلا يفشل البناء
+            // بتعارض "Removing unused resources requires unused code
+            // shrinking to be turned on".
+            isShrinkResources = false
         }
     }
 }

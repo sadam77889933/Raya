@@ -1,9 +1,10 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../data/push_token_service.dart' show PushRegistrationResult;
 import '../../../notifications/presentation/providers/push_token_provider.dart';
 import '../../domain/entities/app_notification.dart';
 import '../providers/notification_provider.dart';
@@ -160,24 +161,49 @@ class _PushPermissionBannerState extends ConsumerState<_PushPermissionBanner> {
 
   Future<void> _enablePush() async {
     setState(() => _loading = true);
+    // نُخفي البطاقة نهائياً فقط عند نجاح التفعيل، أو عند رفض صريح للإذن من
+    // المستخدمة (اختيارها). أي فشل تقني آخر (VAPID key، تعذّر جلب التوكن،
+    // استثناء غير متوقع) لا يُخفي البطاقة — لتتمكن المستخدمة من إعادة
+    // المحاولة لاحقاً بدل أن تختفي البطاقة نهائياً دون أن تعرف السبب.
+    var shouldDismissPermanently = false;
+    var showRetryMessage = false;
     try {
       final service = ref.read(pushTokenServiceProvider);
       final vapidKey = kIsWeb ? await service.getWebVapidKey() : null;
-      await service.requestPermissionAndRegister(
+      final result = await service.requestPermissionAndRegister(
         uid: widget.uid,
         webVapidKey: vapidKey,
       );
-    } catch (_) {
-      // فشل تفعيل الإشعارات لا يجب أن يعطّل الشاشة — البطاقة تختفي من هذا
-      // الجهاز على أي حال، والمستخدمة يمكنها منح الإذن لاحقاً من إعدادات
-      // النظام نفسها إن رغبت.
+      if (result == PushRegistrationResult.success ||
+          result == PushRegistrationResult.permissionDenied) {
+        shouldDismissPermanently = true;
+      } else {
+        showRetryMessage = true;
+      }
+    } catch (e) {
+      // استثناء غير متوقع (شبكة، خدمات جوجل، إلخ) — لا نُخفي البطاقة، انظر
+      // التوثيق أعلاه. نطبعه هنا (وليس فقط في resumeTokenSyncIfAlreadyGranted)
+      // لأن هذا المسار تتفاعل معه المستخدمة مباشرة بضغطة زر، فمعرفة السبب
+      // التقني الحقيقي من نافذة التشغيل (flutter run) أهم بكثير هنا.
+      debugPrint('PushPermissionBanner._enablePush فشلت: $e');
+      showRetryMessage = true;
     } finally {
-      await _markDismissed();
+      if (shouldDismissPermanently) await _markDismissed();
       if (mounted) {
         setState(() {
           _loading = false;
-          _dismissedOnThisDevice = true;
+          if (shouldDismissPermanently) _dismissedOnThisDevice = true;
         });
+        if (showRetryMessage) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'تعذّر تفعيل الإشعارات الآن، تحققي من الاتصال بالإنترنت '
+                'وحاولي مرة أخرى',
+              ),
+            ),
+          );
+        }
       }
     }
   }
@@ -190,7 +216,19 @@ class _PushPermissionBannerState extends ConsumerState<_PushPermissionBanner> {
 
     final grantedAsync = ref.watch(notificationPermissionGrantedProvider);
     final alreadyGranted = grantedAsync.asData?.value ?? false;
-    if (alreadyGranted) return const SizedBox.shrink();
+
+    // إذن الإشعارات قد يكون ممنوحاً على مستوى النظام لكن تسجيل التوكن نفسه
+    // فشل بصمت لسبب تقني (خدمات جوجل، شبكة، إلخ) — في هذه الحالة نُبقي
+    // البطاقة ظاهرة بصياغة "أكملي التفعيل" بدل إخفائها نهائياً كأن كل شيء
+    // تم، فتُتاح للمستخدمة فرصة حقيقية لإعادة المحاولة يدوياً.
+    var needsRetryAfterGrant = false;
+    if (alreadyGranted) {
+      final hasTokenAsync =
+          ref.watch(hasSavedPushTokenProvider(widget.uid));
+      final hasToken = hasTokenAsync.asData?.value ?? true;
+      if (hasToken) return const SizedBox.shrink();
+      needsRetryAfterGrant = true;
+    }
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -215,7 +253,9 @@ class _PushPermissionBannerState extends ConsumerState<_PushPermissionBanner> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'فعّلي إشعارات رعاية لتصلك الرسائل الجديدة حتى لو كان التطبيق مغلقاً',
+                needsRetryAfterGrant
+                    ? 'الإذن ممنوح لكن تعذّر إكمال تفعيل الإشعارات — اضغطي لإعادة المحاولة'
+                    : 'فعّلي إشعارات رعاية لتصلك الرسائل الجديدة حتى لو كان التطبيق مغلقاً',
                 style: TextStyle(
                   fontFamily: 'Tajawal',
                   fontSize: 11.5,
@@ -239,6 +279,13 @@ class _PushPermissionBannerState extends ConsumerState<_PushPermissionBanner> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primaryGreen,
                       foregroundColor: Colors.white,
+                      // لازم نُلغي الحد الأدنى العام لعرض الأزرار (مضبوط على
+                      // double.infinity في الثيم العام لتصميم أزرار النماذج
+                      // بعرض كامل) — وإلا فهذا الزر، داخل Row بلا Expanded،
+                      // يحاول أن يكون بعرض لا نهائي فيفشل تخطيطه بصمت، ويظهر
+                      // فقط خلفية البطاقة الخضراء دون أي محتوى على الإطلاق.
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       padding:
                           const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       shape: RoundedRectangleBorder(
@@ -259,6 +306,7 @@ class _PushPermissionBannerState extends ConsumerState<_PushPermissionBanner> {
       ),
     );
   }
+
 }
 
 class _NotificationCard extends StatelessWidget {

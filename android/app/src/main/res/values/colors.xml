@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- لون دائرة أيقونة الإشعارات (Push Notifications) — مطابق لـ
+         AppTheme.primaryGreen في lib/core/theme/app_theme.dart -->
+    <color name="notification_color">#FF1B6B3A</color>
+</resources>

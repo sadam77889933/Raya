@@ -10,3 +10,11 @@ final pushTokenServiceProvider = Provider<PushTokenService>(
 final notificationPermissionGrantedProvider = FutureProvider.autoDispose<bool>(
   (ref) => ref.watch(pushTokenServiceProvider).hasPermission(),
 );
+
+/// هل يوجد توكن جهاز محفوظ فعلاً في Firestore؟ (انظر توثيق [PushTokenService.hasSavedToken]
+/// — يُستخدَم مع المزوّد أعلاه معاً: الإذن قد يكون ممنوحاً دون أن ينجح
+/// تسجيل التوكن فعلياً لسبب تقني صامت).
+final hasSavedPushTokenProvider =
+    FutureProvider.autoDispose.family<bool, String>(
+  (ref, uid) => ref.watch(pushTokenServiceProvider).hasSavedToken(uid),
+);
