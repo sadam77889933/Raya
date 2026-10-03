@@ -124,52 +124,112 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  if (notif.type !== 'custom_message' || !notif.recipientUid) {
-    // هذه الدالة مخصَّصة فقط لرسائل "معلمة واحدة محددة" — أي طلب آخر مرفوض.
-    res.status(400).json({ error: 'not_a_targeted_custom_message' });
+  if (notif.type !== 'custom_message') {
+    // هذه الدالة مخصَّصة فقط لرسائل "إرسال رسالة للمعلمات" اليدوية — أي
+    // نوع آخر (تقارير/نقل طالبة/المركز الصيفي...) مرفوض عمداً، لم تُفعَّل
+    // لها دفعات Push بعد.
+    res.status(400).json({ error: 'not_a_custom_message' });
     return;
   }
 
+  // كل ما يلي مُغلَّف بـtry/catch واحد عمداً: أي خطأ غير متوقَّع (فهرس
+  // Firestore ناقص، استثناء برمجي، إلخ) يجب أن يُسجَّل بوضوح في مستند
+  // الإشعار نفسه (pushResult) بدل أن يختفي بصمت ويترك pushSent بلا قيمة
+  // إطلاقاً — وهو بالضبط ما كان يحدث قبل هذا التعديل.
+  try {
   // ------------------------------------------------------------------
-  // 3) إعادة التحقق من الصلاحية على الخادم — هل يحق لهذه المُرسِلة فعلاً
-  //    إرسال Push لهذه المعلمة تحديداً؟ (بصرف النظر عمّا قد تكون قواعد
-  //    أمان Firestore على العميل سمحت به مسبقاً عند إنشاء المستند)
+  // 3) تحديد قائمة المستلِمات الفعلية + إعادة التحقق من صلاحية المُرسِلة
+  //    على الخادم (بصرف النظر عمّا سمحت به قواعد أمان Firestore للعميل
+  //    مسبقاً عند إنشاء المستند) — ثلاث حالات حسب ما كُتب في notif نفسه:
+  //    أ) recipientUid محدَّد: معلمة واحدة بعينها.
+  //    ب) targetMosqueId محدَّد بلا recipientUid: كل معلمات ذلك المسجد.
+  //    ج) كلاهما غير محدَّد: كل معلمات كل المساجد (المشرفة العامة فقط).
   // ------------------------------------------------------------------
-  const recipientUid = notif.recipientUid;
   const targetMosqueId = notif.targetMosqueId;
-
-  const recipientSnap = await db.collection('users').doc(recipientUid).get();
-  if (!recipientSnap.exists) {
-    res.status(404).json({ error: 'recipient_not_found' });
-    return;
-  }
-  const recipient = recipientSnap.data();
-
   const isGeneralSupervisor = caller.role === 'supervisor';
   const isAuthorizedMosqueSupervisor =
     caller.role === 'mosqueSupervisor' && caller.mosqueId === targetMosqueId;
-  const recipientMatchesMosque = recipient.mosqueId === targetMosqueId;
 
-  if (
-    !recipientMatchesMosque ||
-    !(isGeneralSupervisor || isAuthorizedMosqueSupervisor)
-  ) {
-    res.status(403).json({ error: 'not_authorized_for_this_recipient' });
+  let recipientUids;
+
+  if (notif.recipientUid) {
+    // حالة (أ) — معلمة واحدة محددة، بنفس التحقق الأصلي تماماً.
+    const recipientUid = notif.recipientUid;
+    const recipientSnap = await db.collection('users').doc(recipientUid).get();
+    if (!recipientSnap.exists) {
+      res.status(404).json({ error: 'recipient_not_found' });
+      return;
+    }
+    const recipient = recipientSnap.data();
+    const recipientMatchesMosque = recipient.mosqueId === targetMosqueId;
+    if (
+      !recipientMatchesMosque ||
+      !(isGeneralSupervisor || isAuthorizedMosqueSupervisor)
+    ) {
+      res.status(403).json({ error: 'not_authorized_for_this_recipient' });
+      return;
+    }
+    recipientUids = [recipientUid];
+  } else if (targetMosqueId) {
+    // حالة (ب) — بث لكل معلمات مسجد واحد محدد.
+    if (!(isGeneralSupervisor || isAuthorizedMosqueSupervisor)) {
+      res.status(403).json({ error: 'not_authorized_for_this_mosque' });
+      return;
+    }
+    // شرط مساواة واحد فقط على 'role' (مفهرس تلقائياً دائماً)، ثم تصفية
+    // mosqueId في الذاكرة بدل شرط where ثانٍ — تفادياً لأي احتمال حاجة
+    // لفهرس مركَّب (composite index) غير موجود بعد في المشروع، بنفس نهج
+    // الحذر المتّبع في NotificationService.watchSupervisorNotifications.
+    const teachersSnap = await db
+      .collection('users')
+      .where('role', '==', 'teacher')
+      .get();
+    recipientUids = teachersSnap.docs
+      .filter((d) => d.data().mosqueId === targetMosqueId)
+      .map((d) => d.id);
+  } else {
+    // حالة (ج) — بث لكل معلمات كل المساجد، للمشرفة العامة حصراً.
+    if (!isGeneralSupervisor) {
+      res.status(403).json({ error: 'not_authorized_for_global_broadcast' });
+      return;
+    }
+    const teachersSnap = await db
+      .collection('users')
+      .where('role', '==', 'teacher')
+      .get();
+    recipientUids = teachersSnap.docs.map((d) => d.id);
+  }
+
+  if (recipientUids.length === 0) {
+    await notifRef.update({
+      pushSent: true,
+      pushSentAt: admin.firestore.FieldValue.serverTimestamp(),
+      pushResult: 'no_recipients',
+    });
+    res.status(200).json({ sent: false, reason: 'no_recipients' });
     return;
   }
 
   // ------------------------------------------------------------------
-  // 4) جلب توكنات المعلمة (قد يكون لها أكثر من جهاز) وإرسال الإشعار
+  // 4) جلب توكنات كل المستلِمات (قد يكون لكل واحدة أكثر من جهاز) — قراءة
+  //    مستقلة لكل معلمة (بدل collectionGroup) لتبقى بنية البيانات والكود
+  //    مطابقة تماماً لما هو مُختبَر فعلاً في حالة المعلمة الواحدة.
   // ------------------------------------------------------------------
-  const tokensSnap = await db
-    .collection('users')
-    .doc(recipientUid)
-    .collection('fcmTokens')
-    .get();
+  const tokenEntries = []; // { uid, token }[]
+  await Promise.all(
+    recipientUids.map(async (uid) => {
+      const tokensSnap = await db
+        .collection('users')
+        .doc(uid)
+        .collection('fcmTokens')
+        .get();
+      tokensSnap.docs.forEach((d) => tokenEntries.push({ uid, token: d.id }));
+    })
+  );
 
-  if (tokensSnap.empty) {
-    // لا يوجد جهاز مسجَّل لدى هذه المعلمة بعد — ليس خطأً، الرسالة محفوظة
-    // أصلاً في Firestore وستراها عند فتح التطبيق كالمعتاد.
+  if (tokenEntries.length === 0) {
+    // لا يوجد جهاز مسجَّل لدى أي من المستلِمات بعد — ليس خطأً، الرسالة
+    // محفوظة أصلاً في Firestore وستظهر عند فتح التطبيق كالمعتاد.
     await notifRef.update({
       pushSent: true,
       pushSentAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -179,52 +239,70 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const tokens = tokensSnap.docs.map((d) => d.id);
-
-  const message = {
-    tokens,
-    notification: {
-      title: notif.title,
-      body: notif.body,
-    },
-    data: {
-      notificationId,
-      type: 'custom_message',
-    },
-    webpush: {
-      fcmOptions: { link: '/' },
-    },
-  };
-
-  let response;
-  try {
-    response = await messaging.sendEachForMulticast(message);
-  } catch (e) {
-    res.status(500).json({ error: 'fcm_send_failed', message: String(e) });
-    return;
+  // FCM يسمح بحد أقصى 500 توكن لكل استدعاء sendEachForMulticast واحد —
+  // نُقسّم إلى دفعات عند بث لعدد كبير من المعلمات (حالتا ب/ج أعلاه).
+  const BATCH_SIZE = 500;
+  const batches = [];
+  for (let i = 0; i < tokenEntries.length; i += BATCH_SIZE) {
+    batches.push(tokenEntries.slice(i, i + BATCH_SIZE));
   }
 
-  // ------------------------------------------------------------------
-  // 5) تنظيف التوكنات الفاسدة/المنتهية (دوّار أو أُلغي تثبيت التطبيق)
-  // ------------------------------------------------------------------
   const staleTokenCodes = new Set([
     'messaging/registration-token-not-registered',
     'messaging/invalid-registration-token',
   ]);
   const cleanupPromises = [];
-  response.responses.forEach((r, i) => {
-    if (!r.success && r.error && staleTokenCodes.has(r.error.code)) {
-      cleanupPromises.push(
-        db
-          .collection('users')
-          .doc(recipientUid)
-          .collection('fcmTokens')
-          .doc(tokens[i])
-          .delete()
-          .catch(() => {})
-      );
+  let totalSuccess = 0;
+  let totalFailure = 0;
+
+  for (const batch of batches) {
+    const message = {
+      tokens: batch.map((e) => e.token),
+      notification: {
+        title: notif.title,
+        body: notif.body,
+      },
+      data: {
+        notificationId,
+        type: 'custom_message',
+      },
+      webpush: {
+        fcmOptions: { link: '/' },
+      },
+    };
+
+    let response;
+    try {
+      response = await messaging.sendEachForMulticast(message);
+    } catch (e) {
+      // فشل هذه الدفعة بالكامل — نُكمل بقية الدفعات إن وُجدت بدل إيقاف
+      // كل شيء بسبب دفعة واحدة فاشلة.
+      totalFailure += batch.length;
+      continue;
     }
-  });
+
+    totalSuccess += response.successCount;
+    totalFailure += response.failureCount;
+
+    response.responses.forEach((r, i) => {
+      if (!r.success && r.error && staleTokenCodes.has(r.error.code)) {
+        const { uid, token } = batch[i];
+        cleanupPromises.push(
+          db
+            .collection('users')
+            .doc(uid)
+            .collection('fcmTokens')
+            .doc(token)
+            .delete()
+            .catch(() => {})
+        );
+      }
+    });
+  }
+
+  // ------------------------------------------------------------------
+  // 5) تنظيف التوكنات الفاسدة/المنتهية (دوّار أو أُلغي تثبيت التطبيق)
+  // ------------------------------------------------------------------
   await Promise.all(cleanupPromises);
 
   // ------------------------------------------------------------------
@@ -233,21 +311,36 @@ module.exports = async function handler(req, res) {
   await notifRef.update({
     pushSent: true,
     pushSentAt: admin.firestore.FieldValue.serverTimestamp(),
-    pushResult: `${response.successCount}/${tokens.length}`,
+    pushResult: `${totalSuccess}/${tokenEntries.length}`,
   });
 
   await db.collection('notification_push_logs').add({
     notificationId,
-    recipientUid,
+    recipientUids,
     senderUid: callerUid,
-    successCount: response.successCount,
-    failureCount: response.failureCount,
+    successCount: totalSuccess,
+    failureCount: totalFailure,
     sentAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
   res.status(200).json({
     sent: true,
-    successCount: response.successCount,
-    failureCount: response.failureCount,
+    recipientCount: recipientUids.length,
+    successCount: totalSuccess,
+    failureCount: totalFailure,
   });
+  } catch (e) {
+    // نسجّل الخطأ في مستند الإشعار نفسه حتى يكون قابلاً للتشخيص لاحقاً
+    // (بدل pushSent: undefined إلى الأبد)، مع try/catch إضافي حول هذا
+    // التسجيل نفسه احتياطاً (لو كان سبب الخطأ الأصلي انقطاع الاتصال
+    // بـFirestore نفسه، فمحاولة الكتابة هنا ستفشل أيضاً - لا بأس).
+    try {
+      await notifRef.update({
+        pushSent: true,
+        pushSentAt: admin.firestore.FieldValue.serverTimestamp(),
+        pushResult: `error: ${String(e && e.message ? e.message : e)}`,
+      });
+    } catch (_) {}
+    res.status(500).json({ error: 'internal_error', message: String(e && e.message ? e.message : e) });
+  }
 };
