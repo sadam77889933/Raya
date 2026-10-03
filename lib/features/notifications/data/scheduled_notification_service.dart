@@ -51,6 +51,24 @@ class ScheduledNotificationService {
     });
   }
 
+  /// تعديل محتوى رسالة مجدولة موجودة (العنوان/النص/اليوم/المسجد المستهدَف).
+  /// لا نُصفّر `lastSentHijriMonth` هنا عمداً — تعديل المحتوى لا يجب أن
+  /// يتسبّب بإعادة إرسال فورية لرسالة أُرسلت بالفعل هذا الشهر الهجري.
+  Future<void> update({
+    required String id,
+    required String title,
+    required String body,
+    required int hijriDayOfMonth,
+    String? targetMosqueId,
+  }) async {
+    await _firestore.collection(_collection).doc(id).update({
+      'title': title,
+      'body': body,
+      'hijriDayOfMonth': hijriDayOfMonth,
+      'targetMosqueId': targetMosqueId,
+    });
+  }
+
   Future<void> delete(String id) async {
     await _firestore.collection(_collection).doc(id).delete();
   }

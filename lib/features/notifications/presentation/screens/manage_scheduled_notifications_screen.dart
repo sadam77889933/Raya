@@ -70,7 +70,15 @@ class ManageScheduledNotificationsScreen extends ConsumerWidget {
                               const SizedBox(height: 10),
                           itemBuilder: (context, index) {
                             final s = notifications[index];
-                            return _ScheduledCard(scheduled: s);
+                            return _ScheduledCard(
+                              scheduled: s,
+                              onEdit: () => _showEditorDialog(
+                                context,
+                                ref,
+                                restrictToMosqueId,
+                                existing: s,
+                              ),
+                            );
                           },
                         ),
                 ),
@@ -79,7 +87,7 @@ class ManageScheduledNotificationsScreen extends ConsumerWidget {
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: () =>
-                        _showCreateDialog(context, ref, restrictToMosqueId),
+                        _showEditorDialog(context, ref, restrictToMosqueId),
                     icon: const Icon(Icons.calendar_month_rounded, size: 18),
                     label: const Text('جدولة رسالة جديدة'),
                   ),
@@ -92,12 +100,15 @@ class ManageScheduledNotificationsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _showCreateDialog(
-      BuildContext context, WidgetRef ref, String? lockedMosqueId) async {
-    final titleController = TextEditingController();
-    final bodyController = TextEditingController();
-    final dayController = TextEditingController();
-    String? selectedMosqueId = lockedMosqueId;
+  Future<void> _showEditorDialog(
+      BuildContext context, WidgetRef ref, String? lockedMosqueId,
+      {ScheduledNotification? existing}) async {
+    final isEditing = existing != null;
+    final titleController = TextEditingController(text: existing?.title ?? '');
+    final bodyController = TextEditingController(text: existing?.body ?? '');
+    final dayController = TextEditingController(
+        text: existing != null ? existing.hijriDayOfMonth.toString() : '');
+    String? selectedMosqueId = existing?.targetMosqueId ?? lockedMosqueId;
 
     final user = ref.read(authProvider).user;
     final mosques = ref.read(activeMosquesProvider);
@@ -108,9 +119,9 @@ class ManageScheduledNotificationsScreen extends ConsumerWidget {
         builder: (ctx, setState) => AlertDialog(
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text(
-            'جدولة رسالة جديدة',
-            style: TextStyle(fontFamily: 'Tajawal', fontWeight: FontWeight.w700),
+          title: Text(
+            isEditing ? 'تعديل الرسالة المجدولة' : 'جدولة رسالة جديدة',
+            style: const TextStyle(fontFamily: 'Tajawal', fontWeight: FontWeight.w700),
             textAlign: TextAlign.center,
           ),
           content: SingleChildScrollView(
@@ -208,17 +219,28 @@ class ManageScheduledNotificationsScreen extends ConsumerWidget {
                   return;
                 }
 
-                await ref.read(scheduledNotificationServiceProvider).create(
-                      title: titleController.text.trim(),
-                      body: bodyController.text.trim(),
-                      hijriDayOfMonth: day,
-                      senderName: user?.name ?? '',
-                      targetMosqueId: selectedMosqueId,
-                    );
+                if (isEditing) {
+                  await ref.read(scheduledNotificationServiceProvider).update(
+                        id: existing.id,
+                        title: titleController.text.trim(),
+                        body: bodyController.text.trim(),
+                        hijriDayOfMonth: day,
+                        targetMosqueId: selectedMosqueId,
+                      );
+                } else {
+                  await ref.read(scheduledNotificationServiceProvider).create(
+                        title: titleController.text.trim(),
+                        body: bodyController.text.trim(),
+                        hijriDayOfMonth: day,
+                        senderName: user?.name ?? '',
+                        targetMosqueId: selectedMosqueId,
+                      );
+                }
 
                 if (ctx.mounted) Navigator.of(ctx).pop();
               },
-              child: const Text('جدولة', style: TextStyle(fontFamily: 'Tajawal')),
+              child: Text(isEditing ? 'حفظ التعديلات' : 'جدولة',
+                  style: const TextStyle(fontFamily: 'Tajawal')),
             ),
           ],
         ),
@@ -229,8 +251,9 @@ class ManageScheduledNotificationsScreen extends ConsumerWidget {
 
 class _ScheduledCard extends StatelessWidget {
   final ScheduledNotification scheduled;
+  final VoidCallback onEdit;
 
-  const _ScheduledCard({required this.scheduled});
+  const _ScheduledCard({required this.scheduled, required this.onEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -285,6 +308,12 @@ class _ScheduledCard extends StatelessWidget {
                               color: Colors.grey.shade500)),
                     ],
                   ),
+                ),
+                IconButton(
+                  onPressed: onEdit,
+                  icon: Icon(Icons.edit_outlined,
+                      size: 20, color: Colors.grey.shade600),
+                  tooltip: 'تعديل',
                 ),
                 Switch(
                   value: scheduled.isActive,
