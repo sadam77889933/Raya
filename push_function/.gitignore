@@ -9,3 +9,4 @@ deploy-firestore-rules.js
 check-recent-tokens.js
 check-vapid-key.js
 check-debug-invocations.js
+check-scheduled.js

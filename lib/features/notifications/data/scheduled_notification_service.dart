@@ -106,14 +106,19 @@ class ScheduledNotificationService {
         final scheduled =
             ScheduledNotification.fromJson(doc.id, doc.data());
 
-        if (!scheduled.shouldSendNow(today)) continue;
+        final due = scheduled.shouldSendNow(today);
+        if (!due) continue;
 
-        // نُرسل الإشعار الفعلي للمعلمات
+        // نُرسل الإشعار الفعلي للمعلمات — نُمرّر scheduledNotificationId
+        // حتى تسمح قواعد أمان Firestore بإنشاء الإشعار حتى لو كانت صاحبة
+        // الحساب التي فتحت التطبيق الآن معلمة وليست مشرفة (انظر
+        // isFromActiveSchedule في firestore.rules)
         await _notificationService.sendCustomMessage(
           title: scheduled.title,
           body: scheduled.body,
           senderName: scheduled.senderName,
           targetMosqueId: scheduled.targetMosqueId,
+          scheduledNotificationId: doc.id,
         );
 
         // نُسجّل أنها أُرسلت هذا الشهر الهجري لمنع التكرار

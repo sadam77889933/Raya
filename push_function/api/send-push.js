@@ -65,6 +65,30 @@ function applyCors(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
+// تتحقق أن مستند الإشعار notif يطابق تماماً (العنوان/النص/المسجد) رسالة
+// مجدولة نشطة فعلاً في scheduled_notifications — المكافئ الخادمي لدالة
+// isFromActiveSchedule في firestore.rules. تسمح للدالة هذه بإرسال الـPush
+// الفعلي حتى لو كانت صاحبة الحساب التي فتحت التطبيق (واستدعت هذه الدالة
+// بالتالي) معلمة وليست مشرفة، تماماً كما سُمح لها أصلاً بإنشاء مستند
+// الإشعار نفسه في Firestore. لا تخضع Admin SDK هنا لقواعد أمان Firestore
+// إطلاقاً، لذا هذا التحقق مستقل تماماً ولازم رغم وجوده هناك أيضاً.
+async function isFromActiveSchedule(notif) {
+  const scheduledId = notif.scheduledNotificationId;
+  if (!scheduledId || typeof scheduledId !== 'string') return false;
+  const schedSnap = await db
+    .collection('scheduled_notifications')
+    .doc(scheduledId)
+    .get();
+  if (!schedSnap.exists) return false;
+  const sched = schedSnap.data();
+  return (
+    sched.isActive === true &&
+    sched.title === notif.title &&
+    sched.body === notif.body &&
+    (sched.targetMosqueId || null) === (notif.targetMosqueId || null)
+  );
+}
+
 module.exports = async function handler(req, res) {
   applyCors(req, res);
 
@@ -149,6 +173,7 @@ module.exports = async function handler(req, res) {
   const isGeneralSupervisor = caller.role === 'supervisor';
   const isAuthorizedMosqueSupervisor =
     caller.role === 'mosqueSupervisor' && caller.mosqueId === targetMosqueId;
+  const isFromSchedule = await isFromActiveSchedule(notif);
 
   let recipientUids;
 
@@ -164,7 +189,7 @@ module.exports = async function handler(req, res) {
     const recipientMatchesMosque = recipient.mosqueId === targetMosqueId;
     if (
       !recipientMatchesMosque ||
-      !(isGeneralSupervisor || isAuthorizedMosqueSupervisor)
+      !(isGeneralSupervisor || isAuthorizedMosqueSupervisor || isFromSchedule)
     ) {
       res.status(403).json({ error: 'not_authorized_for_this_recipient' });
       return;
@@ -172,7 +197,7 @@ module.exports = async function handler(req, res) {
     recipientUids = [recipientUid];
   } else if (targetMosqueId) {
     // حالة (ب) — بث لكل معلمات مسجد واحد محدد.
-    if (!(isGeneralSupervisor || isAuthorizedMosqueSupervisor)) {
+    if (!(isGeneralSupervisor || isAuthorizedMosqueSupervisor || isFromSchedule)) {
       res.status(403).json({ error: 'not_authorized_for_this_mosque' });
       return;
     }
@@ -188,8 +213,9 @@ module.exports = async function handler(req, res) {
       .filter((d) => d.data().mosqueId === targetMosqueId)
       .map((d) => d.id);
   } else {
-    // حالة (ج) — بث لكل معلمات كل المساجد، للمشرفة العامة حصراً.
-    if (!isGeneralSupervisor) {
+    // حالة (ج) — بث لكل معلمات كل المساجد، للمشرفة العامة حصراً (أو
+    // رسالة مجدولة نشطة بلا مسجد محدَّد — نفس منطق isFromSchedule أعلاه).
+    if (!(isGeneralSupervisor || isFromSchedule)) {
       res.status(403).json({ error: 'not_authorized_for_global_broadcast' });
       return;
     }

@@ -131,6 +131,7 @@ class NotificationService {
     required String senderName,
     String? targetMosqueId,
     String? recipientUid,
+    String? scheduledNotificationId,
   }) async {
     final docRef = await _firestore.collection(_collection).add({
       'type': 'custom_message',
@@ -142,6 +143,13 @@ class NotificationService {
       'senderName': senderName,
       'createdAt': DateTime.now().toIso8601String(),
       'readBy': <String>[],
+      // يُمرَّر فقط عند الإرسال التلقائي من رسالة مجدولة (انظر
+      // ScheduledNotificationService.checkAndSendDueNotifications) — تستخدمه
+      // قواعد أمان Firestore للتحقق من تطابق هذا الإشعار تماماً مع رسالة
+      // مجدولة نشطة موجودة فعلاً، فتسمح بإنشائه حتى لو كان صاحب الحساب
+      // الذي فتح التطبيق معلمة وليست مشرفة (انظر isFromActiveSchedule في
+      // firestore.rules).
+      'scheduledNotificationId': scheduledNotificationId,
     });
 
     // تُستدعى الدالة الخارجية دائماً الآن (معلمة واحدة، أو كل معلمات مسجد،
