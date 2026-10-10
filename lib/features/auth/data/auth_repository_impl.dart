@@ -2,7 +2,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../domain/entities/user_model.dart';
+import '../domain/exceptions/account_creation_exception.dart';
 import '../domain/repositories/auth_repository.dart';
+import 'account_creation_error_mapper.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -54,7 +56,57 @@ class AuthRepositoryImpl implements AuthRepository {
     return UserModel.fromJson(firebaseUser.uid, doc.data()!);
   }
 
-  @override
+  static const _secondaryAppName = 'secondary';
+
+  /// يعيد التطبيق الثانوي الموجود إن بقي من محاولة سابقة لم تُغلَق (إغلاق
+  /// مفاجئ مثلاً) بدل أن تفشل كل المحاولات التالية بـ`duplicate-app`.
+  Future<FirebaseApp> _obtainSecondaryApp() async {
+    for (final app in Firebase.apps) {
+      if (app.name == _secondaryAppName) return app;
+    }
+    return Firebase.initializeApp(
+      name: _secondaryAppName,
+      options: Firebase.app().options,
+    );
+  }
+
+  /// ينشئ حساب Auth ويحوّل أي خطأ (وأهمها البريد المكرر) إلى
+  /// [AccountCreationException] برسالة عربية.
+  Future<User> _createAuthUser(
+    FirebaseAuth auth,
+    String email,
+    String password,
+  ) async {
+    try {
+      final credential = await auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      return credential.user!;
+    } on FirebaseAuthException catch (e) {
+      throw mapCreateAccountError(e);
+    }
+  }
+
+  /// يحذف حساب Auth الذي أُنشئ للتو بعد فشل حفظ بياناته في Firestore، حتى لا
+  /// يبقى البريد محجوزاً بلا ملف بيانات. يعيد الاستثناء المناسب ليُرمى.
+  Future<AccountCreationException> _rollbackAfterProfileFailure(
+    User createdUser,
+  ) async {
+    try {
+      await createdUser.delete();
+      return const AccountCreationException(
+        AccountCreationFailure.profileSaveFailed,
+        'تعذّر حفظ بيانات الحساب ولم يتم إنشاؤه، تأكدي من الاتصال بالإنترنت وحاولي مرة أخرى',
+      );
+    } catch (_) {
+      return const AccountCreationException(
+        AccountCreationFailure.orphanedAuthAccount,
+        'تم إنشاء حساب الدخول لكن تعذّر حفظ بياناته. لا تعيدي المحاولة بنفس البريد، وتواصلي مع المسؤول لإصلاح الحساب',
+      );
+    }
+  }
+
   @override
   Future<void> createTeacherAccount({
     required String email,
@@ -63,35 +115,38 @@ class AuthRepositoryImpl implements AuthRepository {
     required String mosqueId,
     String role = 'teacher',
   }) async {
-    final secondaryApp = await Firebase.initializeApp(
-      name: 'secondary',
-      options: Firebase.app().options,
-    );
+    // Firebase Auth يتعامل مع البريد دون حساسية لحالة الأحرف؛ نوحّد الصيغة
+    // هنا حتى يُخزَّن في Firestore بنفس الصيغة التي يعتمدها Auth.
+    final normalizedEmail = email.trim().toLowerCase();
+
+    final secondaryApp = await _obtainSecondaryApp();
     final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
 
     try {
-      final credential = await secondaryAuth.createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: password,
-      );
+      final createdUser =
+          await _createAuthUser(secondaryAuth, normalizedEmail, password);
 
       final resolvedRole =
           role == 'mosqueSupervisor' ? UserRole.mosqueSupervisor : UserRole.teacher;
 
       final newUser = UserModel(
-        uid: credential.user!.uid,
+        uid: createdUser.uid,
         name: name.trim(),
         role: resolvedRole,
         mosqueId: mosqueId,
         isActive: true,
         createdAt: DateTime.now(),
-        email: email.trim(),
+        email: normalizedEmail,
       );
 
-      await _firestore
-          .collection(_usersCollection)
-          .doc(newUser.uid)
-          .set(newUser.toJson());
+      try {
+        await _firestore
+            .collection(_usersCollection)
+            .doc(newUser.uid)
+            .set(newUser.toJson());
+      } catch (_) {
+        throw await _rollbackAfterProfileFailure(createdUser);
+      }
     } finally {
       await secondaryAuth.signOut();
       await secondaryApp.delete();

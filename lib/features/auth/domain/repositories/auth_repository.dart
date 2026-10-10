@@ -12,6 +12,8 @@ abstract class AuthRepository {
 
   /// إنشاء حساب معلمة جديد (تستخدمها المشرفة فقط)
   /// إنشاء حساب معلمة أو مشرفة مسجد جديد (تستخدمها المشرفة العامة فقط)
+  /// يرمي AccountCreationException برسالة عربية جاهزة للعرض عند الفشل
+  /// (ومنه البريد المستخدم مسبقاً في أي مسجد أو دور).
   Future<void> createTeacherAccount({
     required String email,
     required String password,

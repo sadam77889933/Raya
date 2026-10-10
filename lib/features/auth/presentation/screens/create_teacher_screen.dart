@@ -5,6 +5,7 @@ import '../../../../core/widgets/app_text_field.dart';
 import '../providers/auth_provider.dart';
 import '../../../../core/widgets/app_dropdown_field.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
+import '../../domain/exceptions/account_creation_exception.dart';
 class CreateTeacherScreen extends ConsumerStatefulWidget {
   final String? lockedMosqueId;
 
@@ -26,6 +27,9 @@ class _CreateTeacherScreenState extends ConsumerState<CreateTeacherScreen> {
   bool _isSubmitting = false;
   bool _obscurePassword = true;
 
+  /// سبب رفض البريد من الخادم (مكرر/غير صالح)، يظهر تحت الحقل نفسه.
+  String? _emailServerError;
+
   @override
   void initState() {
     super.initState();
@@ -43,6 +47,7 @@ class _CreateTeacherScreenState extends ConsumerState<CreateTeacherScreen> {
   }
 
   Future<void> _submit() async {
+    _emailServerError = null;
     if (!_formKey.currentState!.validate()) return;
     if (_selectedMosqueId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -75,17 +80,32 @@ class _CreateTeacherScreenState extends ConsumerState<CreateTeacherScreen> {
       _emailController.clear();
       _passwordController.clear();
       setState(() => _selectedMosqueId = null);
+    } on AccountCreationException catch (e) {
+      if (!mounted) return;
+      if (e.reason == AccountCreationFailure.emailAlreadyInUse ||
+          e.reason == AccountCreationFailure.invalidEmail) {
+        // نُظهر السبب تحت حقل البريد أيضاً حتى تعرف المشرفة أي حقل تُعدّله.
+        _emailServerError = e.message;
+        _formKey.currentState?.validate();
+      }
+      _showError(e.message);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('فشل إنشاء الحساب: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      debugPrint('createTeacherAccount failed: $e');
+      _showError('تعذّر إنشاء الحساب، حاولي مرة أخرى');
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 6),
+      ),
+    );
   }
 
   @override
@@ -236,6 +256,12 @@ class _CreateTeacherScreenState extends ConsumerState<CreateTeacherScreen> {
                 isRequired: true,
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.next,
+                onChanged: (_) {
+                  // عند تعديل البريد بعد رفضه، نُزيل رسالة الرفض القديمة فوراً.
+                  if (_emailServerError == null) return;
+                  _emailServerError = null;
+                  _formKey.currentState?.validate();
+                },
                 validator: (val) {
                   if (val == null || val.trim().isEmpty) {
                     return 'هذا الحقل مطلوب';
@@ -243,7 +269,7 @@ class _CreateTeacherScreenState extends ConsumerState<CreateTeacherScreen> {
                   if (!val.contains('@')) {
                     return 'أدخلي بريداً صحيحاً';
                   }
-                  return null;
+                  return _emailServerError;
                 },
               ),
               const SizedBox(height: 16),
