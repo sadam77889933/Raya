@@ -5,6 +5,10 @@ import 'student_record.dart';
 class ReportSummary {
   final String id;
   final String teacherName;
+
+  /// رقم حساب المعلمة (Firebase uid). ثابت حتى لو تغيّر اسمها، فهو مفتاح
+  /// الفلترة بالمعلمة؛ أما `teacherName` فنسخة من اسمها وقت رفع التقرير.
+  final String teacherId;
   final String mosqueId;
   final String circleId;
   final String circleName;
@@ -27,6 +31,7 @@ class ReportSummary {
   const ReportSummary({
     required this.id,
     required this.teacherName,
+    this.teacherId = '',
     required this.mosqueId,
     this.circleId = '',
     required this.circleName,
@@ -46,6 +51,7 @@ class ReportSummary {
     return ReportSummary(
       id: data['id'] as String,
       teacherName: data['teacherName'] as String? ?? '',
+      teacherId: data['teacherId'] as String? ?? '',
       mosqueId: data['mosqueId'] as String? ?? '',
       circleId: data['circleId'] as String? ?? '',
       circleName: data['circleName'] as String? ?? '',
@@ -71,6 +77,7 @@ class ReportSummary {
   ReportSummary copyWith({
     String? id,
     String? teacherName,
+    String? teacherId,
     String? mosqueId,
     String? circleId,
     String? circleName,
@@ -86,6 +93,7 @@ class ReportSummary {
     return ReportSummary(
       id: id ?? this.id,
       teacherName: teacherName ?? this.teacherName,
+      teacherId: teacherId ?? this.teacherId,
       mosqueId: mosqueId ?? this.mosqueId,
       circleId: circleId ?? this.circleId,
       circleName: circleName ?? this.circleName,

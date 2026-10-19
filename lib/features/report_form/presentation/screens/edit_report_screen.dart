@@ -135,6 +135,7 @@ class _EditReportScreenState extends ConsumerState<EditReportScreen> {
       final updatedReport = ReportSummary(
         id: widget.report.id,
         teacherName: widget.report.teacherName,
+        teacherId: widget.report.teacherId,
         mosqueId: widget.report.mosqueId,
         circleId: widget.report.circleId,
         circleName: widget.report.circleName,

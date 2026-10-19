@@ -50,7 +50,7 @@ class _StatisticalReportScreenState
   String? _mosqueFilter;
   String? _schoolFilter;
   String? _circleFilter;
-  String? _teacherFilter;
+  ({String id, String name})? _teacher; // المعلمة المختارة (null = الكل)
 
   @override
   void initState() {
@@ -167,7 +167,8 @@ class _StatisticalReportScreenState
               mosqueIdFilter: effectiveMosqueFilter,
               schoolNameFilter: schoolNameFilter,
               circleNameFilter: circleNameFilter,
-              teacherNameFilter: _teacherFilter,
+              teacherIdFilter: _teacher?.id,
+              teacherName: _teacher?.name,
               periodLabel: periodLabel,
               mosqueName: mosqueName,
             ),
@@ -236,7 +237,7 @@ class _StatisticalReportScreenState
                 _mosqueFilter = val;
                 _schoolFilter = null;
                 _circleFilter = null;
-                _teacherFilter = null;
+                _teacher = null;
               }),
             ),
             const SizedBox(height: 8),
@@ -263,7 +264,7 @@ class _StatisticalReportScreenState
                   : (val) => setState(() {
                         _schoolFilter = val;
                         _circleFilter = null;
-                        _teacherFilter = null;
+                        _teacher = null;
                       }),
             ),
           const SizedBox(height: 8),
@@ -299,16 +300,11 @@ class _StatisticalReportScreenState
                 error: (_, __) => const SizedBox.shrink(),
                 data: (teachers) {
                   return DropdownButtonFormField<String?>(
-                    // حارس أمان مطابق لبقية القوائم — كان هذا الحقل تحديداً
-                    // بلا حارس إطلاقاً، وقيمته اسم المعلمة (نص) لا مُعرِّف
-                    // (id)، وهذا هو أرجح مصدر الانهيار الفعلي الذي استمرّ
-                    // ظاهراً حتى بعد إصلاح المسجد/الدار/الحلقة: عند تبديل
-                    // الدار، قائمة `teachers` (وهي مرتبطة بالمسجد لا بالدار
-                    // ولا بالحلقة) قد تتغيّر مؤقتاً (تحميل من جديد ثم بيانات
-                    // كاملة)، فتُصبح `_teacherFilter` المحفوظة غير مطابقة
-                    // لأي عنصر — أو لعنصرين متطابقين بالاسم لمعلمتين مختلفتين.
-                    value: teachers.any((t) => t.name == _teacherFilter)
-                        ? _teacherFilter
+                    // حارس أمان مطابق لبقية القوائم: عند تبديل الدار قد تتغيّر قائمة
+                    // `teachers` مؤقتاً (تحميل من جديد ثم بيانات كاملة)، فلا تُمرَّر
+                    // قيمة محفوظة لا يطابقها أي عنصر.
+                    value: teachers.any((t) => t.uid == _teacher?.id)
+                        ? _teacher?.id
                         : null,
                     decoration: _filterDecoration(
                         Icons.person_outline_rounded, 'كل معلمات الحلقة'),
@@ -316,9 +312,15 @@ class _StatisticalReportScreenState
                       const DropdownMenuItem<String?>(
                           value: null, child: Text('كل معلمات الحلقة')),
                       ...teachers.map((t) => DropdownMenuItem<String?>(
-                          value: t.name, child: Text(t.name))),
+                          value: t.uid, child: Text(t.name))),
                     ],
-                    onChanged: (val) => setState(() => _teacherFilter = val),
+                    onChanged: (val) => setState(() {
+                      final teacher =
+                          teachers.where((t) => t.uid == val).firstOrNull;
+                      _teacher = teacher == null
+                          ? null
+                          : (id: teacher.uid, name: teacher.name);
+                    }),
                   );
                 },
               );
@@ -435,7 +437,8 @@ class _StatisticalReportData extends ConsumerWidget {
   final String? mosqueIdFilter;
   final String? schoolNameFilter;
   final String? circleNameFilter;
-  final String? teacherNameFilter;
+  final String? teacherIdFilter;
+  final String? teacherName;
   final String periodLabel;
   final String? mosqueName;
 
@@ -450,7 +453,8 @@ class _StatisticalReportData extends ConsumerWidget {
     this.mosqueIdFilter,
     this.schoolNameFilter,
     this.circleNameFilter,
-    this.teacherNameFilter,
+    this.teacherIdFilter,
+    this.teacherName,
     required this.periodLabel,
     this.mosqueName,
   });
@@ -480,7 +484,7 @@ class _StatisticalReportData extends ConsumerWidget {
           mosqueIdFilter: mosqueIdFilter,
           schoolNameFilter: schoolNameFilter,
           circleNameFilter: circleNameFilter,
-          teacherNameFilter: teacherNameFilter,
+          teacherIdFilter: teacherIdFilter,
         );
 
         if (result.reportsCount == 0) {
@@ -496,7 +500,7 @@ class _StatisticalReportData extends ConsumerWidget {
           periodLabel: periodLabel,
           mosqueName: mosqueName,
           schoolName: schoolNameFilter,
-          teacherName: teacherNameFilter,
+          teacherName: teacherName,
         );
       },
     );

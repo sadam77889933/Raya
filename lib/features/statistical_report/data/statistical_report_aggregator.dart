@@ -55,7 +55,7 @@ class StatisticalReportAggregator {
     String? mosqueIdFilter,
     String? schoolNameFilter,
     String? circleNameFilter,
-    String? teacherNameFilter,
+    String? teacherIdFilter,
   }) {
     final fromKey = _monthKey(fromMonth, fromYear);
     final toKey = _monthKey(toMonth, toYear);
@@ -70,7 +70,7 @@ class StatisticalReportAggregator {
       if (circleNameFilter != null && r.circleName != circleNameFilter) {
         return false;
       }
-      if (teacherNameFilter != null && r.teacherName != teacherNameFilter) {
+      if (teacherIdFilter != null && r.teacherId != teacherIdFilter) {
         return false;
       }
       return true;

@@ -23,7 +23,7 @@ class AttendanceAggregator {
     required String toYear,
     String? studentNameFilter,
     String? mosqueIdFilter,
-    String? teacherNameFilter,
+    String? teacherIdFilter,
     String? schoolNameFilter,
     String? circleNameFilter,
   }) {
@@ -36,9 +36,9 @@ class AttendanceAggregator {
 
       if (mosqueIdFilter != null && r.mosqueId != mosqueIdFilter) return false;
       // مطابقة تامة (وليست "يحتوي على"): هذه القيم تأتي دائماً من اختيار
-      // فعلي في قائمة منسدلة (اسم معلمة/دار/حلقة حقيقي)، وليست نصاً حراً،
+      // فعلي في قائمة منسدلة (معرّف معلمة أو اسم دار/حلقة حقيقي)، وليست نصاً حراً،
       // فتفادي المطابقة الجزئية يمنع تداخل الأسماء المتشابهة.
-      if (teacherNameFilter != null && r.teacherName != teacherNameFilter) {
+      if (teacherIdFilter != null && r.teacherId != teacherIdFilter) {
         return false;
       }
       if (schoolNameFilter != null && r.schoolName != schoolNameFilter) {

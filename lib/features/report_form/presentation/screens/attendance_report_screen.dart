@@ -33,7 +33,7 @@ class _AttendanceReportScreenState
 
   String _studentFilter = '';
   String? _mosqueFilter;
-  String? _teacherFilter; // اسم المعلمة المختارة (null = الكل)
+  ({String id, String name})? _teacher; // المعلمة المختارة (null = الكل)
   String? _schoolFilter; // معرّف الدار المختارة (null = الكل)
   String? _circleFilter; // معرّف الحلقة المختارة (null = الكل)
   bool _isExporting = false;
@@ -61,7 +61,7 @@ class _AttendanceReportScreenState
         summaries: summaries,
         periodLabel: periodLabel,
         mosqueName: mosqueName,
-        teacherName: _teacherFilter,
+        teacherName: _teacher?.name,
         schoolName: schoolName,
         circleName: circleName,
       );
@@ -202,7 +202,7 @@ class _AttendanceReportScreenState
             studentNameFilter:
                 _studentFilter.trim().isEmpty ? null : _studentFilter.trim(),
             mosqueIdFilter: effectiveMosqueFilter,
-            teacherNameFilter: _teacherFilter,
+            teacherIdFilter: _teacher?.id,
             schoolNameFilter: schoolNameFilter,
             circleNameFilter: circleNameFilter,
           );
@@ -339,7 +339,9 @@ class _AttendanceReportScreenState
                               error: (_, __) => const SizedBox.shrink(),
                               data: (teachers) {
                                 return DropdownButtonFormField<String?>(
-                                  value: _teacherFilter,
+                                  value: teachers.any((t) => t.uid == _teacher?.id)
+                                      ? _teacher?.id
+                                      : null,
                                   decoration: _filterDecoration(
                                       Icons.person_outline_rounded,
                                       'كل المعلمات'),
@@ -349,13 +351,19 @@ class _AttendanceReportScreenState
                                         child: Text('كل المعلمات')),
                                     ...teachers.map(
                                       (t) => DropdownMenuItem<String?>(
-                                        value: t.name,
+                                        value: t.uid,
                                         child: Text(t.name),
                                       ),
                                     ),
                                   ],
-                                  onChanged: (val) =>
-                                      setState(() => _teacherFilter = val),
+                                  onChanged: (val) => setState(() {
+                                    final teacher = teachers
+                                        .where((t) => t.uid == val)
+                                        .firstOrNull;
+                                    _teacher = teacher == null
+                                        ? null
+                                        : (id: teacher.uid, name: teacher.name);
+                                  }),
                                 );
                               },
                             );
