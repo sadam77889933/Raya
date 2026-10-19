@@ -29,13 +29,14 @@ class RosterRepositoryImpl implements RosterRepository {
   }
 
   @override
-  Future<void> add(String name, String circleId) async {
-    await _firestore.collection(_collection).add({
+  Future<String> add(String name, String circleId) async {
+    final ref = await _firestore.collection(_collection).add({
       'name': name.trim(),
       'circleId': circleId,
       'isActive': true,
       'createdAt': DateTime.now().toIso8601String(),
     });
+    return ref.id;
   }
 
   @override

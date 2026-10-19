@@ -3,6 +3,11 @@ import 'package:equatable/equatable.dart';
 class StudentRecord extends Equatable {
   final int index;
   final String name;
+
+  /// رقم الطالبة في سجل الحلقة (roster_students). يبقى ثابتاً حتى لو تغيّر
+  /// اسمها أو انتقلت لحلقة أخرى، فيُستخدم للتعرّف عليها عبر التقارير. فارغ في
+  /// التقارير القديمة التي رُفعت قبل إضافته.
+  final String studentId;
   final String startSurah;
   final String endSurah;
   final String grade;
@@ -21,6 +26,7 @@ class StudentRecord extends Equatable {
     required this.startSurah,
     required this.endSurah,
     required this.grade,
+    this.studentId = '',
     this.behaviorScore = 10,
     this.reviewStartSurah = '',
     this.reviewEndSurah = '',
@@ -53,6 +59,7 @@ class StudentRecord extends Equatable {
     String? startSurah,
     String? endSurah,
     String? grade,
+    String? studentId,
     int? behaviorScore,
     String? reviewStartSurah,
     String? reviewEndSurah,
@@ -68,6 +75,7 @@ class StudentRecord extends Equatable {
       startSurah: startSurah ?? this.startSurah,
       endSurah: endSurah ?? this.endSurah,
       grade: grade ?? this.grade,
+      studentId: studentId ?? this.studentId,
       behaviorScore: behaviorScore ?? this.behaviorScore,
       reviewStartSurah: reviewStartSurah ?? this.reviewStartSurah,
       reviewEndSurah: reviewEndSurah ?? this.reviewEndSurah,
@@ -81,7 +89,7 @@ class StudentRecord extends Equatable {
 
   @override
   List<Object?> get props => [
-        index, name, startSurah, endSurah, grade,behaviorScore,
+        index, name, studentId, startSurah, endSurah, grade,behaviorScore,
         reviewStartSurah, reviewEndSurah, reviewGrade,
         attendanceDays, absenceDays, absenceReason,
         notes,
@@ -89,6 +97,7 @@ class StudentRecord extends Equatable {
       Map<String, dynamic> toJson() => {
         'index': index,
         'name': name,
+        if (studentId.isNotEmpty) 'studentId': studentId,
         'startSurah': startSurah,
         'endSurah': endSurah,
         'grade': grade,
@@ -109,6 +118,7 @@ class StudentRecord extends Equatable {
       startSurah: json['startSurah'] as String,
       endSurah: json['endSurah'] as String,
       grade: json['grade'] as String,
+      studentId: json['studentId'] as String? ?? '',
       // ملاحظة: التقارير المحفوظة قبل هذا الإصلاح لا تحتوي على هذا الحقل
       // إطلاقاً (خلل سابق كان يُسقطه عند الحفظ)، فتُعرض بالقيمة الافتراضية
       // 10 لتلك التقارير القديمة فقط — لا يوجد حل رجعي ممكن لاسترجاع القيمة

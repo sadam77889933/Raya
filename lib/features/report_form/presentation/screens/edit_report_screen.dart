@@ -50,8 +50,12 @@ class _EditReportScreenState extends ConsumerState<EditReportScreen> {
     });
   }
 
-  /// يضيف تلقائياً أي طالبة جديدة تمت إضافتها لهذا التقرير إلى سجل
-  /// الحلقة الدائم، إن لم تكن موجودة فيه أصلاً (بمطابقة الاسم).
+  /// يربط كل طالبة في التقرير برقمها في سجل الحلقة، ويُرجع القائمة بعد الربط.
+  ///
+  /// - طالبة مرتبطة أصلاً (لها studentId) تبقى كما هي.
+  /// - طالبة بلا رقم: إن وُجد اسمها في السجل مرة واحدة بالضبط تُربط بها، أما
+  ///   الاسم المكرر في السجل فيُترك دون ربط بدل تخمين طالبة خاطئة.
+  /// - اسم غير موجود في السجل: تُضاف الطالبة إليه ويُربط التقرير برقمها الجديد.
   ///
   /// مهم: نستخدم هنا rosterProvider.notifier.addStudent() بالضبط كما
   /// تفعل شاشة "سجل الحلقة" نفسها، وليس الكتابة المباشرة على المستودع
@@ -60,28 +64,46 @@ class _EditReportScreenState extends ConsumerState<EditReportScreen> {
   /// فتحة سابقة لسجل الحلقة في نفس الجلسة)، فتبقى الشاشة تعرض بيانات
   /// قديمة حتى تُغلَق وتُفتَح من جديد بالكامل. استدعاء addStudent()
   /// يمرّ عبر نفس الـ Notifier ويُحدّث حالته فوراً أينما كان معروضاً.
-  Future<void> _syncNewStudentsToRoster(List<StudentRecord> students) async {
+  Future<List<StudentRecord>> _linkStudentsToRoster(
+    List<StudentRecord> students,
+  ) async {
     final circleId = widget.report.circleId;
     // تقرير قديم من قبل الترحيل لسجل الحلقة (لا يحمل معرّف حلقة):
-    // نتجاهل المزامنة بدل تخمين حلقة قد تكون خاطئة.
-    if (circleId.isEmpty) return;
+    // نتجاهل الربط بدل تخمين حلقة قد تكون خاطئة.
+    if (circleId.isEmpty) return students;
 
     final repo = ref.read(rosterRepositoryProvider);
     final notifier = ref.read(rosterProvider(circleId).notifier);
 
     // نقرأ من المستودع مباشرة (وليس من state) لضمان قائمة حديثة
     // حتى لو لم تُفتَح شاشة سجل الحلقة بعد في هذه الجلسة.
-    final existingNames = (await repo.watchByCircle(circleId).first)
-        .map((s) => s.name.trim())
-        .toSet();
+    final rosterIdsByName = <String, List<String>>{};
+    for (final rosterStudent in await repo.watchByCircle(circleId).first) {
+      rosterIdsByName
+          .putIfAbsent(rosterStudent.name.trim(), () => [])
+          .add(rosterStudent.id);
+    }
 
+    final linked = <StudentRecord>[];
     for (final student in students) {
       final name = student.name.trim();
-      if (name.isEmpty || existingNames.contains(name)) continue;
+      if (student.studentId.isNotEmpty || name.isEmpty) {
+        linked.add(student);
+        continue;
+      }
 
-      await notifier.addStudent(name);
-      existingNames.add(name);
+      final matches = rosterIdsByName[name];
+      if (matches == null) {
+        final newId = await notifier.addStudent(name);
+        rosterIdsByName[name] = [newId];
+        linked.add(student.copyWith(studentId: newId));
+      } else if (matches.length == 1) {
+        linked.add(student.copyWith(studentId: matches.first));
+      } else {
+        linked.add(student);
+      }
     }
+    return linked;
   }
 
   Future<void> _save() async {
@@ -98,16 +120,15 @@ class _EditReportScreenState extends ConsumerState<EditReportScreen> {
 
     setState(() => _isSaving = true);
     try {
-      final studentsJson =
-          completeStudents.map((s) => s.toJson()).toList();
+      // الربط بالسجل قبل الحفظ ليُخزَّن رقم كل طالبة (studentId) داخل التقرير.
+      final linkedStudents = await _linkStudentsToRoster(completeStudents);
+      final studentsJson = linkedStudents.map((s) => s.toJson()).toList();
 
       await ref.read(firestoreReportServiceProvider).updateReportStudents(
             widget.report.id,
             studentsJson,
             companionCurriculums: _companionCurriculums,
           );
-
-      await _syncNewStudentsToRoster(completeStudents);
 
       if (!mounted) return;
 

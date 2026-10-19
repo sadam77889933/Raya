@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
 import '../../domain/entities/report_summary.dart';
+import '../../domain/services/unique_students_counter.dart';
 import '../providers/all_reports_provider.dart';
 import 'report_detail_screen.dart';
 
@@ -17,6 +18,22 @@ class AllReportsScreen extends ConsumerStatefulWidget {
 
 class _AllReportsScreenState extends ConsumerState<AllReportsScreen> {
   String _searchQuery = '';
+
+  // يمرّ الحساب على أسماء كل الطالبات في كل التقارير، فلا يُعاد عند كل حرف
+  // يُكتب في البحث ما دامت بيانات التقارير والمسجد المقيَّد لم تتغيّر.
+  List<ReportSummary>? _countedSource;
+  String? _countedMosqueId;
+  int _uniqueStudents = 0;
+
+  int _uniqueStudentsOf(List<ReportSummary> source, List<ReportSummary> scoped) {
+    if (!identical(source, _countedSource) ||
+        widget.restrictToMosqueId != _countedMosqueId) {
+      _uniqueStudents = scoped.uniqueStudentsCount;
+      _countedSource = source;
+      _countedMosqueId = widget.restrictToMosqueId;
+    }
+    return _uniqueStudents;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,8 +60,7 @@ class _AllReportsScreenState extends ConsumerState<AllReportsScreen> {
                   .toList();
           final mosqueCount =
               reports.map((r) => r.mosqueId).toSet().length;
-          final totalStudents =
-              reports.fold<int>(0, (sum, r) => sum + r.studentsCount);
+          final totalStudents = _uniqueStudentsOf(allReports, reports);
 
           final filtered = _searchQuery.trim().isEmpty
               ? reports

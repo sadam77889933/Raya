@@ -65,9 +65,11 @@ class RosterNotifier extends StateNotifier<RosterState> {
     state = state.copyWith(searchQuery: query);
   }
 
-  Future<void> addStudent(String name) async {
-    await _repo.add(name.trim(), circleId);
+  /// يُرجع معرّف الطالبة الجديدة في السجل.
+  Future<String> addStudent(String name) async {
+    final id = await _repo.add(name.trim(), circleId);
     // لا حاجة لإعادة تحميل يدوي: الدفق الحيّ يُحدّث الحالة تلقائياً
+    return id;
   }
 
   Future<void> toggleActive(RosterStudent student) async {

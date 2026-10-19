@@ -7,7 +7,10 @@ import '../entities/roster_student.dart';
 /// دون اتصال مجاناً من حزمة Firestore نفسها.
 abstract class RosterRepository {
   Stream<List<RosterStudent>> watchByCircle(String circleId);
-  Future<void> add(String name, String circleId);
+
+  /// يضيف طالبة للسجل ويُرجع معرّفها الجديد.
+  Future<String> add(String name, String circleId);
+
   Future<void> updateName(String studentId, String name);
   Future<void> setActive(String studentId, bool isActive);
 }

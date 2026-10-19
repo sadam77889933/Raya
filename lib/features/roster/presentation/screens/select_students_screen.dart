@@ -90,6 +90,7 @@ class _SelectStudentsScreenState extends ConsumerState<SelectStudentsScreen> {
         .map((e) => StudentRecord(
               index: e.key + 1,
               name: e.value.name,
+              studentId: e.value.id,
               startSurah: '',
               endSurah: '',
               grade: '',

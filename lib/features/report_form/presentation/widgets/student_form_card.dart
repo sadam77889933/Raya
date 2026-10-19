@@ -99,6 +99,7 @@ class _StudentFormCardState extends State<StudentFormCard> {
     widget.onSaved(StudentRecord(
       index: widget.studentIndex,
       name: _nameController.text.trim(),
+      studentId: widget.student?.studentId ?? '',
       startSurah: _startSurah ?? '',
       endSurah: _endSurah ?? '',
       grade: _grade ?? '',
