@@ -6,14 +6,17 @@ import '../../../roster/presentation/providers/roster_provider.dart';
 import '../../domain/entities/report_summary.dart';
 import '../../domain/entities/student_record.dart';
 import '../providers/firestore_report_provider.dart';
+import '../widgets/add_student_options_sheet.dart';
 import '../widgets/companion_curriculum_selector.dart';
+import '../widgets/roster_student_picker_sheet.dart';
 import '../widgets/student_form_card.dart';
 
 /// شاشة تعديل تقرير سابق محفوظ في Firestore.
 ///
 /// تسمح للمعلمة بتعديل بيانات أي طالبة موجودة في التقرير (الحفظ،
-/// المراجعة، السلوك، الحضور والغياب، الملاحظات) أو إضافة طالبة جديدة
-/// لم تكن موجودة وقت إنشاء التقرير. الحفظ يُحدّث التقرير في مكانه
+/// المراجعة، السلوك، الحضور والغياب، الملاحظات) أو إضافة طالبة لم تكن
+/// في التقرير وقت إنشائه: إما طالبة جديدة بالاسم، أو طالبة موجودة في
+/// سجل الحلقة. الحفظ يُحدّث التقرير في مكانه
 /// داخل Firestore مباشرة دون تغيير تاريخ إنشائه الأصلي، ودون إعادة
 /// رفع ملف PDF تلقائياً (المشاركة تبقى يدوية من شاشة التفاصيل).
 class EditReportScreen extends ConsumerStatefulWidget {
@@ -41,12 +44,55 @@ class _EditReportScreenState extends ConsumerState<EditReportScreen> {
     _companionCurriculums = [...widget.report.companionCurriculums];
   }
 
-  void _addStudent() {
-    final nextIndex =
-        _students.isEmpty ? 1 : (_students.map((s) => s.index).reduce((a, b) => a > b ? a : b) + 1);
+  int get _nextIndex => _students.isEmpty
+      ? 1
+      : _students.map((s) => s.index).reduce((a, b) => a > b ? a : b) + 1;
+
+  /// يسأل المعلمة كيف تريد إضافة الطالبة ثم ينفّذ اختيارها.
+  Future<void> _onAddStudentPressed() async {
+    final option = await showAddStudentOptionsSheet(
+      context,
+      rosterAvailable: widget.report.circleId.isNotEmpty,
+    );
+    if (!mounted || option == null) return;
+
+    switch (option) {
+      case AddStudentOption.newStudent:
+        _addNewStudent();
+      case AddStudentOption.fromRoster:
+        await _addStudentsFromRoster();
+    }
+  }
+
+  void _addNewStudent() {
     setState(() {
-      _students.add(StudentRecord.empty(nextIndex));
+      _students.add(StudentRecord.empty(_nextIndex));
       _expandedIndex = _students.length - 1;
+    });
+  }
+
+  /// تضيف طالبات من سجل الحلقة بأسمائهن وأرقامهن (studentId) جاهزة، فلا يُنشأ
+  /// لهن سجل مكرر عند الحفظ، وتبقى بطاقاتهن بانتظار بيانات الحفظ والمراجعة.
+  Future<void> _addStudentsFromRoster() async {
+    final picked = await showRosterStudentPickerSheet(
+      context,
+      circleId: widget.report.circleId,
+      currentStudents: _students,
+    );
+    if (!mounted || picked == null || picked.isEmpty) return;
+
+    setState(() {
+      final firstNewPosition = _students.length;
+      var index = _nextIndex;
+      for (final rosterStudent in picked) {
+        _students.add(
+          StudentRecord.empty(index++).copyWith(
+            name: rosterStudent.name,
+            studentId: rosterStudent.id,
+          ),
+        );
+      }
+      _expandedIndex = firstNewPosition;
     });
   }
 
@@ -215,10 +261,10 @@ class _EditReportScreenState extends ConsumerState<EditReportScreen> {
                   return Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: OutlinedButton.icon(
-                      onPressed: _addStudent,
+                      onPressed: _onAddStudentPressed,
                       icon: const Icon(Icons.person_add_alt_1_rounded,
                           size: 18),
-                      label: const Text('إضافة طالبة جديدة لهذا التقرير'),
+                      label: const Text('إضافة طالبة لهذا التقرير'),
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(double.infinity, 48),
                         side: BorderSide(
