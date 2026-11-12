@@ -264,15 +264,25 @@ class SummerCenterRepositoryImpl {
 
   /// اختبارات مركز صيفي كامل بفلاتر اختيارية (لشاشة المشرفة) — يُشترَط
   /// تمرير [centerId] دائماً (لا استعلام بلا نطاق مركز محدَّد على الإطلاق).
+  ///
+  /// [hijriMonth] و[hijriYear] شرطا مساواة على الخادم (كبقية الفلاتر)، فلا
+  /// تُحمَّل اختبارات الأشهر الأخرى، ولا يحتاجان فهرساً مركّباً لأن كل
+  /// الشروط مساواة ولا يوجد orderBy.
   Stream<List<SummerTest>> watchTestsFiltered({
     required String centerId,
     String? levelId,
     String? subjectId,
     String? teacherId,
+    String? hijriMonth,
+    String? hijriYear,
   }) {
     Query<Map<String, dynamic>> query = _firestore
         .collection(_testsCollection)
         .where('centerId', isEqualTo: centerId);
+    if (hijriYear != null) query = query.where('hijriYear', isEqualTo: hijriYear);
+    if (hijriMonth != null) {
+      query = query.where('hijriMonth', isEqualTo: hijriMonth);
+    }
     if (levelId != null) query = query.where('levelId', isEqualTo: levelId);
     if (subjectId != null) {
       query = query.where('subjectId', isEqualTo: subjectId);
@@ -352,6 +362,21 @@ class SummerCenterRepositoryImpl {
       questions.sort((a, b) => a.order.compareTo(b.order));
       return questions;
     });
+  }
+
+  /// قراءة واحدة (بلا اشتراك) لأسئلة اختبار — للتصدير الجماعي الذي يحتاج
+  /// لقطة لحظية لكل اختبار لا بثّاً حياً. نفس الاستعلام والفرز في
+  /// [watchQuestions].
+  Future<List<SummerTestQuestion>> getQuestions(String testId) async {
+    final snap = await _firestore
+        .collection(_questionsCollection)
+        .where('testId', isEqualTo: testId)
+        .get();
+    final questions = snap.docs
+        .map((d) => SummerTestQuestion.fromJson(d.id, d.data()))
+        .toList();
+    questions.sort((a, b) => a.order.compareTo(b.order));
+    return questions;
   }
 
   /// إضافة سؤال جديد + زيادة عدّاد الاختبار معاً في عملية واحدة ذرّية.

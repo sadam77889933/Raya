@@ -38,21 +38,59 @@ class SummerTestPdfGenerator {
     // نمط ترويسة الصفحة الأولى: المدمجة افتراضياً، و`classic` هي الترويسة
     // القديمة بلا أي تغيير (للرجوع إليها عند الحاجة).
     SummerTestHeaderStyle headerStyle = SummerTestHeaderStyle.compact,
+    // خطوط جاهزة (للاختبارات فقط)؛ null = تُحمَّل من أصول التطبيق.
+    SummerTestPdfFonts? fonts,
   }) async {
-    final regularData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
-    final boldData = await rootBundle.load('assets/fonts/Amiri-Bold.ttf');
-    final font = pw.Font.ttf(regularData);
-    final boldFont = pw.Font.ttf(boldData);
+    final builder = await SummerTestPdfBundleBuilder.create(
+      centerName: centerName,
+      mosqueName: mosqueName,
+      rightHeaderText: rightHeaderText,
+      leftHeaderText: leftHeaderText,
+      headerLogoBytes: headerLogoBytes,
+      headerStyle: headerStyle,
+      fonts: fonts,
+    );
+    builder.addTest(SummerTestPdfInput(
+      test: test,
+      questions: questions,
+      levelName: levelName,
+      subjectName: subjectName,
+    ));
+    return builder.build();
+  }
 
-    final headerLogoImage =
-        headerLogoBytes != null ? pw.MemoryImage(headerLogoBytes) : null;
-    final effectiveRightHeaderText =
-        rightHeaderText ?? Mosque.defaultRightHeaderText;
+  /// يضيف صفحات اختبار واحد إلى مستند [builder] (صفحات جديدة تبدأ بترويسته).
+  /// هذا هو نفس المحتوى الذي كان يُبنى داخل `generate` تماماً — نُقل كما هو
+  /// ليشترك فيه الاختبار الواحد والتصدير الجماعي بلا تكرار.
+  static void _addTestPages(
+    SummerTestPdfBundleBuilder builder,
+    SummerTestPdfInput input,
+  ) {
+    final test = input.test;
+    final questions = input.questions;
+    final levelName = input.levelName;
+    final subjectName = input.subjectName;
+    final centerName = builder.centerName;
+    final mosqueName = builder.mosqueName;
+    final effectiveRightHeaderText = builder.effectiveRightHeaderText;
+    final leftHeaderText = builder.leftHeaderText;
+    final headerLogoImage = builder.headerLogoImage;
+    final headerStyle = builder.headerStyle;
+    final font = builder.font;
+    final boldFont = builder.boldFont;
+    final random = builder._random;
+    final doc = builder._doc;
 
     final dateLabel = '${test.hijriMonth} ${test.hijriYear}هـ';
-    final random = Random();
 
-    final doc = pw.Document();
+    // رقم الصفحة في مستند التصدير الجماعي تراكمي عبر الاختبارات، فلا يصلح
+    // `pageNumber == 1` لتحديد أول صفحة؛ أول استدعاء للترويسة في هذا
+    // الاختبار هو أول صفحاته دائماً (وهو 1 في الاختبار المنفرد).
+    int? firstPageNumber;
+    bool isFirstPageOfTest(pw.Context context) {
+      firstPageNumber ??= context.pageNumber;
+      return context.pageNumber == firstPageNumber;
+    }
 
     doc.addPage(
       pw.MultiPage(
@@ -66,7 +104,7 @@ class SummerTestPdfGenerator {
         // وتُوزَّع فعلياً (تحتاج هامشاً آمناً للطباعة).
         margin: const pw.EdgeInsets.all(36),
         theme: pw.ThemeData.withFont(base: font, bold: boldFont),
-        header: (context) => context.pageNumber == 1
+        header: (context) => isFirstPageOfTest(context)
             ? (headerStyle == SummerTestHeaderStyle.compact
                 ? SummerTestCompactHeader.build(
                     data: SummerTestHeaderData(
@@ -119,8 +157,6 @@ class SummerTestPdfGenerator {
         ],
       ),
     );
-
-    return doc.save();
   }
 
   /// الترويسة القديمة لأول صفحة، كما كانت تماماً قبل إضافة الترويسة المدمجة
@@ -469,4 +505,102 @@ class SummerTestPdfGenerator {
       ),
     );
   }
+}
+
+/// خطّا Amiri (العادي والعريض) كبايتات خام. تُحمَّل من أصول التطبيق في
+/// الاستعمال العادي، ويمكن تمريرها جاهزة في الاختبارات (بلا `rootBundle`).
+class SummerTestPdfFonts {
+  final ByteData regular;
+  final ByteData bold;
+
+  const SummerTestPdfFonts({required this.regular, required this.bold});
+
+  static Future<SummerTestPdfFonts> loadFromAssets() async {
+    final regular = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
+    final bold = await rootBundle.load('assets/fonts/Amiri-Bold.ttf');
+    return SummerTestPdfFonts(regular: regular, bold: bold);
+  }
+}
+
+/// بيانات اختبار واحد داخل ملف PDF: الاختبار وأسئلته وأسماء المستوى والمادة.
+class SummerTestPdfInput {
+  final SummerTest test;
+  final List<SummerTestQuestion> questions;
+  final String levelName;
+  final String subjectName;
+
+  const SummerTestPdfInput({
+    required this.test,
+    required this.questions,
+    required this.levelName,
+    required this.subjectName,
+  });
+}
+
+/// يبني مستند PDF واحداً من اختبار أو أكثر: كل اختبار يبدأ بصفحة جديدة
+/// بترويسته الكاملة (مستقلاً عن غيره)، ويشترك الجميع في الخطّين والشعار
+/// (يُضمَّنان مرة واحدة في الملف) فيبقى الحجم صغيراً.
+///
+/// تُحمَّل الخطوط مرة واحدة في [create]، ثم تُضاف الاختبارات بـ[addTest]
+/// واحداً واحداً (فيستطيع المستدعي عرض تقدّم وإلغاء بين اختبار وآخر)، وأخيراً
+/// [build].
+class SummerTestPdfBundleBuilder {
+  final String centerName;
+  final String mosqueName;
+  final String effectiveRightHeaderText;
+  final String? leftHeaderText;
+  final pw.MemoryImage? headerLogoImage;
+  final SummerTestHeaderStyle headerStyle;
+  final pw.Font font;
+  final pw.Font boldFont;
+
+  final Random _random = Random();
+  final pw.Document _doc = pw.Document();
+  int _testsCount = 0;
+
+  SummerTestPdfBundleBuilder._({
+    required this.centerName,
+    required this.mosqueName,
+    required this.effectiveRightHeaderText,
+    required this.leftHeaderText,
+    required this.headerLogoImage,
+    required this.headerStyle,
+    required this.font,
+    required this.boldFont,
+  });
+
+  /// ترويسة المسجد — نفس حقول تقرير الحلقة الشهري تماماً: null = المسجد لم
+  /// يخصِّص شيئاً فيُستخدم النص الافتراضي، ونص فارغ '' = حذف متعمَّد.
+  static Future<SummerTestPdfBundleBuilder> create({
+    required String centerName,
+    required String mosqueName,
+    String? rightHeaderText,
+    String? leftHeaderText,
+    Uint8List? headerLogoBytes,
+    SummerTestHeaderStyle headerStyle = SummerTestHeaderStyle.compact,
+    SummerTestPdfFonts? fonts,
+  }) async {
+    final loaded = fonts ?? await SummerTestPdfFonts.loadFromAssets();
+    return SummerTestPdfBundleBuilder._(
+      centerName: centerName,
+      mosqueName: mosqueName,
+      effectiveRightHeaderText: rightHeaderText ?? Mosque.defaultRightHeaderText,
+      leftHeaderText: leftHeaderText,
+      headerLogoImage:
+          headerLogoBytes != null ? pw.MemoryImage(headerLogoBytes) : null,
+      headerStyle: headerStyle,
+      font: pw.Font.ttf(loaded.regular),
+      boldFont: pw.Font.ttf(loaded.bold),
+    );
+  }
+
+  /// عدد الاختبارات المضافة حتى الآن.
+  int get testsCount => _testsCount;
+
+  void addTest(SummerTestPdfInput input) {
+    SummerTestPdfGenerator._addTestPages(this, input);
+    _testsCount++;
+  }
+
+  Future<Uint8List> build() => _doc.save();
 }
