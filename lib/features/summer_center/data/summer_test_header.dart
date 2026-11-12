@@ -190,7 +190,7 @@ class SummerTestCompactHeader {
     const border = pw.BorderSide(color: PdfColors.black, width: _borderWidth);
     return pw.Container(
       padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-      decoration: pw.BoxDecoration(
+      decoration: const pw.BoxDecoration(
         border: pw.Border(left: border, right: border, bottom: border),
       ),
       child: pw.Row(
