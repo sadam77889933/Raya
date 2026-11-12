@@ -9,6 +9,7 @@ import '../../mosques/domain/entities/mosque.dart';
 import '../domain/entities/summer_question_type.dart';
 import '../domain/entities/summer_test.dart';
 import '../domain/entities/summer_test_question.dart';
+import 'summer_test_header.dart';
 
 /// يولّد ملف PDF لورقة اختبار المركز الصيفي — لا تُطبَع أي إجابة صحيحة
 /// على الإطلاق (لا تحديد للخيار الصحيح، لا علامة على صح/خطأ، لا ترتيب
@@ -34,6 +35,9 @@ class SummerTestPdfGenerator {
     String? rightHeaderText,
     String? leftHeaderText,
     Uint8List? headerLogoBytes,
+    // نمط ترويسة الصفحة الأولى: المدمجة افتراضياً، و`classic` هي الترويسة
+    // القديمة بلا أي تغيير (للرجوع إليها عند الحاجة).
+    SummerTestHeaderStyle headerStyle = SummerTestHeaderStyle.compact,
   }) async {
     final regularData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
     final boldData = await rootBundle.load('assets/fonts/Amiri-Bold.ttf');
@@ -63,75 +67,36 @@ class SummerTestPdfGenerator {
         margin: const pw.EdgeInsets.all(36),
         theme: pw.ThemeData.withFont(base: font, bold: boldFont),
         header: (context) => context.pageNumber == 1
-            ? pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                children: [
-                  _mosqueHeader(font, boldFont, effectiveRightHeaderText, leftHeaderText, headerLogoImage),
-                  pw.SizedBox(height: 10),
-                  pw.Center(
-                    child: pw.Text('${test.title} — مادة $subjectName',
-                        style: pw.TextStyle(font: boldFont, fontSize: 15)),
-                  ),
-                  pw.SizedBox(height: 3),
-                  pw.Center(
-                    child: pw.Text('$centerName — $mosqueName',
-                        style: pw.TextStyle(font: font, fontSize: 10.5, color: PdfColors.grey700)),
-                  ),
-                  pw.SizedBox(height: 10),
-                  pw.Container(height: 1.6, color: PdfColors.black),
-                  pw.SizedBox(height: 10),
-                  pw.Container(
-                    padding: const pw.EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.black)),
-                    child: pw.Column(
-                      children: [
-                        _metaRow(leftLabel: 'المادة: ', leftValue: subjectName, rightLabel: 'المستوى: ', rightValue: levelName, font: font, boldFont: boldFont),
-                        pw.SizedBox(height: 6),
-                        _metaRow(leftLabel: 'التاريخ: ', leftValue: dateLabel, rightLabel: 'المعلمة: ', rightValue: test.teacherName, font: font, boldFont: boldFont),
-                      ],
+            ? (headerStyle == SummerTestHeaderStyle.compact
+                ? SummerTestCompactHeader.build(
+                    data: SummerTestHeaderData(
+                      title: test.title,
+                      subjectName: subjectName,
+                      levelName: levelName,
+                      teacherName: test.teacherName,
+                      dateLabel: dateLabel,
+                      centerName: centerName,
+                      mosqueName: mosqueName,
+                      rightLines: SummerTestHeaderData.splitLines(effectiveRightHeaderText),
+                      leftLines: SummerTestHeaderData.splitLines(leftHeaderText),
+                      logo: headerLogoImage,
                     ),
-                  ),
-                  pw.Container(
-                    padding: const pw.EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                    decoration: pw.BoxDecoration(
-                      border: pw.Border(
-                        left: pw.BorderSide(color: PdfColors.black),
-                        right: pw.BorderSide(color: PdfColors.black),
-                        bottom: pw.BorderSide(color: PdfColors.black),
-                      ),
-                    ),
-                    child: pw.Row(
-                      children: [
-                        pw.Container(
-                          padding: const pw.EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                          decoration: pw.BoxDecoration(
-                            border: pw.Border.all(color: PdfColors.black),
-                            borderRadius: pw.BorderRadius.circular(4),
-                          ),
-                          child: pw.Text('الدرجة:      ', style: pw.TextStyle(font: boldFont, fontSize: 10.5)),
-                        ),
-                        pw.SizedBox(width: 20),
-                        pw.Expanded(
-                          child: pw.Row(
-                            children: [
-                              pw.Text('اسم الطالبة: ', style: pw.TextStyle(font: boldFont, fontSize: 11)),
-                              pw.Expanded(
-                                child: pw.Container(
-                                  margin: const pw.EdgeInsets.only(top: 10),
-                                  decoration: pw.BoxDecoration(
-                                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey600, width: 0.7)),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  pw.SizedBox(height: 18),
-                ],
-              )
+                    font: font,
+                    boldFont: boldFont,
+                  )
+                : _classicFirstPageHeader(
+                    test: test,
+                    centerName: centerName,
+                    mosqueName: mosqueName,
+                    levelName: levelName,
+                    subjectName: subjectName,
+                    dateLabel: dateLabel,
+                    rightHeaderText: effectiveRightHeaderText,
+                    leftHeaderText: leftHeaderText,
+                    logo: headerLogoImage,
+                    font: font,
+                    boldFont: boldFont,
+                  ))
             : pw.SizedBox(height: 0),
         footer: (context) => pw.Column(
           children: [
@@ -156,6 +121,92 @@ class SummerTestPdfGenerator {
     );
 
     return doc.save();
+  }
+
+  /// الترويسة القديمة لأول صفحة، كما كانت تماماً قبل إضافة الترويسة المدمجة
+  /// (نحو ثلث الصفحة). لا يستعملها التطبيق افتراضياً، وتبقى للرجوع إليها.
+  static pw.Widget _classicFirstPageHeader({
+    required SummerTest test,
+    required String centerName,
+    required String mosqueName,
+    required String levelName,
+    required String subjectName,
+    required String dateLabel,
+    required String rightHeaderText,
+    required String? leftHeaderText,
+    required pw.MemoryImage? logo,
+    required pw.Font font,
+    required pw.Font boldFont,
+  }) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        _mosqueHeader(font, boldFont, rightHeaderText, leftHeaderText, logo),
+        pw.SizedBox(height: 10),
+        pw.Center(
+          child: pw.Text('${test.title} — مادة $subjectName',
+              style: pw.TextStyle(font: boldFont, fontSize: 15)),
+        ),
+        pw.SizedBox(height: 3),
+        pw.Center(
+          child: pw.Text('$centerName — $mosqueName',
+              style: pw.TextStyle(font: font, fontSize: 10.5, color: PdfColors.grey700)),
+        ),
+        pw.SizedBox(height: 10),
+        pw.Container(height: 1.6, color: PdfColors.black),
+        pw.SizedBox(height: 10),
+        pw.Container(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.black)),
+          child: pw.Column(
+            children: [
+              _metaRow(leftLabel: 'المادة: ', leftValue: subjectName, rightLabel: 'المستوى: ', rightValue: levelName, font: font, boldFont: boldFont),
+              pw.SizedBox(height: 6),
+              _metaRow(leftLabel: 'التاريخ: ', leftValue: dateLabel, rightLabel: 'المعلمة: ', rightValue: test.teacherName, font: font, boldFont: boldFont),
+            ],
+          ),
+        ),
+        pw.Container(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: pw.BoxDecoration(
+            border: pw.Border(
+              left: pw.BorderSide(color: PdfColors.black),
+              right: pw.BorderSide(color: PdfColors.black),
+              bottom: pw.BorderSide(color: PdfColors.black),
+            ),
+          ),
+          child: pw.Row(
+            children: [
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.black),
+                  borderRadius: pw.BorderRadius.circular(4),
+                ),
+                child: pw.Text('الدرجة:      ', style: pw.TextStyle(font: boldFont, fontSize: 10.5)),
+              ),
+              pw.SizedBox(width: 20),
+              pw.Expanded(
+                child: pw.Row(
+                  children: [
+                    pw.Text('اسم الطالبة: ', style: pw.TextStyle(font: boldFont, fontSize: 11)),
+                    pw.Expanded(
+                      child: pw.Container(
+                        margin: const pw.EdgeInsets.only(top: 10),
+                        decoration: pw.BoxDecoration(
+                          border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey600, width: 0.7)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        pw.SizedBox(height: 18),
+      ],
+    );
   }
 
   static pw.Widget _questionBlock(
