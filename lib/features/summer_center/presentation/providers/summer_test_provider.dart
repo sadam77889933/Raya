@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../domain/entities/hijri_month_period.dart';
+import '../../domain/entities/hijri_month_range.dart';
 import '../../domain/entities/summer_test.dart';
 import '../../domain/entities/summer_test_question.dart';
 import 'summer_center_provider.dart';
@@ -39,24 +39,24 @@ final summerTeacherTestsProvider = StreamProvider.family
 /// فلاتر شاشة "اختبارات المعلمات" عند المشرفة — [centerId] مُلزَم دائماً
 /// (لا استعلام بلا نطاق مركز محدَّد)، وبقية الحقول اختيارية.
 ///
-/// [period] هو الشهر الهجري المعروض؛ null = بلا تقييد بشهر (السلوك السابق).
+/// [range] هي الفترة الهجرية المعروضة (من شهر إلى شهر)؛ null = بلا تقييد بشهر.
 class SummerTestFilter extends Equatable {
   final String centerId;
   final String? levelId;
   final String? subjectId;
   final String? teacherId;
-  final HijriMonthPeriod? period;
+  final HijriMonthRange? range;
 
   const SummerTestFilter({
     required this.centerId,
     this.levelId,
     this.subjectId,
     this.teacherId,
-    this.period,
+    this.range,
   });
 
   @override
-  List<Object?> get props => [centerId, levelId, subjectId, teacherId, period];
+  List<Object?> get props => [centerId, levelId, subjectId, teacherId, range];
 }
 
 final summerTestsFilteredProvider = StreamProvider.family
@@ -69,8 +69,7 @@ final summerTestsFilteredProvider = StreamProvider.family
         levelId: filter.levelId,
         subjectId: filter.subjectId,
         teacherId: filter.teacherId,
-        hijriMonth: filter.period?.month,
-        hijriYear: filter.period?.year,
+        range: filter.range,
       );
 });
 

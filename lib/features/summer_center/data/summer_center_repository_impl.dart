@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/utils/combine_latest_lists.dart';
+import '../domain/entities/hijri_month_range.dart';
 import '../domain/entities/summer_assignment.dart';
 import '../domain/entities/summer_center.dart';
 import '../domain/entities/summer_level.dart';
@@ -265,36 +267,55 @@ class SummerCenterRepositoryImpl {
   /// اختبارات مركز صيفي كامل بفلاتر اختيارية (لشاشة المشرفة) — يُشترَط
   /// تمرير [centerId] دائماً (لا استعلام بلا نطاق مركز محدَّد على الإطلاق).
   ///
-  /// [hijriMonth] و[hijriYear] شرطا مساواة على الخادم (كبقية الفلاتر)، فلا
-  /// تُحمَّل اختبارات الأشهر الأخرى، ولا يحتاجان فهرساً مركّباً لأن كل
-  /// الشروط مساواة ولا يوجد orderBy.
+  /// [range] فترة من شهر هجري إلى شهر هجري (شاملة)، وتُصفّى على الخادم: استعلام
+  /// واحد لكل سنة هجرية في الفترة (`hijriYear == السنة` و`hijriMonth in
+  /// أشهرها`، وهي 12 كحد أقصى)، فلا تُحمَّل اختبارات الأشهر الأخرى. تُدمج
+  /// نتائج الاستعلامات في قائمة واحدة مرتَّبة بالأحدث. كل الشروط مساواة/`in`
+  /// ولا يوجد orderBy، فلا حاجة لفهرس مركّب. [range] = null بلا تقييد بشهر.
   Stream<List<SummerTest>> watchTestsFiltered({
     required String centerId,
     String? levelId,
     String? subjectId,
     String? teacherId,
-    String? hijriMonth,
-    String? hijriYear,
+    HijriMonthRange? range,
   }) {
-    Query<Map<String, dynamic>> query = _firestore
+    Query<Map<String, dynamic>> base = _firestore
         .collection(_testsCollection)
         .where('centerId', isEqualTo: centerId);
-    if (hijriYear != null) query = query.where('hijriYear', isEqualTo: hijriYear);
-    if (hijriMonth != null) {
-      query = query.where('hijriMonth', isEqualTo: hijriMonth);
-    }
-    if (levelId != null) query = query.where('levelId', isEqualTo: levelId);
+    if (levelId != null) base = base.where('levelId', isEqualTo: levelId);
     if (subjectId != null) {
-      query = query.where('subjectId', isEqualTo: subjectId);
+      base = base.where('subjectId', isEqualTo: subjectId);
     }
     if (teacherId != null) {
-      query = query.where('teacherId', isEqualTo: teacherId);
+      base = base.where('teacherId', isEqualTo: teacherId);
     }
-    return query.snapshots().map((snap) {
-      final tests =
-          snap.docs.map((d) => SummerTest.fromJson(d.id, d.data())).toList();
-      tests.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return tests;
+
+    final queries = <Query<Map<String, dynamic>>>[];
+    if (range == null) {
+      queries.add(base);
+    } else {
+      range.monthsByYear.forEach((year, months) {
+        final inYear = base.where('hijriYear', isEqualTo: year);
+        queries.add(
+          months.length == 1
+              ? inYear.where('hijriMonth', isEqualTo: months.first)
+              : inYear.where('hijriMonth', whereIn: months),
+        );
+      });
+    }
+
+    final streams = [
+      for (final query in queries)
+        query.snapshots().map(
+              (snap) => [
+                for (final d in snap.docs) SummerTest.fromJson(d.id, d.data()),
+              ],
+            ),
+    ];
+    return combineLatestLists<SummerTest>(streams).map((tests) {
+      final sorted = [...tests];
+      sorted.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return sorted;
     });
   }
 

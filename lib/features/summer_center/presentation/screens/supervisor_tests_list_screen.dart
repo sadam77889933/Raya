@@ -9,6 +9,7 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../mosques/presentation/providers/mosque_provider.dart';
 import '../../data/summer_tests_export_service.dart';
 import '../../domain/entities/hijri_month_period.dart';
+import '../../domain/entities/hijri_month_range.dart';
 import '../../domain/entities/summer_assignment.dart';
 import '../../domain/entities/summer_center.dart';
 import '../../domain/entities/summer_test.dart';
@@ -19,15 +20,15 @@ import '../providers/summer_subject_provider.dart';
 import '../providers/summer_test_provider.dart';
 import '../providers/summer_tests_export_provider.dart';
 import '../widgets/export_progress_dialog.dart';
-import '../widgets/month_period_selector.dart';
+import '../widgets/month_range_selector.dart';
 import '../widgets/tests_export_bar.dart';
 import '../widgets/tests_select_all_header.dart';
 import 'test_editor_screen.dart';
 
 /// شاشة "اختبارات المعلمات" — مراجعة المشرفة لكل اختبارات مركز صيفي واحد
-/// بفلاتر: الشهر الهجري (الشهر الحالي افتراضياً، والأشهر السابقة عبر زر
-/// «عرض الأشهر السابقة»)، ثم اختيارياً مستوى/مادة/معلمة. لا استعلام بلا
-/// نطاق مركز محدَّد (centerId مُلزَم دائماً في summerTestsFilteredProvider).
+/// بفلاتر: فترة هجرية «من شهر إلى شهر» (الافتراضي: الشهر الحالي والشهر
+/// الذي قبله)، ثم اختيارياً مستوى/مادة/معلمة. لا استعلام بلا نطاق مركز
+/// محدَّد (centerId مُلزَم دائماً في summerTestsFilteredProvider).
 ///
 /// يمكن تحديد اختبارات (يدوياً أو «تحديد الكل» للظاهر فقط) وتصديرها في ملف
 /// PDF واحد ومشاركته. أي تغيير في أي فلتر يُفرِّغ التحديد.
@@ -43,15 +44,15 @@ class _SupervisorTestsListScreenState extends ConsumerState<SupervisorTestsListS
   String? _levelFilter;
   String? _subjectFilter;
   String? _teacherFilter;
-  late HijriMonthPeriod _period;
+  late HijriMonthRange _range;
   TestsSelection _selection = const TestsSelection.empty();
   bool _exporting = false;
 
   @override
   void initState() {
     super.initState();
-    // الشهر الحالي عند كل فتح للشاشة، فيظهر الشهر الجديد تلقائياً.
-    _period = HijriMonthPeriod.current();
+    // الشهر الحالي والذي قبله عند كل فتح للشاشة، فيتقدّم النطاق مع الشهور.
+    _range = HijriMonthRange.recent();
   }
 
   /// أي تغيير في الفلاتر يُفرِّغ التحديد، فلا يبقى اختبار محدَّد غير ظاهر.
@@ -62,10 +63,16 @@ class _SupervisorTestsListScreenState extends ConsumerState<SupervisorTestsListS
     });
   }
 
-  Future<void> _openPastMonths(HijriMonthPeriod current) async {
-    final picked = await showPastMonthsSheet(context, current: current, selected: _period);
-    if (!mounted || picked == null || picked == _period) return;
-    _changeFilter(() => _period = picked);
+  /// من حالة «لا اختبارات»: اختيار شهر بداية أقدم لتوسيع الفترة.
+  Future<void> _chooseEarlierStart(HijriMonthPeriod current) async {
+    final picked = await showMonthPickerSheet(
+      context,
+      title: 'شهر البداية',
+      current: current,
+      selected: _range.from,
+    );
+    if (!mounted || picked == null || picked == _range.from) return;
+    _changeFilter(() => _range = _range.withFrom(picked));
   }
 
   Future<void> _exportSelected(List<SummerTestsExportItem> items) async {
@@ -110,7 +117,7 @@ class _SupervisorTestsListScreenState extends ConsumerState<SupervisorTestsListS
         result.bytes,
         fileName: SummerTestsExportService.fileName(
           tests: [for (final item in items) item.test],
-          periodLabel: _period.label,
+          periodLabel: _range.label,
         ),
       );
       final skipped = result.skippedWithoutQuestions.length;
@@ -160,7 +167,7 @@ class _SupervisorTestsListScreenState extends ConsumerState<SupervisorTestsListS
       levelId: _levelFilter,
       subjectId: _subjectFilter,
       teacherId: _teacherFilter,
-      period: _period,
+      range: _range,
     )));
 
     // «الظاهر» = ما تعرضه القائمة الآن؛ يُقاطَع معه كل تحديد وكل تصدير.
@@ -201,22 +208,27 @@ class _SupervisorTestsListScreenState extends ConsumerState<SupervisorTestsListS
               ),
               child: Column(
                 children: [
-                  MonthPeriodSelector(
-                    selected: _period,
+                  MonthRangeSelector(
+                    range: _range,
                     current: currentPeriod,
-                    onChanged: (period) => _changeFilter(() => _period = period),
+                    onChanged: (range) => _changeFilter(() => _range = range),
                   ),
                   const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<String?>(
+                          isExpanded: true,
                           value: _levelFilter,
-                          decoration: const InputDecoration(labelText: 'المستوى', isDense: true),
+                          decoration: const InputDecoration(
+                            labelText: 'المستوى',
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                          ),
                           items: [
-                            const DropdownMenuItem(value: null, child: Text('كل المستويات', style: TextStyle(fontFamily: 'Tajawal', fontSize: 12.5))),
+                            const DropdownMenuItem(value: null, child: Text('كل المستويات', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: 'Tajawal', fontSize: 12.5))),
                             for (final l in levels)
-                              DropdownMenuItem(value: l.id, child: Text(l.name, style: const TextStyle(fontFamily: 'Tajawal', fontSize: 12.5))),
+                              DropdownMenuItem(value: l.id, child: Text(l.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'Tajawal', fontSize: 12.5))),
                           ],
                           onChanged: (value) => _changeFilter(() => _levelFilter = value),
                         ),
@@ -224,12 +236,17 @@ class _SupervisorTestsListScreenState extends ConsumerState<SupervisorTestsListS
                       const SizedBox(width: 10),
                       Expanded(
                         child: DropdownButtonFormField<String?>(
+                          isExpanded: true,
                           value: _subjectFilter,
-                          decoration: const InputDecoration(labelText: 'المادة', isDense: true),
+                          decoration: const InputDecoration(
+                            labelText: 'المادة',
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                          ),
                           items: [
-                            const DropdownMenuItem(value: null, child: Text('كل المواد', style: TextStyle(fontFamily: 'Tajawal', fontSize: 12.5))),
+                            const DropdownMenuItem(value: null, child: Text('كل المواد', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: 'Tajawal', fontSize: 12.5))),
                             for (final s in subjects)
-                              DropdownMenuItem(value: s.id, child: Text(s.name, style: const TextStyle(fontFamily: 'Tajawal', fontSize: 12.5))),
+                              DropdownMenuItem(value: s.id, child: Text(s.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'Tajawal', fontSize: 12.5))),
                           ],
                           onChanged: (value) => _changeFilter(() => _subjectFilter = value),
                         ),
@@ -238,12 +255,13 @@ class _SupervisorTestsListScreenState extends ConsumerState<SupervisorTestsListS
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String?>(
+                    isExpanded: true,
                     value: _teacherFilter,
                     decoration: const InputDecoration(labelText: 'المعلمة', isDense: true),
                     items: [
-                      const DropdownMenuItem(value: null, child: Text('كل المعلمات', style: TextStyle(fontFamily: 'Tajawal', fontSize: 12.5))),
+                      const DropdownMenuItem(value: null, child: Text('كل المعلمات', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: 'Tajawal', fontSize: 12.5))),
                       for (final entry in teachersById.entries)
-                        DropdownMenuItem(value: entry.key, child: Text(entry.value, style: const TextStyle(fontFamily: 'Tajawal', fontSize: 12.5))),
+                        DropdownMenuItem(value: entry.key, child: Text(entry.value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'Tajawal', fontSize: 12.5))),
                     ],
                     onChanged: (value) => _changeFilter(() => _teacherFilter = value),
                   ),
@@ -258,9 +276,9 @@ class _SupervisorTestsListScreenState extends ConsumerState<SupervisorTestsListS
                 data: (tests) {
                   if (tests.isEmpty) {
                     return _NoTestsState(
-                      periodLabel: _period.label,
+                      range: _range,
                       hasOtherFilters: hasOtherFilters,
-                      onShowPastMonths: () => _openPastMonths(currentPeriod),
+                      onChooseEarlierStart: () => _chooseEarlierStart(currentPeriod),
                     );
                   }
                   return Column(
@@ -325,20 +343,21 @@ class _SupervisorTestsListScreenState extends ConsumerState<SupervisorTestsListS
   }
 }
 
-/// حالة «لا اختبارات في هذا الشهر» — مع طريق مباشر إلى الأشهر السابقة.
+/// حالة «لا اختبارات في هذه الفترة» — مع طريق مباشر لتوسيعها إلى أشهر أقدم.
 class _NoTestsState extends StatelessWidget {
-  final String periodLabel;
+  final HijriMonthRange range;
   final bool hasOtherFilters;
-  final VoidCallback onShowPastMonths;
+  final VoidCallback onChooseEarlierStart;
 
   const _NoTestsState({
-    required this.periodLabel,
+    required this.range,
     required this.hasOtherFilters,
-    required this.onShowPastMonths,
+    required this.onChooseEarlierStart,
   });
 
   @override
   Widget build(BuildContext context) {
+    final where = range.isSingleMonth ? 'في ${range.label}' : 'في الفترة ${range.label}';
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -346,14 +365,14 @@ class _NoTestsState extends StatelessWidget {
           Icon(Icons.event_busy_outlined, size: 44, color: Colors.grey.shade400),
           const SizedBox(height: 10),
           Text(
-            hasOtherFilters ? 'لا توجد اختبارات مطابقة في $periodLabel' : 'لا توجد اختبارات في $periodLabel',
+            hasOtherFilters ? 'لا توجد اختبارات مطابقة $where' : 'لا توجد اختبارات $where',
             textAlign: TextAlign.center,
             style: TextStyle(fontFamily: 'Tajawal', color: Colors.grey.shade500),
           ),
           const SizedBox(height: 6),
           TextButton(
-            onPressed: onShowPastMonths,
-            child: const Text('عرض الأشهر السابقة'),
+            onPressed: onChooseEarlierStart,
+            child: const Text('اختيار شهر بداية أقدم'),
           ),
         ],
       ),

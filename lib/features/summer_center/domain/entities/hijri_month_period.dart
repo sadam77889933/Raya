@@ -41,6 +41,13 @@ class HijriMonthPeriod extends Equatable {
 
   int get _monthIndex => QuranConstants.hijriMonths.indexOf(month);
 
+  /// هل اسم الشهر معروف والسنة رقمية؟ (وإلا لا يصلح للحساب والمقارنة).
+  bool get isValid => _monthIndex >= 0 && int.tryParse(year) != null;
+
+  /// مفتاح رتيب يزيد بواحد مع كل شهر عبر حدود السنوات، للمقارنة والترتيب
+  /// (انظر [QuranConstants.hijriPeriodKey]).
+  int get key => QuranConstants.hijriPeriodKey(month, year);
+
   /// الشهر السابق مباشرة (مع عبور حدود السنة)، أو هذا الشهر نفسه إن كان
   /// اسم الشهر غير معروف.
   HijriMonthPeriod previous() {
@@ -57,6 +64,25 @@ class HijriMonthPeriod extends Equatable {
     return HijriMonthPeriod(
       month: QuranConstants.hijriMonths.last,
       year: '${yearNumber - 1}',
+    );
+  }
+
+  /// الشهر التالي مباشرة (مع عبور حدود السنة)، أو هذا الشهر نفسه إن كان
+  /// اسم الشهر غير معروف.
+  HijriMonthPeriod next() {
+    final index = _monthIndex;
+    if (index < 0) return this;
+    if (index < QuranConstants.hijriMonths.length - 1) {
+      return HijriMonthPeriod(
+        month: QuranConstants.hijriMonths[index + 1],
+        year: year,
+      );
+    }
+    final yearNumber = int.tryParse(year);
+    if (yearNumber == null) return this;
+    return HijriMonthPeriod(
+      month: QuranConstants.hijriMonths.first,
+      year: '${yearNumber + 1}',
     );
   }
 

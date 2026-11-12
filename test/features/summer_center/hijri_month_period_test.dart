@@ -32,6 +32,39 @@ void main() {
       expect(period.previous(), equals(const HijriMonthPeriod(month: 'ذو الحجة', year: '1447')));
     });
 
+    test('next داخل السنة نفسها', () {
+      const period = HijriMonthPeriod(month: 'رجب', year: '1448');
+      expect(period.next(), equals(const HijriMonthPeriod(month: 'شعبان', year: '1448')));
+    });
+
+    test('next يعبر حدود السنة (ذو الحجة ← محرم من السنة التالية)', () {
+      const period = HijriMonthPeriod(month: 'ذو الحجة', year: '1447');
+      expect(period.next(), equals(const HijriMonthPeriod(month: 'محرم', year: '1448')));
+    });
+
+    test('next معكوس previous لكل أشهر السنة', () {
+      for (final month in QuranConstants.hijriMonths) {
+        final period = HijriMonthPeriod(month: month, year: '1448');
+        expect(period.next().previous(), equals(period), reason: month);
+        expect(period.previous().next(), equals(period), reason: month);
+      }
+    });
+
+    test('key يزيد بواحد بالضبط مع كل شهر عبر حدود السنوات', () {
+      var cursor = const HijriMonthPeriod(month: 'ذو القعدة', year: '1446');
+      for (var i = 0; i < 30; i++) {
+        final next = cursor.next();
+        expect(next.key, equals(cursor.key + 1), reason: '${cursor.label} ← ${next.label}');
+        cursor = next;
+      }
+    });
+
+    test('isValid: اسم شهر معروف وسنة رقمية فقط', () {
+      expect(const HijriMonthPeriod(month: 'رجب', year: '1448').isValid, isTrue);
+      expect(const HijriMonthPeriod(month: 'غير معروف', year: '1448').isValid, isFalse);
+      expect(const HijriMonthPeriod(month: 'رجب', year: 'abc').isValid, isFalse);
+    });
+
     test('previousMonths بالترتيب من الأحدث إلى الأقدم دون الشهر نفسه', () {
       const period = HijriMonthPeriod(month: 'رجب', year: '1448');
       final months = period.previousMonths(24);
@@ -53,15 +86,18 @@ void main() {
       expect(period.previousMonths(0), isEmpty);
     });
 
-    test('اسم شهر غير معروف: previous يُعيد الشهر نفسه وpreviousMonths فارغة', () {
+    test('اسم شهر غير معروف: previous وnext يُعيدان الشهر نفسه وpreviousMonths فارغة', () {
       const period = HijriMonthPeriod(month: 'غير معروف', year: '1448');
       expect(period.previous(), equals(period));
+      expect(period.next(), equals(period));
       expect(period.previousMonths(5), isEmpty);
     });
 
-    test('سنة غير رقمية في أول شهر: previous لا تنهار', () {
-      const period = HijriMonthPeriod(month: 'محرم', year: 'abc');
-      expect(period.previous(), equals(period));
+    test('سنة غير رقمية عند حدّ السنة: previous وnext لا ينهاران', () {
+      const first = HijriMonthPeriod(month: 'محرم', year: 'abc');
+      const last = HijriMonthPeriod(month: 'ذو الحجة', year: 'abc');
+      expect(first.previous(), equals(first));
+      expect(last.next(), equals(last));
     });
   });
 }
